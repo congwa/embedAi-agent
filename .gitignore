@@ -73,3 +73,10 @@ test-results
 YOUR_MEMORY_FILE_PATH
 
 .sessions/
+
+prompt.md
+prompt-*.md
+
+backend/data
+
+__pycache__
