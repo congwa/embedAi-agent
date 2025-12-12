@@ -6,6 +6,8 @@ import { getApiBaseUrl } from "./client";
 export async function* streamChat(
   request: ChatRequest
 ): AsyncGenerator<ChatEvent, void, unknown> {
+  console.log("[api] 发起聊天请求", request);
+  
   const response = await fetch(`${getApiBaseUrl()}/api/v1/chat`, {
     method: "POST",
     headers: {
@@ -14,8 +16,11 @@ export async function* streamChat(
     body: JSON.stringify(request),
   });
 
+  console.log("[api] 响应状态", response.status, response.statusText);
+
   if (!response.ok) {
     const error = await response.text();
+    console.error("[api] 请求失败", error);
     throw new Error(error || `HTTP ${response.status}`);
   }
 
@@ -26,12 +31,18 @@ export async function* streamChat(
 
   const decoder = new TextDecoder();
   let buffer = "";
+  let chunkCount = 0;
 
   try {
+    console.log("[api] 开始读取流");
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        console.log("[api] 流读取完成, 总chunks:", chunkCount);
+        break;
+      }
 
+      chunkCount++;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
@@ -42,15 +53,20 @@ export async function* streamChat(
           if (data) {
             try {
               const event = JSON.parse(data) as ChatEvent;
+              console.log("[api] 收到事件", event.type);
               yield event;
             } catch (e) {
-              console.error("解析事件失败:", e, data);
+              console.error("[api] 解析事件失败:", e, data);
             }
           }
         }
       }
     }
+  } catch (error) {
+    console.error("[api] 流读取错误:", error);
+    throw error;
   } finally {
     reader.releaseLock();
+    console.log("[api] 释放reader");
   }
 }

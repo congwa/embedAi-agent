@@ -21,12 +21,19 @@ export function useChat(
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isSending, setIsSending] = useState(false); // 标记正在发送消息
   const [error, setError] = useState<string | null>(null);
 
   // 加载会话消息
   const loadMessages = useCallback(async () => {
     if (!conversationId) {
       setMessages([]);
+      return;
+    }
+
+    // 如果正在发送消息，跳过加载（避免清空刚添加的消息）
+    if (isSending) {
+      console.log("[chat] 正在发送消息，跳过加载");
       return;
     }
 
@@ -47,14 +54,22 @@ export function useChat(
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId]);
+  }, [conversationId, isSending]);
 
   // 发送消息
   const sendMessage = useCallback(
-    async (content: string) => {
-      if (!userId || !conversationId || !content.trim()) return;
+    async (content: string, targetConversationId?: string) => {
+      const convId = targetConversationId || conversationId;
+      
+      if (!userId || !convId || !content.trim()) {
+        console.warn("[chat] 发送消息失败: 缺少必要参数", { userId, convId, content: content?.slice(0, 20) });
+        return;
+      }
+
+      console.log("[chat] 开始发送消息", { convId, content: content.slice(0, 30) });
 
       setError(null);
+      setIsSending(true); // 标记开始发送
       setIsStreaming(true);
 
       // 添加用户消息
@@ -63,7 +78,10 @@ export function useChat(
         role: "user",
         content: content.trim(),
       };
-      setMessages((prev) => [...prev, userMessage]);
+      setMessages((prev) => {
+        console.log("[chat] 添加用户消息, 当前消息数:", prev.length);
+        return [...prev, userMessage];
+      });
 
       // 添加空的助手消息（用于流式显示）
       const assistantMessageId = crypto.randomUUID();
@@ -73,17 +91,24 @@ export function useChat(
         content: "",
         isStreaming: true,
       };
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages((prev) => {
+        console.log("[chat] 添加助手消息, 当前消息数:", prev.length);
+        return [...prev, assistantMessage];
+      });
 
       try {
         let fullContent = "";
         let products: Product[] | undefined;
+        let eventCount = 0;
 
         for await (const event of streamChat({
           user_id: userId,
-          conversation_id: conversationId,
+          conversation_id: convId,
           message: content.trim(),
         })) {
+          eventCount++;
+          console.log("[chat] 收到事件", { type: event.type, eventCount });
+          
           if (event.type === "text" && event.content) {
             fullContent += event.content;
             setMessages((prev) =>
@@ -95,6 +120,7 @@ export function useChat(
             );
           } else if (event.type === "products" && event.data) {
             products = event.data;
+            console.log("[chat] 收到商品数据", products.length);
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === assistantMessageId
@@ -103,6 +129,7 @@ export function useChat(
               )
             );
           } else if (event.type === "done") {
+            console.log("[chat] 流式完成");
             setMessages((prev) =>
               prev.map((msg) =>
                 msg.id === assistantMessageId
@@ -121,7 +148,7 @@ export function useChat(
           }
         }
 
-        console.log("[chat] 消息发送完成");
+        console.log("[chat] 消息发送完成, 总事件数:", eventCount);
       } catch (error) {
         console.error("[chat] 发送消息失败:", error);
         setError(error instanceof Error ? error.message : "发送失败");
@@ -129,6 +156,7 @@ export function useChat(
         // 移除失败的助手消息
         setMessages((prev) => prev.filter((msg) => msg.id !== assistantMessageId));
       } finally {
+        setIsSending(false); // 发送完成
         setIsStreaming(false);
       }
     },

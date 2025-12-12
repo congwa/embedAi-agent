@@ -53,19 +53,21 @@ export function ChatApp() {
   // 发送消息（自动创建会话）
   const handleSendMessage = useCallback(
     async (content: string) => {
-      if (!currentConversationId) {
+      if (!userId) return;
+      
+      let conversationId = currentConversationId;
+      
+      // 如果没有会话，先创建
+      if (!conversationId) {
         const conversation = await createNewConversation();
-        if (conversation) {
-          // 等待一下让状态更新
-          setTimeout(() => {
-            sendMessage(content);
-          }, 100);
-        }
-      } else {
-        sendMessage(content);
+        if (!conversation) return;
+        conversationId = conversation.id;
       }
+      
+      // 使用指定的 conversationId 发送消息
+      sendMessage(content, conversationId);
     },
-    [currentConversationId, createNewConversation, sendMessage]
+    [userId, currentConversationId, createNewConversation, sendMessage]
   );
 
   // 加载中状态

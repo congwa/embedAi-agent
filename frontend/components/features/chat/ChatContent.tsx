@@ -78,8 +78,9 @@ export function ChatContent({
                         size="sm"
                         className="text-xs"
                         onClick={() => {
-                          setPrompt(suggestion);
+                          onSendMessage(suggestion);
                         }}
+                        disabled={isStreaming}
                       >
                         {suggestion}
                       </Button>
