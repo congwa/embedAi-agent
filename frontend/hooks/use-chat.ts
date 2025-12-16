@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Message } from "@/types/conversation";
 import type { Product } from "@/types/product";
 import { getConversation, streamChat } from "@/lib/api";
+import type { ChatEvent } from "@/types/chat";
 
 export interface ChatMessage {
   id: string;
@@ -62,11 +63,8 @@ export function useChat(
       const convId = targetConversationId || conversationId;
       
       if (!userId || !convId || !content.trim()) {
-        console.warn("[chat] 发送消息失败: 缺少必要参数", { userId, convId, content: content?.slice(0, 20) });
         return;
       }
-
-      console.log("[chat] 开始发送消息", { convId, content: content.slice(0, 30) });
 
       setError(null);
       setIsSending(true); // 标记开始发送
@@ -79,12 +77,11 @@ export function useChat(
         content: content.trim(),
       };
       setMessages((prev) => {
-        console.log("[chat] 添加用户消息, 当前消息数:", prev.length);
         return [...prev, userMessage];
       });
 
       // 添加空的助手消息（用于流式显示）
-      const assistantMessageId = crypto.randomUUID();
+      let assistantMessageId = crypto.randomUUID();
       const assistantMessage: ChatMessage = {
         id: assistantMessageId,
         role: "assistant",
@@ -92,51 +89,59 @@ export function useChat(
         isStreaming: true,
       };
       setMessages((prev) => {
-        console.log("[chat] 添加助手消息, 当前消息数:", prev.length);
         return [...prev, assistantMessage];
       });
 
       try {
         let fullContent = "";
         let products: Product[] | undefined;
-        let eventCount = 0;
 
         for await (const event of streamChat({
           user_id: userId,
           conversation_id: convId,
           message: content.trim(),
         })) {
-          eventCount++;
-          console.log("[chat] 收到事件", { type: event.type, eventCount });
+          const applyAssistantUpdate = (updater: (msg: ChatMessage) => ChatMessage) => {
+            setMessages((prev) =>
+              prev.map((msg) => (msg.id === assistantMessageId ? updater(msg) : msg))
+            );
+          };
+
+          if (event.type === "meta.start") {
+            const payload = event.payload as Extract<ChatEvent["payload"], { assistant_message_id: string }>;
+            if (payload?.assistant_message_id && payload.assistant_message_id !== assistantMessageId) {
+              const serverId = payload.assistant_message_id;
+              // 将前端临时 id 替换为服务端 message_id，保证渲染与落库对齐
+              setMessages((prev) =>
+                prev.map((msg) => (msg.id === assistantMessageId ? { ...msg, id: serverId } : msg))
+              );
+              assistantMessageId = serverId;
+            }
+            continue;
+          }
           
-          if (event.type === "text" && event.content) {
-            fullContent += event.content;
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantMessageId
-                  ? { ...msg, content: fullContent }
-                  : msg
-              )
-            );
-          } else if (event.type === "products" && event.data) {
-            products = event.data;
-            console.log("[chat] 收到商品数据", products.length);
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantMessageId
-                  ? { ...msg, products }
-                  : msg
-              )
-            );
-          } else if (event.type === "done") {
-            console.log("[chat] 流式完成");
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === assistantMessageId
-                  ? { ...msg, isStreaming: false }
-                  : msg
-              )
-            );
+          if (event.type === "assistant.delta") {
+            const payload = event.payload as Extract<ChatEvent["payload"], { delta: string }>;
+            if (payload?.delta) {
+              fullContent += payload.delta;
+              applyAssistantUpdate((msg) => ({ ...msg, content: fullContent }));
+            }
+          } else if (event.type === "assistant.products") {
+            const payload = event.payload as Extract<ChatEvent["payload"], { items: Product[] }>;
+            if (payload?.items) {
+              products = payload.items;
+              applyAssistantUpdate((msg) => ({ ...msg, products }));
+            }
+          } else if (event.type === "assistant.final") {
+            const payload = event.payload as Extract<ChatEvent["payload"], { content: string }>;
+            if (payload?.content) {
+              fullContent = payload.content;
+            }
+            if (payload && "products" in payload && Array.isArray((payload as any).products)) {
+              products = (payload as any).products as Product[];
+            }
+
+            applyAssistantUpdate((msg) => ({ ...msg, content: fullContent, products, isStreaming: false }));
             
             // 更新会话标题（使用用户第一条消息）
             if (messages.length === 0 && onTitleUpdate) {
@@ -144,13 +149,11 @@ export function useChat(
               onTitleUpdate(title);
             }
           } else if (event.type === "error") {
-            throw new Error(event.content || "聊天出错");
+            const payload = event.payload as Extract<ChatEvent["payload"], { message: string }>;
+            throw new Error(payload?.message || "聊天出错");
           }
         }
-
-        console.log("[chat] 消息发送完成, 总事件数:", eventCount);
       } catch (error) {
-        console.error("[chat] 发送消息失败:", error);
         setError(error instanceof Error ? error.message : "发送失败");
         
         // 移除失败的助手消息

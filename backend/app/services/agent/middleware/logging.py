@@ -12,6 +12,7 @@ from langchain.agents.middleware.types import AgentMiddleware, ModelRequest, Mod
 from langchain_core.messages import BaseMessage
 
 from app.core.logging import get_logger
+from app.schemas.events import StreamEventType
 
 logger = get_logger("middleware.llm")
 
@@ -50,6 +51,14 @@ class LoggingMiddleware(AgentMiddleware):
     ) -> ModelResponse:
         """记录 LLM 调用的输入输出"""
         start_time = time.time()
+        emitter = _try_get_emitter(request)
+        if emitter:
+            emitter.emit(
+                StreamEventType.LLM_CALL_START.value,
+                {
+                    "message_count": len(request.messages),
+                },
+            )
 
         # 序列化输入
         input_data = {
@@ -91,6 +100,14 @@ class LoggingMiddleware(AgentMiddleware):
             }
 
             logger.info("LLM 调用完成", llm_output=output_data)
+            if emitter:
+                emitter.emit(
+                    StreamEventType.LLM_CALL_END.value,
+                    {
+                        "elapsed_ms": elapsed_ms,
+                        "message_count": len(response.result),
+                    },
+                )
             return response
 
         except Exception as e:
@@ -102,6 +119,14 @@ class LoggingMiddleware(AgentMiddleware):
                 elapsed_ms=elapsed_ms,
                 exc_info=True,
             )
+            if emitter:
+                emitter.emit(
+                    StreamEventType.LLM_CALL_END.value,
+                    {
+                        "elapsed_ms": elapsed_ms,
+                        "error": str(e),
+                    },
+                )
             raise
 
     def _serialize_structured(self, obj: Any) -> dict[str, Any] | str:
@@ -114,3 +139,17 @@ class LoggingMiddleware(AgentMiddleware):
                     data[key] = value[:500] + "..."
             return data
         return str(obj)[:500]
+
+
+def _try_get_emitter(request: Any):
+    """尽量从 request 中取出 ChatContext.emitter（避免强依赖具体实现字段）。"""
+
+    # 约定：orchestrator 将 chat_context 放入 config/metadata 之类的字段中
+    for attr in ("config", "metadata"):
+        container = getattr(request, attr, None)
+        if isinstance(container, dict):
+            chat_context = container.get("chat_context") or container.get("metadata", {}).get("chat_context")
+            emitter = getattr(chat_context, "emitter", None)
+            if emitter and hasattr(emitter, "emit"):
+                return emitter
+    return None

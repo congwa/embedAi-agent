@@ -2,7 +2,6 @@
 
 import json
 from collections.abc import AsyncGenerator
-import profile
 from typing import Any
 
 import aiosqlite
@@ -10,12 +9,14 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
-from app.core.models_dev import get_model_profile
 
 from app.core.config import settings
 from app.core.llm import get_chat_model
 from app.core.logging import get_logger
 from app.services.agent.tools import search_products
+from app.services.agent.middleware.logging import LoggingMiddleware
+from app.services.streaming.context import ChatContext
+from app.schemas.events import StreamEventType
 
 logger = get_logger("agent")
 
@@ -143,12 +144,24 @@ class AgentService:
             checkpointer = await self._get_checkpointer()
             
             # 创建 Agent
-            self._agent = create_agent(
-                model=model,
-                tools=[search_products],
-                system_prompt=SYSTEM_PROMPT,
-                checkpointer=checkpointer,
-            )
+            try:
+                self._agent = create_agent(
+                    model=model,
+                    tools=[search_products],
+                    system_prompt=SYSTEM_PROMPT,
+                    checkpointer=checkpointer,
+                    middleware=[LoggingMiddleware()],
+                    context_schema=ChatContext,
+                )
+            except TypeError:
+                # 兼容较老版本：不支持 context_schema/middleware 时回退
+                logger.warning("create_agent 不支持 context_schema/middleware，回退为基础创建方式")
+                self._agent = create_agent(
+                    model=model,
+                    tools=[search_products],
+                    system_prompt=SYSTEM_PROMPT,
+                    checkpointer=checkpointer,
+                )
             
             logger.info("Agent 初始化完成")
         
@@ -159,6 +172,7 @@ class AgentService:
         message: str,
         conversation_id: str,
         user_id: str,
+        context: ChatContext | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
         """流式聊天
 
@@ -192,7 +206,9 @@ class AgentService:
         try:
             # ===== 步骤 2: 准备 Agent 输入 =====
             agent_input = {"messages": [HumanMessage(content=message)]}
-            agent_config = {"configurable": {"thread_id": conversation_id}}
+            agent_config: dict[str, Any] = {"configurable": {"thread_id": conversation_id}}
+            if context is not None:
+                agent_config["metadata"] = {"chat_context": context}
             
             logger.info(
                 "═══ [2/5] 准备 Agent 输入 ═══",
@@ -205,12 +221,22 @@ class AgentService:
             # ===== 步骤 3: 流式处理事件 =====
             logger.info("═══ [3/5] 开始流式处理 ═══")
             
-            async for event in agent.astream_events(
-                agent_input,
-                config=agent_config,
-                version="v2",
-            ):
-                print(f"on_chat_model_stream event: {event}")
+            try:
+                event_iter = agent.astream_events(
+                    agent_input,
+                    config=agent_config,
+                    version="v2",
+                    context=context,
+                )
+            except TypeError:
+                logger.warning("astream_events 不支持 context 参数，将忽略 context 注入")
+                event_iter = agent.astream_events(
+                    agent_input,
+                    config=agent_config,
+                    version="v2",
+                )
+
+            async for event in event_iter:
                 event_type = event.get("event")
                 event_name = event.get("name", "")
                 
@@ -236,8 +262,8 @@ class AgentService:
                         if chunk_reasoning:
                             reasoning_content += chunk_reasoning
                             yield {
-                                "type": "reasoning",
-                                "content": chunk_reasoning,
+                                "type": StreamEventType.ASSISTANT_REASONING_DELTA.value,
+                                "payload": {"delta": chunk_reasoning},
                             }
                         
                         # 处理普通文本内容
@@ -247,8 +273,8 @@ class AgentService:
                             chunk_count += 1
                             
                             yield {
-                                "type": "text",
-                                "content": content,
+                                "type": StreamEventType.ASSISTANT_DELTA.value,
+                                "payload": {"delta": content},
                             }
                 
                 # 处理工具调用开始
@@ -313,8 +339,12 @@ class AgentService:
                                 ],
                             )
                             yield {
-                                "type": "products",
-                                "data": products_data,
+                                "type": StreamEventType.ASSISTANT_PRODUCTS.value,
+                                "payload": {
+                                    "items": products_data
+                                    if isinstance(products_data, list)
+                                    else [products_data]
+                                },
                             }
                         except json.JSONDecodeError as e:
                             logger.error(
@@ -359,10 +389,14 @@ class AgentService:
             
             # ===== 步骤 5: 发送完成事件 =====
             done_event = {
-                "type": "done",
-                "content": full_content,
-                "reasoning": reasoning_content if reasoning_content else None,
-                "products": products_data,
+                "type": StreamEventType.ASSISTANT_FINAL.value,
+                "payload": {
+                    "content": full_content,
+                    "reasoning": reasoning_content if reasoning_content else None,
+                    "products": products_data
+                    if isinstance(products_data, list) or products_data is None
+                    else [products_data],
+                },
             }
             
             logger.info(

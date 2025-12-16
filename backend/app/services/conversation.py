@@ -56,9 +56,11 @@ class ConversationService:
         role: str,
         content: str,
         products: str | None = None,
+        *,
+        message_id: str | None = None,
     ) -> Message:
         """添加消息到会话"""
-        message_id = str(uuid.uuid4())
+        message_id = message_id or str(uuid.uuid4())
         message = await self.message_repo.create_message(
             message_id=message_id,
             conversation_id=conversation_id,

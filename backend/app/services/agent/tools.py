@@ -2,16 +2,18 @@
 
 import json
 
-from langchain.tools import tool
+from langchain.tools import ToolRuntime, tool
 
 from app.core.logging import get_logger
 from app.services.agent.retriever import get_retriever
+from app.services.streaming.context import ChatContext
+from app.schemas.events import StreamEventType
 
 logger = get_logger("tool")
 
 
 @tool
-def search_products(query: str) -> str:
+def search_products(query: str, runtime: ToolRuntime[ChatContext] | None = None) -> str:
     """根据用户需求搜索匹配的商品。
 
     Args:
@@ -20,6 +22,15 @@ def search_products(query: str) -> str:
     Returns:
         匹配的商品列表，包含名称、价格、描述等信息
     """
+    if runtime and getattr(runtime, "context", None) and getattr(runtime.context, "emitter", None):
+        runtime.context.emitter.emit(
+            StreamEventType.TOOL_START.value,
+            {
+                "name": "search_products",
+                "input": {"query": query},
+            },
+        )
+
     logger.info(
         "┌── 工具: search_products 开始 ──┐",
         input_data={
@@ -95,6 +106,15 @@ def search_products(query: str) -> str:
         
         # 步骤 4: 返回结果
         result_json = json.dumps(results, ensure_ascii=False, indent=2)
+        if runtime and getattr(runtime, "context", None) and getattr(runtime.context, "emitter", None):
+            runtime.context.emitter.emit(
+                StreamEventType.TOOL_END.value,
+                {
+                    "name": "search_products",
+                    "output_preview": results[:3],
+                    "count": len(results),
+                },
+            )
         logger.info(
             "└── 工具: search_products 结束 ──┘",
             output_data={
@@ -109,5 +129,13 @@ def search_products(query: str) -> str:
         return result_json
         
     except Exception as e:
+        if runtime and getattr(runtime, "context", None) and getattr(runtime.context, "emitter", None):
+            runtime.context.emitter.emit(
+                StreamEventType.TOOL_END.value,
+                {
+                    "name": "search_products",
+                    "error": str(e),
+                },
+            )
         logger.exception("搜索商品失败", query=query, error=str(e))
         return f"搜索失败: {e}"
