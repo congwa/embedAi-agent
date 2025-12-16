@@ -135,7 +135,7 @@ class ChatStreamOrchestrator:
 
             await producer_task
 
-            # 2) 落库（在流结束后）
+            # 2) 落库（仅在正常完成时保存）
             products_json = None
             if self._products is not None:
                 products_json = json.dumps(self._products, ensure_ascii=False)
@@ -146,6 +146,11 @@ class ChatStreamOrchestrator:
                 content=self._full_content,
                 products=products_json,
                 message_id=self._assistant_message_id,
+            )
+            logger.debug(
+                "已保存完整 assistant message",
+                message_id=self._assistant_message_id,
+                content_length=len(self._full_content),
             )
 
         except Exception as e:

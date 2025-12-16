@@ -14,6 +14,7 @@
 """
 
 import sys
+import asyncio
 import traceback
 from enum import Enum
 from functools import lru_cache
@@ -50,17 +51,53 @@ class LogMode(str, Enum):
 console = Console(force_terminal=True, color_system="auto")
 
 
-def get_caller_info(depth: int = 2) -> dict[str, Any]:
-    """获取调用者信息"""
-    try:
-        frame = sys._getframe(depth + 1)
-        return {
-            "file": Path(frame.f_code.co_filename).name,
-            "line": frame.f_lineno,
-            "function": frame.f_code.co_name,
-        }
-    except (ValueError, AttributeError):
-        return {"file": "unknown", "line": 0, "function": "unknown"}
+def _safe_for_logging(value: Any, *, _level: int = 0) -> Any:
+    """将任意对象转换为可序列化/可 picklable 的结构，避免 loguru enqueue/serialize 报错。"""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+
+    # asyncio Future/Task 等不可 picklable
+    if isinstance(value, (asyncio.Future, asyncio.Task)):
+        return repr(value)
+
+    # 常见容器
+    if isinstance(value, dict):
+        if _level >= 4:
+            return "{...}"
+        return {str(k): _safe_for_logging(v, _level=_level + 1) for k, v in value.items()}
+
+    if isinstance(value, (list, tuple, set)):
+        if _level >= 4:
+            return ["..."]
+        return [_safe_for_logging(v, _level=_level + 1) for v in value]
+
+    # Path 等
+    if isinstance(value, Path):
+        return str(value)
+
+    # Pydantic 模型
+    if hasattr(value, "model_dump"):
+        try:
+            return _safe_for_logging(value.model_dump(), _level=_level + 1)
+        except Exception:
+            return repr(value)
+
+    # ChatContext：只保留关键字段，避免把 emitter/loop/queue 带进日志
+    if value.__class__.__name__ == "ChatContext":
+        try:
+            return {
+                "conversation_id": getattr(value, "conversation_id", None),
+                "user_id": getattr(value, "user_id", None),
+                "assistant_message_id": getattr(value, "assistant_message_id", None),
+            }
+        except Exception:
+            return repr(value)
+
+    # 兜底：字符串化（限制长度避免巨日志）
+    text = repr(value)
+    if len(text) > 2000:
+        return text[:2000] + "..."
+    return text
 
 
 def format_simple(record: dict) -> str:
@@ -89,12 +126,21 @@ def format_detailed(record: dict) -> str:
     message = record["message"]
     extra = record.get("extra", {})
     module = extra.get("module", "app")
+
+    # 使用相对路径而不是只显示文件名，方便区分同名文件
+    file_obj = record.get("file")
+    try:
+        from pathlib import Path
+        file_path_str = getattr(file_obj, "path", str(file_obj or ""))
+        # 尝试获取相对于项目根目录的路径
+        project_root = Path(__file__).parent.parent.parent  # 回到项目根目录
+        file = str(Path(file_path_str).relative_to(project_root))
+    except (ValueError, AttributeError, Exception):
+        # 如果获取失败，回退到文件名
+        file = getattr(file_obj, "name", str(file_obj or ""))
     
-    # 优先使用 extra 中的调用者信息（我们自己记录的）
-    # 否则回退到 loguru 的 record 信息
-    file = extra.get("file") or getattr(record.get("file"), "name", str(record.get("file", "")))
-    line = extra.get("line") or record.get("line", "")
-    function = extra.get("function") or record.get("function", "")
+    line = record.get("line", "")
+    function = record.get("function", "")
 
     # 颜色映射
     color_map = {
@@ -112,7 +158,7 @@ def format_detailed(record: dict) -> str:
     module_tag = f"<magenta>[{module}]</magenta>"
 
     # 额外上下文（转义大括号避免被 loguru 解析）
-    context_keys = [k for k in extra if k not in ("module", "file", "line", "function")]
+    context_keys = [k for k in extra if k not in ("module",)]
     context = ""
     if context_keys:
         ctx_parts = []
@@ -129,6 +175,8 @@ def format_detailed(record: dict) -> str:
         exc_type, exc_value, exc_tb = record["exception"]
         if exc_value:
             tb_str = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+            # loguru 的 formatter 仍会对返回字符串做 format_map，因此必须转义大括号
+            tb_str = tb_str.replace("{", "{{").replace("}", "}}")
             result += f"\n<red>{tb_str}</red>\n"
 
     return result
@@ -140,12 +188,24 @@ def format_json(record: dict) -> str:
 
     extra = record.get("extra", {})
 
+    file_obj = record.get("file")
+    # 尝试获取相对路径
+    file_path = None
+    try:
+        from pathlib import Path
+        file_path_str = getattr(file_obj, "path", None)
+        if file_path_str:
+            project_root = Path(__file__).parent.parent.parent
+            file_path = str(Path(file_path_str).relative_to(project_root))
+    except (ValueError, AttributeError, Exception):
+        file_path = getattr(file_obj, "name", None)
+    
     log_entry = {
         "timestamp": record["time"].isoformat(),
         "level": record["level"].name,
         "message": record["message"],
         "module": extra.get("module", "app"),
-        "file": str(record.get("file", "")),
+        "file": file_path,
         "line": record.get("line", 0),
         "function": record.get("function", ""),
     }
@@ -251,7 +311,9 @@ class Logger:
                 rotation=rotation,
                 retention=retention,
                 compression="gz",  # 压缩旧日志
-                enqueue=True,
+                # serialize=True 时 loguru 会通过队列传递 record 对象，要求可 picklable；
+                # 这里禁用 enqueue，避免在包含复杂对象时触发 pickling 报错。
+                enqueue=False,
                 serialize=True,  # 自动序列化为 JSON
             )
             log_file_configured = True
@@ -286,25 +348,20 @@ class Logger:
         """内部日志方法"""
         self._ensure_configured()
 
-        # 获取调用位置（基础深度 2 + 额外深度）
-        # 调用栈: get_caller_info -> _log -> Logger.info -> [BoundLogger.info] -> 调用者
-        # 直接调用 Logger: depth=2+0=2, _getframe(3) -> 调用者
-        # 通过 BoundLogger: depth=2+1=3, _getframe(4) -> 调用者
-        caller = get_caller_info(depth=2 + _depth)
-
         # 合并上下文
-        context = {
-            "module": module,
-            **caller,
-            **extra,
-        }
+        context = {"module": module}
+        # 关键：任何 extra 都先转成可序列化/可 picklable，避免 enqueue/serialize 报错
+        for k, v in extra.items():
+            context[str(k)] = _safe_for_logging(v)
 
-        # 记录日志
-        log_func = getattr(loguru_logger.bind(**context), level)
-        if exc_info:
-            log_func(message, exception=True)
-        else:
-            log_func(message)
+        # 记录日志：使用 loguru 的 opt(depth=...) 获取稳定、准确的 callsite
+        # 调用栈（直接调用 Logger）：user -> Logger.info -> _log -> loguru
+        # 调用栈（使用 BoundLogger）：user -> BoundLogger.info -> Logger.info -> _log -> loguru
+        opt_depth = 2 + _depth
+        loguru_logger.bind(**context).opt(depth=opt_depth, exception=exc_info).log(
+            level.upper(),
+            message,
+        )
 
     def debug(
         self, message: str, *, module: str = "app", _depth: int = 0, **extra: Any

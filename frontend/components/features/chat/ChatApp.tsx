@@ -39,7 +39,7 @@ export function ChatApp() {
   );
 
   // 聊天状态
-  const { messages, isStreaming, sendMessage } = useChat(
+  const { messages, isStreaming, error, sendMessage, abortStream } = useChat(
     userId,
     currentConversationId,
     handleTitleUpdate
@@ -96,7 +96,9 @@ export function ChatApp() {
           title={currentConversation?.title || ""}
           messages={messages}
           isStreaming={isStreaming}
+          error={error}
           onSendMessage={handleSendMessage}
+          onAbortStream={abortStream}
         />
       </SidebarInset>
     </SidebarProvider>

@@ -1,5 +1,6 @@
 """数据库连接管理"""
 
+import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -33,8 +34,19 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
+        except asyncio.CancelledError:
+            # 用户中断 SSE/请求取消时会触发 CancelledError。
+            # 此时连接/事务可能已被关闭，commit/rollback 可能再次抛错；这里静默清理即可。
+            try:
+                await session.rollback()
+            except Exception:
+                pass
+            raise
         except Exception:
-            await session.rollback()
+            try:
+                await session.rollback()
+            except Exception:
+                pass
             raise
 
 
@@ -45,8 +57,17 @@ async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
+        except asyncio.CancelledError:
+            try:
+                await session.rollback()
+            except Exception:
+                pass
+            raise
         except Exception:
-            await session.rollback()
+            try:
+                await session.rollback()
+            except Exception:
+                pass
             raise
 
 

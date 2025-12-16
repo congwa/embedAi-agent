@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { AlertCircle, ArrowUp, Square, X } from "lucide-react";
 import {
   ChatContainerContent,
   ChatContainerRoot,
@@ -26,22 +26,41 @@ interface ChatContentProps {
   title: string;
   messages: ChatMessage[];
   isStreaming: boolean;
+  error: string | null;
   onSendMessage: (content: string) => void;
+  onAbortStream: () => void;
 }
 
 export function ChatContent({
   title,
   messages,
   isStreaming,
+  error,
   onSendMessage,
+  onAbortStream,
 }: ChatContentProps) {
   const [prompt, setPrompt] = useState("");
+  const [showError, setShowError] = useState(true);
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = () => {
-    if (!prompt.trim() || isStreaming) return;
-    onSendMessage(prompt.trim());
-    setPrompt("");
+  // 当错误改变时，重新显示错误提示
+  useEffect(() => {
+    if (error) {
+      setShowError(true);
+    }
+  }, [error]);
+
+  // 修改：处理发送或停止
+  const handleButtonClick = () => {
+    if (isStreaming) {
+      // 当前正在流式输出，点击则停止
+      onAbortStream();
+    } else {
+      // 当前未发送，点击则发送
+      if (!prompt.trim()) return;
+      onSendMessage(prompt.trim());
+      setPrompt("");
+    }
   };
 
   return (
@@ -118,14 +137,6 @@ export function ChatContent({
                           ))}
                         </div>
                       )}
-                      
-                      {/* 流式加载指示器 */}
-                      {message.isStreaming && (
-                        <div className="flex items-center gap-2 text-xs text-zinc-400">
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                          <span>正在输入...</span>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <MessageContent className="max-w-[85%] rounded-3xl bg-zinc-100 px-5 py-2.5 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100 sm:max-w-[75%]">
@@ -146,11 +157,26 @@ export function ChatContent({
       {/* 输入区域 */}
       <div className="z-10 shrink-0 bg-white px-3 pb-3 dark:bg-zinc-900 md:px-5 md:pb-5">
         <div className="mx-auto max-w-3xl">
+          {/* 错误提示 */}
+          {error && showError && (
+            <div className="mb-3 flex items-center gap-2 rounded-lg bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{error}</span>
+              <button
+                onClick={() => setShowError(false)}
+                className="shrink-0 rounded p-1 hover:bg-red-100 dark:hover:bg-red-900/40"
+                title="关闭错误提示"
+                aria-label="关闭错误提示"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           <PromptInput
             isLoading={isStreaming}
             value={prompt}
             onValueChange={setPrompt}
-            onSubmit={handleSubmit}
+            onSubmit={handleButtonClick}
             className="relative z-10 w-full rounded-3xl border border-zinc-200 bg-white p-0 pt-1 shadow-sm dark:border-zinc-700 dark:bg-zinc-800"
           >
             <div className="flex flex-col">
@@ -162,12 +188,16 @@ export function ChatContent({
               <PromptInputActions className="mt-5 flex w-full items-center justify-end gap-2 px-3 pb-3">
                 <Button
                   size="icon"
-                  disabled={!prompt.trim() || isStreaming}
-                  onClick={handleSubmit}
-                  className="h-9 w-9 rounded-full"
+                  disabled={!isStreaming && !prompt.trim()}
+                  onClick={handleButtonClick}
+                  className={cn(
+                    "h-9 w-9 rounded-full transition-colors",
+                    isStreaming && "bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
+                  )}
+                  title={isStreaming ? "停止生成" : "发送消息"}
                 >
                   {isStreaming ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Square className="h-4 w-4" />
                   ) : (
                     <ArrowUp className="h-4 w-4" />
                   )}

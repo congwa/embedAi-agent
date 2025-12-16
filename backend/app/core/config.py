@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     SILICONFLOW_CHAT_MODEL: str  # 聊天模型 ID（必填，如 moonshotai/Kimi-K2-Instruct）
     SILICONFLOW_EMBEDDING_MODEL: str  # 嵌入模型 ID（必填，如 BAAI/bge-m3）
     SILICONFLOW_EMBEDDING_DIMENSION: int  # 嵌入维度（必填，如 4096）
+    
+    # Rerank 配置
+    SILICONFLOW_RERANK_ENABLED: bool  # 是否启用 Rerank 重排序
+    SILICONFLOW_RERANK_MODEL: str  # Rerank 模型 ID
+    SILICONFLOW_RERANK_TOP_N: int = 5  # 返回前 N 个结果
+    SILICONFLOW_RERANK_INSTRUCTION: str = "根据查询对商品进行相关性排序"  # Rerank 指令
     # 通过 .env 提供 JSON，手动指定第三方/国产模型能力（会覆盖 models.dev 的配置）
     # 示例：
     # SILICONFLOW_MODEL_PROFILES_JSON='{

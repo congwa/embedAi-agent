@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message } from "@/types/conversation";
 import type { Product } from "@/types/product";
-import { getConversation, streamChat } from "@/lib/api";
+import { getConversation, streamChat, type StreamChatController } from "@/lib/api";
 import type { ChatEvent } from "@/types/chat";
 
 export interface ChatMessage {
@@ -24,6 +24,9 @@ export function useChat(
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSending, setIsSending] = useState(false); // 标记正在发送消息
   const [error, setError] = useState<string | null>(null);
+  
+  // 新增：保存当前流的控制器
+  const streamControllerRef = useRef<StreamChatController | null>(null);
 
   // 加载会话消息
   const loadMessages = useCallback(async () => {
@@ -56,6 +59,25 @@ export function useChat(
       setIsLoading(false);
     }
   }, [conversationId, isSending]);
+
+  // 新增：中断当前对话
+  const abortStream = useCallback(() => {
+    if (streamControllerRef.current) {
+      console.log("[chat] 用户中断对话");
+      streamControllerRef.current.abort();
+      streamControllerRef.current = null;
+      
+      // 移除最后一条正在生成的助手消息（因为后端不会保存被中断的消息）
+      setMessages((prev) =>
+        prev.filter((msg, index) => 
+          !(index === prev.length - 1 && msg.role === "assistant" && msg.isStreaming)
+        )
+      );
+      
+      setIsStreaming(false);
+      setIsSending(false);
+    }
+  }, []);
 
   // 发送消息
   const sendMessage = useCallback(
@@ -95,12 +117,16 @@ export function useChat(
       try {
         let fullContent = "";
         let products: Product[] | undefined;
+        
+        // 创建控制器并保存引用
+        const controller: StreamChatController = { abort: () => {} };
+        streamControllerRef.current = controller;
 
         for await (const event of streamChat({
           user_id: userId,
           conversation_id: convId,
           message: content.trim(),
-        })) {
+        }, controller)) {
           const applyAssistantUpdate = (updater: (msg: ChatMessage) => ChatMessage) => {
             setMessages((prev) =>
               prev.map((msg) => (msg.id === assistantMessageId ? updater(msg) : msg))
@@ -154,11 +180,13 @@ export function useChat(
           }
         }
       } catch (error) {
-        setError(error instanceof Error ? error.message : "发送失败");
-        
-        // 移除失败的助手消息
-        setMessages((prev) => prev.filter((msg) => msg.id !== assistantMessageId));
+        // 如果不是用户主动中断，才显示错误
+        if (error instanceof Error && error.name !== 'AbortError') {
+          setError(error.message);
+          setMessages((prev) => prev.filter((msg) => msg.id !== assistantMessageId));
+        }
       } finally {
+        streamControllerRef.current = null;
         setIsSending(false); // 发送完成
         setIsStreaming(false);
       }
@@ -185,5 +213,6 @@ export function useChat(
     sendMessage,
     clearMessages,
     refreshMessages: loadMessages,
+    abortStream, // 新增：暴露中断方法
   };
 }

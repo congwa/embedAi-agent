@@ -80,3 +80,7 @@ prompt-*.md
 backend/data
 
 __pycache__
+
+*_SUMMARY.md
+*_EXAMPLE.md
+README_*.md

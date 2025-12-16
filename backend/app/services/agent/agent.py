@@ -6,6 +6,7 @@ from typing import Any
 
 import aiosqlite
 from langchain.agents import create_agent
+from langchain.agents.middleware.todo import TodoListMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
@@ -13,34 +14,60 @@ from langgraph.graph.state import CompiledStateGraph
 from app.core.config import settings
 from app.core.llm import get_chat_model
 from app.core.logging import get_logger
-from app.services.agent.tools import search_products
+from app.services.agent.tools import (
+    search_products,
+    get_product_details,
+    compare_products,
+    filter_by_price,
+)
 from app.services.agent.middleware.logging import LoggingMiddleware
+from app.services.agent.middleware.intent_recognition import IntentRecognitionMiddleware
 from app.services.streaming.context import ChatContext
 from app.schemas.events import StreamEventType
+from app.schemas.recommendation import RecommendationResult
 
 logger = get_logger("agent")
 
-SYSTEM_PROMPT = """你是一个专业的商品推荐助手。
+SYSTEM_PROMPT = """你是一个专业的商品推荐助手，具备强大的商品检索和分析能力。
 
-## 职责
-1. 理解用户的购物需求
-2. 使用 search_products 工具搜索匹配的商品
-3. 基于搜索结果，推荐最合适的商品并说明理由
+## 核心职责
+1. 理解用户的购物需求和偏好
+2. 使用合适的工具进行商品检索和分析
+3. 提供个性化的商品推荐和专业建议
 
-## 规则
-- 只推荐搜索结果中存在的商品
-- 如果没有匹配商品，诚实告知用户
-- 回复简洁，突出商品核心卖点和价格
-- 每次最多推荐 3 个商品
-- 使用友好的语气，像朋友一样交流
+## 可用工具
+1. **search_products** - 根据需求搜索商品
+2. **get_product_details** - 获取商品详细信息
+3. **compare_products** - 对比多个商品的优劣
+4. **filter_by_price** - 按价格区间过滤商品
+
+## 工作流程
+1. **理解需求**：仔细分析用户的具体需求
+2. **选择策略**：根据需求选择合适的工具组合
+3. **执行检索**：使用工具获取商品信息
+4. **分析对比**：如果用户需要对比，使用 compare_products
+5. **生成推荐**：基于结果给出专业建议
+
+## 推荐原则
+- ✅ 只推荐搜索结果中存在的商品
+- ✅ 突出商品的核心卖点和性价比
+- ✅ 每次推荐 2-3 个商品（除非用户要求更多）
+- ✅ 如果用户需要对比，先搜索再对比
+- ✅ 如果用户有价格预算，使用 filter_by_price
+- ✅ 保持友好、专业的语气
 
 ## 输出格式
 当推荐商品时，请使用以下格式：
 
 根据您的需求，我为您推荐以下商品：
 
-1. **商品名称** - ¥价格
-   - 推荐理由
+### 1. **商品名称** - ¥价格
+**推荐理由**：...
+**适合人群**：...
+
+### 2. **商品名称** - ¥价格
+**推荐理由**：...
+**适合人群**：...
 
 如果用户询问非商品相关的问题，礼貌地引导他们回到商品推荐话题。
 """
@@ -132,8 +159,22 @@ class AgentService:
                 self._agent = None
                 logger.info("Agent 连接已关闭")
 
-    async def get_agent(self) -> CompiledStateGraph:
-        """获取 Agent 实例"""
+    async def get_agent(
+        self,
+        use_todo_middleware: bool = False,
+        use_structured_output: bool = False,
+        use_intent_recognition: bool = True,
+    ) -> CompiledStateGraph:
+        """获取 Agent 实例
+
+        Args:
+            use_todo_middleware: 是否使用任务规划中间件
+            use_structured_output: 是否使用结构化输出
+            use_intent_recognition: 是否使用意图识别中间件（默认启用）
+
+        Returns:
+            编译后的 Agent 图
+        """
         if self._agent is None:
             logger.info("初始化 Agent...")
             
@@ -143,27 +184,70 @@ class AgentService:
             # 初始化 checkpointer
             checkpointer = await self._get_checkpointer()
             
+            # 准备工具列表
+            tools = [
+                search_products,
+                get_product_details,
+                compare_products,
+                filter_by_price,
+            ]
+            
+            # 准备中间件列表
+            middlewares = [LoggingMiddleware()]
+            
+            # 可选：添加意图识别中间件（放在最前面，优先执行）
+            if use_intent_recognition:
+                try:
+                    middlewares.insert(0, IntentRecognitionMiddleware())
+                    logger.info("已启用 IntentRecognitionMiddleware")
+                except Exception as e:
+                    logger.warning(f"IntentRecognitionMiddleware 初始化失败: {e}")
+            
+            # 可选：添加任务规划中间件
+            if use_todo_middleware:
+                try:
+                    middlewares.append(TodoListMiddleware())
+                    logger.info("已启用 TodoListMiddleware")
+                except Exception as e:
+                    logger.warning(f"TodoListMiddleware 初始化失败: {e}")
+            
             # 创建 Agent
             try:
+                agent_kwargs = {
+                    "model": model,
+                    "tools": tools,
+                    "system_prompt": SYSTEM_PROMPT,
+                    "checkpointer": checkpointer,
+                    "middleware": middlewares,
+                    # 移除 context_schema 以避免 Pydantic JsonSchema 生成问题
+                    # ToolRuntime 会自动处理 context 注入
+                }
+                
+                # 可选：使用结构化输出
+                if use_structured_output:
+                    agent_kwargs["response_format"] = RecommendationResult
+                    logger.info("已启用结构化输出")
+                
+                self._agent = create_agent(**agent_kwargs)
+                
+            except TypeError as e:
+                # 兼容较老版本：不支持某些参数时回退
+                logger.warning(f"create_agent 参数不支持，回退为基础创建方式: {e}")
                 self._agent = create_agent(
                     model=model,
-                    tools=[search_products],
-                    system_prompt=SYSTEM_PROMPT,
-                    checkpointer=checkpointer,
-                    middleware=[LoggingMiddleware()],
-                    context_schema=ChatContext,
-                )
-            except TypeError:
-                # 兼容较老版本：不支持 context_schema/middleware 时回退
-                logger.warning("create_agent 不支持 context_schema/middleware，回退为基础创建方式")
-                self._agent = create_agent(
-                    model=model,
-                    tools=[search_products],
+                    tools=tools,
                     system_prompt=SYSTEM_PROMPT,
                     checkpointer=checkpointer,
                 )
             
-            logger.info("Agent 初始化完成")
+            logger.info(
+                "Agent 初始化完成",
+                tool_count=len(tools),
+                middleware_count=len(middlewares),
+                use_todo=use_todo_middleware,
+                use_structured_output=use_structured_output,
+                use_intent_recognition=use_intent_recognition,
+            )
         
         return self._agent
 

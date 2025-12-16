@@ -1,14 +1,18 @@
 """会话服务"""
 
+import json
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.logging import get_logger
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.repositories.conversation import ConversationRepository
 from app.repositories.message import MessageRepository
 from app.repositories.user import UserRepository
+
+logger = get_logger("conversation_service")
 
 
 class ConversationService:

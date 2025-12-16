@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2025-12-16
+
+### 🚀 检索与推荐能力增强 (Retrieval Improvements)
+
+- **增强检索链路**: 新增混合检索策略（向量检索 + 关键词过滤 + 相关性重排序）
+- **Rerank 重排序**: 对接硅基流动 `/rerank`，失败自动回退本地打分；新增配置项 `SILICONFLOW_RERANK_*`
+
+### 🧠 意图识别与工具选择 (Intent & Tooling)
+
+- **意图识别中间件**: 基于规则识别意图，动态过滤可用工具，并注入意图上下文提示
+- **结构化意图模型**: 新增 `IntentAnalysis` / `IntentType` / `INTENT_TO_TOOLS`
+- **工具体系模块化**: 原 `tools.py` 拆分为 `tools/` 包（`search_products` / `get_product_details` / `compare_products` / `filter_by_price`）并补充说明文档
+
+### 🛑 流式对话可中断 (Streaming Abort)
+
+- **前端支持停止生成**: `AbortController` + UI “停止”按钮；中断后移除未完成的 assistant 消息
+- **后端中断检测**: 通过 `request.is_disconnected()` / `CancelledError` 及时停止生成，且不落库不完整消息
+- **数据库会话稳定性**: 取消/异常路径 rollback 更稳健，避免二次异常
+
+### 🔧 工程与可观测性 (Engineering)
+
+- **日志稳定性增强**: 复杂对象安全序列化，修复 loguru enqueue/pickle 问题；异常栈转义；日志 file 路径显示为相对路径
+
+#### ⚠️ 行为变更 (Behavior Changes)
+
+- 客户端主动中断后，后端不会保存未完成的 assistant 消息（前端已同步适配）
+
 ## [0.1.2] - 2025-12-16
 
 ### 🔧 技术改进 (Technical Improvements)
