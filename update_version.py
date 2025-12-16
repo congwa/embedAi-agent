@@ -1,6 +1,20 @@
 #!/usr/bin/env python3
 """
 Simple version update script for EmbedAI Agent
+# 预览模式
+python3 update_version.py --dry-run
+
+# 补丁版本更新 (默认)
+python3 update_version.py
+
+# 次版本更新
+python3 update_version.py minor
+
+# 主版本更新  
+python3 update_version.py major
+
+# 查看帮助
+python3 update_version.py --help
 """
 
 import re
