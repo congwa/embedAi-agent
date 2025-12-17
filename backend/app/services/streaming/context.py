@@ -6,14 +6,13 @@
 - Orchestrator 在一次 chat run 开始时创建 `ChatContext(emitter=...)`
 - 调用 agent 时通过 `context=ChatContext(...)` 注入
 - 工具签名可接收 `ToolRuntime`，然后 `runtime.context.emitter.emit(...)`
-
-注意：不使用 context_schema 以避免 Pydantic JsonSchema 生成问题
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Protocol
+
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class DomainEmitter(Protocol):
@@ -22,8 +21,7 @@ class DomainEmitter(Protocol):
     def emit(self, type: str, payload: Any) -> None: ...
 
 
-@dataclass(frozen=True, slots=True)
-class ChatContext:
+class ChatContext(BaseModel):
     """Graph run scoped context（通过 LangGraph 的 invoke/stream 传入 context 注入）。
 
     说明：
@@ -35,4 +33,9 @@ class ChatContext:
     conversation_id: str
     user_id: str
     assistant_message_id: str
-    emitter: Any
+    emitter: Any = Field(exclude=True, repr=False)  # 排除序列化，避免把 emitter/loop/queue 带进日志
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,  # 允许任意类型（用于 emitter）
+        frozen=True,  # 保持不可变性，类似原来的 frozen=True
+    )

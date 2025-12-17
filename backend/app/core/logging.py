@@ -91,18 +91,9 @@ def _safe_for_logging(value: Any, *, _level: int = 0) -> Any:
     # Pydantic 模型
     if hasattr(value, "model_dump"):
         try:
+            # ChatContext 现在是 Pydantic 模型，emitter 字段已通过 Field(exclude=True) 排除
+            # 所以直接使用 model_dump() 即可，不需要特殊处理
             return _safe_for_logging(value.model_dump(), _level=_level + 1)
-        except Exception:
-            return repr(value)
-
-    # ChatContext：只保留关键字段，避免把 emitter/loop/queue 带进日志
-    if value.__class__.__name__ == "ChatContext":
-        try:
-            return {
-                "conversation_id": getattr(value, "conversation_id", None),
-                "user_id": getattr(value, "user_id", None),
-                "assistant_message_id": getattr(value, "assistant_message_id", None),
-            }
         except Exception:
             return repr(value)
 
