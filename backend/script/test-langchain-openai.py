@@ -9,6 +9,13 @@ from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent
 from langchain.tools import tool
 
+# 导入我们的自定义模型
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from app.core.chat_models import SiliconFlowReasoningChatModel
+
 
 @tool
 def get_weather(city: str) -> str:
@@ -55,20 +62,19 @@ def search_info(query: str) -> str:
     return f"为查询 '{query}' 找到的相关信息，请使用更具体的关键词。"
 
 
-def main():
+async def main():
     """主函数：演示 LangChain + SiliconFlow 的智能代理"""
 
     print("🚀 LangChain + SiliconFlow 硅基流动集成示例")
     print("=" * 60)
 
-    # 初始化 SiliconFlow ChatOpenAI 模型
-    siliconflow_model = ChatOpenAI(
+    # 初始化我们的自定义 SiliconFlow 推理模型
+    siliconflow_model = SiliconFlowReasoningChatModel(
         model="moonshotai/Kimi-K2-Thinking",  # 使用 SiliconFlow 支持的模型
         openai_api_key="sk-jxkuiiukbesibqapqognjxgxodhjnjzjzcfpkmgnowsdlrqx",  # SiliconFlow API Key
         openai_api_base="https://api.siliconflow.cn/v1",  # SiliconFlow 基础URL
         temperature=0.7,
         max_tokens=1500,
-        verbose=True,
     )
 
     print("🤖 初始化 SiliconFlow 模型完成")
@@ -87,11 +93,11 @@ def main():
         full_response = ""
         reasoning_content = ""
 
-        # 直接使用模型的流式调用（学习 2.py 的方式）
-        stream_response = siliconflow_model.stream([{"role": "user", "content": test_question}])
+        # 直接使用模型的异步流式调用（学习 2.py 的方式）
+        stream_response = siliconflow_model.astream([{"role": "user", "content": test_question}])
 
-        # 处理流式响应，参考 2.py 的实现
-        for chunk in stream_response:
+        # 处理异步流式响应，参考 2.py 的实现
+        async for chunk in stream_response:
             print(f"chunk: {chunk}")  # 调试输出
 
             # LangChain AIMessageChunk 处理
@@ -159,11 +165,11 @@ def main():
             full_response = ""
             reasoning_content = ""
 
-            # 直接使用模型的流式调用（学习 2.py 的方式）
-            stream_response = siliconflow_model.stream([{"role": "user", "content": question}])
+            # 直接使用模型的异步流式调用（学习 2.py 的方式）
+            stream_response = siliconflow_model.astream([{"role": "user", "content": question}])
 
-            # 处理流式响应，参考 2.py 的实现
-            for chunk in stream_response:
+            # 处理异步流式响应，参考 2.py 的实现
+            async for chunk in stream_response:
                 print(f"chunk: {chunk}")  # 调试输出
 
                 # LangChain AIMessageChunk 处理
@@ -204,4 +210,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())

@@ -19,18 +19,18 @@ from typing import Any, NotRequired, TypedDict
 class StreamEventType(StrEnum):
     """对外推送的事件类型（SSE 协议）。"""
 
-    META_START = "meta.start"
+    META_START = "meta.start" # 流开始，提供message_id对齐前端渲染/落库
 
-    ASSISTANT_DELTA = "assistant.delta"
-    ASSISTANT_REASONING_DELTA = "assistant.reasoning.delta"
-    ASSISTANT_PRODUCTS = "assistant.products"
-    ASSISTANT_FINAL = "assistant.final"
+    ASSISTANT_DELTA = "assistant.delta" # 文本增量
+    ASSISTANT_REASONING_DELTA = "assistant.reasoning.delta" # 推理内容增量
+    ASSISTANT_PRODUCTS = "assistant.products" # 商品数据
+    ASSISTANT_FINAL = "assistant.final" # 最终态（流结束前必出）
 
-    TOOL_START = "tool.start"
-    TOOL_END = "tool.end"
+    TOOL_START = "tool.start" # 工具开始
+    TOOL_END = "tool.end" # 工具结束
 
-    LLM_CALL_START = "llm.call.start"
-    LLM_CALL_END = "llm.call.end"
+    LLM_CALL_START = "llm.call.start" # LLM调用开始
+    LLM_CALL_END = "llm.call.end" # LLM调用结束
 
     ERROR = "error"
 

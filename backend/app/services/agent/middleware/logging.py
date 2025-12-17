@@ -91,14 +91,23 @@ def _summarize_additional_kwargs(kwargs: Any) -> dict[str, Any] | None:
 
 def _serialize_message(msg: BaseMessage) -> dict[str, Any]:
     """序列化消息用于日志"""
+    content = getattr(msg, "content", None)
+    content_text = content if isinstance(content, str) else str(content) if content is not None else ""
+    additional = getattr(msg, "additional_kwargs", None)
+    reasoning_text = ""
+    if isinstance(additional, dict):
+        rc = additional.get("reasoning_content")
+        reasoning_text = rc if isinstance(rc, str) else str(rc) if rc is not None else ""
     return {
         "type": type(msg).__name__,
         "content": _truncate_text(getattr(msg, "content", None), limit=1200),
+        "content_length": len(content_text) if content_text else 0,
         "tool_calls": _summarize_tool_calls(getattr(msg, "tool_calls", None)),
         # LangChain 常见字段：只保留摘要
         "usage": _summarize_usage_metadata(getattr(msg, "usage_metadata", None)),
         "response": _summarize_response_metadata(getattr(msg, "response_metadata", None)),
         "additional": _summarize_additional_kwargs(getattr(msg, "additional_kwargs", None)),
+        "reasoning_length": len(reasoning_text) if reasoning_text else 0,
     }
 
 
@@ -181,6 +190,7 @@ class LoggingMiddleware(AgentMiddleware):
             # "messages": _serialize_messages(effective_messages), # 无用 暂时不记录
             "message_count": len(effective_messages),
             "prompt": _build_prompt_preview(effective_messages),
+            "additional_kwargs": _summarize_additional_kwargs(getattr(effective_messages, "additional_kwargs", None)),
             # "tools": [_serialize_tool(t) for t in request.tools], # 无用 暂时不记录
             "tool_count": len(request.tools),
             "tool_choice": request.tool_choice, # 记录了模型选择的工具的配置

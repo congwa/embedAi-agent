@@ -1,13 +1,14 @@
 """LangChain v1.1 Agent 服务"""
 
 import json
+import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
 import aiosqlite
 from langchain.agents import create_agent
 from langchain.agents.middleware.todo import TodoListMiddleware
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
 
@@ -275,10 +276,10 @@ class AgentService:
             async for state in agent.astream(
                 agent_input,
                 config=agent_config,
-                context=context,
-                stream_mode="values",
+                context=context
             ):
                 # stream_mode="values" 时，state 是完整 state dict
+                # stream_mode="values,messages" 时，state 是完整 state dict 和 messages 列表
                 messages = state.get("messages") if isinstance(state, dict) else None
                 if not isinstance(messages, list):
                     continue
@@ -369,6 +370,200 @@ class AgentService:
         except Exception as e:
             logger.exception("❌ 聊天失败", error=str(e))
             raise
+
+    async def chat_emit(
+        self,
+        *,
+        message: str,
+        conversation_id: str,
+        user_id: str,
+        context: ChatContext,
+    ) -> None:
+        """将聊天流事件写入 context.emitter（不绕过 Orchestrator）。
+
+        说明：
+        - 这里不直接返回/写 SSE，只发 domain events（type + payload）
+        - Orchestrator 作为唯一对外 SSE 出口：从 queue 读取 domain events -> make_event -> encode_sse
+        - 推理内容按“字符”拆分后逐条发送，达到逐字蹦出的效果
+        """
+        agent = await self.get_agent()
+
+        emitter = getattr(context, "emitter", None)
+        if emitter is None or not hasattr(emitter, "aemit"):
+            raise RuntimeError("chat_emit 需要 context.emitter.aemit()（用于高频不丢事件）")
+
+        def _looks_like_final_content(text: str) -> bool:
+            """启发式判断：某些 provider 可能把“最终回答”塞到 reasoning_content。
+
+            如果误判，会导致把一部分思考当成 content；但相比“content 长期为空”更可控，
+            且前端已经按 segments 保留时间顺序内容，不会丢失。
+            """
+            t = (text or "").strip()
+            if not t:
+                return False
+            # 结构化/Markdown 强信号
+            if "###" in t or "\n###" in t or "**" in t:
+                return True
+            # 商品推荐模板强信号
+            keywords = [
+                "根据您的需求",
+                "我为您推荐",
+                "推荐以下",
+                "推荐理由",
+                "适合人群",
+                "推荐建议",
+                "商品名称",
+                "价格",
+                "¥",
+            ]
+            if any(k in t for k in keywords):
+                return True
+            # 句子完整度信号：包含多行/长段落更像最终输出
+            if "\n" in t and len(t) >= 80:
+                return True
+            return False
+
+        full_content = ""
+        full_reasoning = ""
+        products_data: Any | None = None
+        seen_tool_message_ids: set[str] = set()
+        has_content_started = False
+
+        # 准备 Agent 输入
+        agent_input = {"messages": [HumanMessage(content=message)]}
+        agent_config: dict[str, Any] = {"configurable": {"thread_id": conversation_id}}
+        agent_config["metadata"] = {"chat_context": context}
+
+        # 统计/观测：用于 debug 数据流（不影响业务）
+        reasoning_char_count = 0
+        reasoning_event_count = 0
+        content_event_count = 0
+
+        try:
+            # 关键：使用 LangGraph 的 messages 模式拿到 AIMessageChunk（而不是 state values）
+            async for item in agent.astream(
+                agent_input,
+                config=agent_config,
+                context=context,
+                stream_mode="messages",
+            ):
+                # 兼容不同版本：可能返回 msg 或 (msg, meta)
+                msg = item[0] if isinstance(item, (tuple, list)) and item else item
+
+                # 1) 模型 chunk：正文按 chunk 推送；推理按字符推送
+                if isinstance(msg, AIMessageChunk):
+                    # 正文增量
+                    delta = msg.content or ""
+                    if isinstance(delta, list):
+                        delta = "".join(str(x) for x in delta)
+                    if isinstance(delta, str) and delta:
+                        has_content_started = True
+                        # 不做逐字拆分：模型返回多长增量，就推多长
+                        full_content += delta
+                        content_event_count += 1
+                        await emitter.aemit(
+                            StreamEventType.ASSISTANT_DELTA.value,
+                            {"delta": delta},
+                        )
+
+                    # 推理增量（SiliconFlowReasoningChatModel 会写入 additional_kwargs.reasoning_content）
+                    rk = (
+                        (getattr(msg, "additional_kwargs", None) or {}).get("reasoning_content")
+                        or ""
+                    )
+                    if isinstance(rk, str) and rk:
+                        # 关键：区分 rk 是“思考”还是“最终内容”
+                        route_to_content = (not has_content_started) and _looks_like_final_content(rk)
+                        if route_to_content:
+                            # provider 把最终回答塞进 reasoning_content：把它当 content 推送
+                            has_content_started = True
+                            full_content += rk
+                            content_event_count += 1
+                            await emitter.aemit(
+                                StreamEventType.ASSISTANT_DELTA.value,
+                                {"delta": rk},
+                            )
+                        else:
+                            full_reasoning += rk
+                            reasoning_char_count += len(rk)
+                            reasoning_event_count += 1
+                            await emitter.aemit(
+                                StreamEventType.ASSISTANT_REASONING_DELTA.value,
+                                {"delta": rk},
+                            )
+
+                # 2) 工具消息：解析 products（保持你现有协议）
+                elif isinstance(msg, ToolMessage):
+                    msg_id = getattr(msg, "id", None)
+                    if isinstance(msg_id, str) and msg_id in seen_tool_message_ids:
+                        continue
+                    if isinstance(msg_id, str):
+                        seen_tool_message_ids.add(msg_id)
+
+                    content = msg.content
+                    try:
+                        if isinstance(content, str):
+                            products_data = json.loads(content)
+                        elif isinstance(content, (list, dict)):
+                            products_data = content
+                        else:
+                            continue
+
+                        await emitter.aemit(
+                            StreamEventType.ASSISTANT_PRODUCTS.value,
+                            {
+                                "items": products_data
+                                if isinstance(products_data, list)
+                                else [products_data]
+                            },
+                        )
+                    except Exception:
+                        continue
+
+            # 发送完成事件（final 用于 Orchestrator 聚合 + 落库对齐）
+            # 兜底：如果 content 太短但 reasoning 很长，说明 provider 可能把最终输出塞进了 reasoning。
+            if len(full_content) < 20 and len(full_reasoning) > 120:
+                logger.warning(
+                    "检测到 content 过短而 reasoning 过长，兜底将 reasoning 作为 content 输出",
+                    conversation_id=conversation_id,
+                    content_len=len(full_content),
+                    reasoning_len=len(full_reasoning),
+                )
+                full_content = full_reasoning
+                full_reasoning = ""
+
+            await emitter.aemit(
+                StreamEventType.ASSISTANT_FINAL.value,
+                {
+                    "content": full_content,
+                    "reasoning": full_reasoning if full_reasoning else None,
+                    "products": products_data
+                    if isinstance(products_data, list) or products_data is None
+                    else [products_data],
+                },
+            )
+
+            logger.info(
+                "✅ chat_emit 完成",
+                conversation_id=conversation_id,
+                content_events=content_event_count,
+                reasoning_events=reasoning_event_count,
+                reasoning_chars=reasoning_char_count,
+            )
+
+        except Exception as e:
+            logger.exception("❌ chat_emit 失败", error=str(e), conversation_id=conversation_id)
+            # 将错误也走同一事件通道，确保前端能收到
+            try:
+                await emitter.aemit(StreamEventType.ERROR.value, {"message": str(e)})
+            except Exception:
+                pass
+        finally:
+            # Orchestrator 以 __end__ 作为停止读取信号
+            try:
+                await emitter.aemit("__end__", None)
+            except Exception:
+                pass
 
     async def get_history(self, conversation_id: str) -> list[dict[str, Any]]:
         """获取会话历史"""

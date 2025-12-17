@@ -11,6 +11,11 @@ import {
   MessageContent,
 } from "@/components/prompt-kit/message";
 import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/prompt-kit/reasoning";
+import {
   PromptInput,
   PromptInputActions,
   PromptInputTextarea,
@@ -43,6 +48,7 @@ export function ChatContent({
   const [dismissedError, setDismissedError] = useState<string | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isErrorVisible = Boolean(error) && dismissedError !== error;
+  const [reasoningOpenMap, setReasoningOpenMap] = useState<Record<string, boolean>>({});
 
   // 修改：处理发送或停止
   const handleButtonClick = () => {
@@ -106,6 +112,37 @@ export function ChatContent({
             {messages.map((message, messageIndex) => {
               const isAssistant = message.role === "assistant";
               const messageKey = message.id || `${message.role}-${messageIndex}`;
+              const segments: Array<{
+                id: string;
+                kind: "reasoning" | "content";
+                text: string;
+                isOpen?: boolean;
+              }> =
+                Array.isArray(message.segments) && message.segments.length > 0
+                  ? message.segments
+                  : (() => {
+                      // fallback：老数据/非流式情况下只存了 content/reasoning
+                      const out: Array<{
+                        id: string;
+                        kind: "reasoning" | "content";
+                        text: string;
+                      }> = [];
+                      if (message.reasoning) {
+                        out.push({
+                          id: `${messageKey}-reasoning-0`,
+                          kind: "reasoning",
+                          text: message.reasoning,
+                        });
+                      }
+                      if (message.content) {
+                        out.push({
+                          id: `${messageKey}-content-0`,
+                          kind: "content",
+                          text: message.content,
+                        });
+                      }
+                      return out;
+                    })();
 
               if (!message.id) {
                 console.log("[chat] message.id 缺失，已使用 fallback key", {
@@ -124,13 +161,77 @@ export function ChatContent({
                 >
                   {isAssistant ? (
                     <div className="flex w-full flex-col gap-3">
-                      <MessageContent
-                        className="prose flex-1 rounded-lg bg-transparent p-0 text-zinc-900 dark:text-zinc-100"
-                        markdown
-                      >
-                        {message.content || (message.isStreaming ? "思考中..." : "")}
-                      </MessageContent>
-                      
+                      {segments.length === 0 ? (
+                        <MessageContent
+                          className="prose flex-1 rounded-lg bg-transparent p-0 text-zinc-900 dark:text-zinc-100"
+                        >
+                          {message.isStreaming ? "思考中..." : ""}
+                        </MessageContent>
+                      ) : (
+                        <div className="flex w-full flex-col gap-3">
+                          {(() => {
+                            const contentChars = segments
+                              .filter((s) => s.kind === "content")
+                              .reduce((acc, s) => acc + (s.text?.length ?? 0), 0);
+                            const reasoningChars = segments
+                              .filter((s) => s.kind === "reasoning")
+                              .reduce((acc, s) => acc + (s.text?.length ?? 0), 0);
+
+                            // 经验规则：
+                            // - 大多数“推理模型”会先输出推理，再输出正文
+                            // - 但部分 provider 可能把大段正文塞进 reasoning_content（导致 content 很短）
+                            // 为了避免“正文被折叠隐藏”，当 content 很短而 reasoning 很长时，默认展开推理段
+                            const hasMeaningfulContent = contentChars >= 80;
+                            const preferShowReasoning =
+                              reasoningChars > 0 && contentChars < 40 && reasoningChars > contentChars * 2;
+
+                            const reasoningCount = segments.filter((s) => s.kind === "reasoning").length;
+                            let reasoningIndex = 0;
+                            return segments.map((seg) => {
+                              if (seg.kind === "reasoning") {
+                                reasoningIndex += 1;
+                                const defaultOpen = preferShowReasoning
+                                  ? true
+                                  : hasMeaningfulContent
+                                    ? (seg.isOpen ?? false)
+                                    : true;
+                                const open = reasoningOpenMap[seg.id] ?? defaultOpen;
+                                return (
+                                  <Reasoning
+                                    key={seg.id}
+                                    isStreaming={message.isStreaming}
+                                    open={open}
+                                    onOpenChange={(next) =>
+                                      setReasoningOpenMap((prev) => ({
+                                        ...prev,
+                                        [seg.id]: next,
+                                      }))
+                                    }
+                                  >
+                                    <ReasoningTrigger>
+                                      推理过程{reasoningCount > 1 ? ` ${reasoningIndex}` : ""}
+                                    </ReasoningTrigger>
+                                    <ReasoningContent className="mt-2" markdown>
+                                      {seg.text}
+                                    </ReasoningContent>
+                                  </Reasoning>
+                                );
+                              }
+
+                              return (
+                                <MessageContent
+                                  key={seg.id}
+                                  className="prose flex-1 rounded-lg bg-transparent p-0 text-zinc-900 dark:text-zinc-100"
+                                  markdown
+                                >
+                                  {seg.text}
+                                </MessageContent>
+                              );
+                            });
+                          })()}
+                        </div>
+                      )}
+
                       {/* 商品卡片 */}
                       {message.products && message.products.length > 0 && (
                         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

@@ -70,7 +70,8 @@ class ChatStreamOrchestrator:
 
         try:
             loop = asyncio.get_running_loop()
-            domain_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=256)
+            # 逐字推理会产生大量事件；队列容量适当加大，避免频繁 backpressure/丢弃
+            domain_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=10000)
             emitter = QueueDomainEmitter(queue=domain_queue, loop=loop)
 
             chat_context = ChatContext(
@@ -80,23 +81,15 @@ class ChatStreamOrchestrator:
                 emitter=emitter,
             )
 
-            async def _produce_agent_events() -> None:
-                try:
-                    async for evt in self._agent_service.chat(
-                        message=self._user_message,
-                        conversation_id=self._conversation_id,
-                        user_id=self._user_id,
-                        context=chat_context,
-                    ):
-                        await domain_queue.put(evt)
-                except Exception as e:
-                    await domain_queue.put(
-                        {"type": StreamEventType.ERROR.value, "payload": {"message": str(e)}}
-                    )
-                finally:
-                    await domain_queue.put({"type": "__end__", "payload": None})
-
-            producer_task = asyncio.create_task(_produce_agent_events())
+            # Agent 只负责把 domain events 写入 emitter；Orchestrator 是唯一对外 SSE 出口
+            producer_task = asyncio.create_task(
+                self._agent_service.chat_emit(
+                    message=self._user_message,
+                    conversation_id=self._conversation_id,
+                    user_id=self._user_id,
+                    context=chat_context,
+                )
+            )
 
             while True:
                 evt = await domain_queue.get()
@@ -124,7 +117,11 @@ class ChatStreamOrchestrator:
                     self._full_content = payload.get("content") or self._full_content
                     self._reasoning = payload.get("reasoning") or self._reasoning
                     self._products = payload.get("products") or self._products
-
+                # logger.debug(
+                #     "处理事件",
+                #     evt_type=evt_type,
+                #     payload=payload,
+                # )
                 yield make_event(
                     seq=self._next_seq(),
                     conversation_id=self._conversation_id,
@@ -133,6 +130,7 @@ class ChatStreamOrchestrator:
                     payload=payload,
                 )
 
+            # 等待 producer 结束（如遇异常，chat_emit 会通过 error event 发给前端）
             await producer_task
 
             # 2) 落库（仅在正常完成时保存）

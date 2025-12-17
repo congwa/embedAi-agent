@@ -78,13 +78,37 @@ class SiliconFlowReasoningChatModel(BaseReasoningChatModel):
 
     def _extract_reasoning_content(self, chunk: dict) -> str | None:
         """从 SiliconFlow 响应中提取推理内容"""
-        choices = chunk.get("choices", []) or chunk.get("chunk", {}).get("choices", [])
+        # 尝试多种方式提取推理内容
+        choices = chunk.get("choices", []) if isinstance(chunk, dict) else []
 
         if choices and len(choices) > 0:
-            delta = choices[0].get("delta", {})
-            return delta.get("reasoning_content")
+            delta = choices[0].get("delta", {}) if isinstance(choices[0], dict) else {}
+
+            if isinstance(delta, dict):
+                # 尝试多种可能的字段名
+                reasoning_fields = ["reasoning_content", "reasoning", "thinking", "thought", "reasoningContent", "thought_content"]
+                for field in reasoning_fields:
+                    reasoning_content = delta.get(field)
+                    if reasoning_content:
+                        logger.debug(f"推理内容: {reasoning_content}")
+                        return reasoning_content
+
+        # 如果上面的方法都不行，尝试直接从 chunk 中查找
+        if isinstance(chunk, dict):
+            for field in ["reasoning_content", "reasoning", "thinking", "thought"]:
+                if field in chunk:
+                    reasoning_content = chunk[field]
+                    if reasoning_content:
+                        logger.debug(f"推理内容: {reasoning_content}")
+                        return reasoning_content
 
         return None
+
+    def stream(self, messages, stop=None, run_manager=None, **kwargs):
+        """重写流式方法来手动处理推理内容"""
+        # 调用父类的 stream 方法
+        for chunk in super().stream(messages, stop=stop, run_manager=run_manager, **kwargs):
+            yield chunk
 
 
 class StandardChatModel(ChatOpenAI):

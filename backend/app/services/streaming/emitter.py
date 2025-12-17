@@ -29,7 +29,19 @@ class QueueDomainEmitter:
             try:
                 self.queue.put_nowait(evt)
             except asyncio.QueueFull:
-                # 极端情况下丢弃事件，避免阻塞业务执行
-                pass
+                # 不直接丢弃：在 loop 中异步等待入队（避免高频事件/关键事件丢失）
+                try:
+                    self.loop.create_task(self.queue.put(evt))
+                except RuntimeError:
+                    # loop 已关闭等极端情况：兜底丢弃
+                    return
 
         self.loop.call_soon_threadsafe(_put)
+
+    async def aemit(self, type: str, payload: Any) -> None:
+        """异步入队（不丢事件，严格顺序）。
+
+        适用于高频/不允许丢失的事件（例如逐字推理 assistant.reasoning.delta）。
+        """
+        evt: dict[str, Any] = {"type": type, "payload": payload}
+        await self.queue.put(evt)
