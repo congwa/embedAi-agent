@@ -246,139 +246,6 @@ class AgentService:
 
         return self._agent
 
-    async def chat(
-        self,
-        message: str,
-        conversation_id: str,
-        user_id: str,
-        context: ChatContext | None = None,
-    ) -> AsyncGenerator[dict[str, Any], None]:
-        """流式聊天
-
-        Args:
-            message: 用户消息
-            conversation_id: 会话 ID
-            user_id: 用户 ID
-
-        Yields:
-            聊天事件
-        """
-        agent = await self.get_agent()
-
-        full_content = ""
-        reasoning_content = ""  # 累积推理内容
-        products_data = None
-        chunk_count = 0
-        tool_calls = []
-        last_ai_text = ""
-        last_reasoning_text = ""
-        seen_message_ids: set[str] = set()
-
-        try:
-            # 准备 Agent 输入
-            agent_input = {"messages": [HumanMessage(content=message)]}
-            agent_config: dict[str, Any] = {"configurable": {"thread_id": conversation_id}}
-            if context is not None:
-                agent_config["metadata"] = {"chat_context": context}
-
-            # 使用 LangGraph 标准流式接口：context 会被注入到 Runtime.context / ToolRuntime.context
-            async for state in agent.astream(
-                agent_input,
-                config=agent_config,
-                context=context
-            ):
-                # stream_mode="values" 时，state 是完整 state dict
-                # stream_mode="values,messages" 时，state 是完整 state dict 和 messages 列表
-                messages = state.get("messages") if isinstance(state, dict) else None
-                if not isinstance(messages, list):
-                    continue
-
-                # 1) 从最新 AIMessage 生成 assistant.delta / assistant.reasoning.delta
-                last_ai: AIMessage | None = None
-                for m in reversed(messages):
-                    if isinstance(m, AIMessage):
-                        last_ai = m
-                        break
-
-                if last_ai is not None:
-                    current_text = last_ai.content or ""
-                    if isinstance(current_text, list):
-                        # content_blocks 场景：这里只做简单兜底
-                        current_text = "".join(str(x) for x in current_text)
-
-                    if isinstance(current_text, str) and current_text.startswith(last_ai_text):
-                        delta = current_text[len(last_ai_text) :]
-                    else:
-                        # 非严格前缀（例如模型重写），直接以全量覆盖追加
-                        delta = current_text
-
-                    if delta:
-                        last_ai_text = current_text
-                        full_content = current_text
-                        chunk_count += 1
-                        yield {
-                            "type": StreamEventType.ASSISTANT_DELTA.value,
-                            "payload": {"delta": delta},
-                        }
-
-                    current_reasoning = ""
-                    if getattr(last_ai, "additional_kwargs", None):
-                        current_reasoning = last_ai.additional_kwargs.get("reasoning_content") or ""
-                    if current_reasoning and isinstance(current_reasoning, str):
-                        if current_reasoning.startswith(last_reasoning_text):
-                            r_delta = current_reasoning[len(last_reasoning_text) :]
-                        else:
-                            r_delta = current_reasoning
-                        if r_delta:
-                            last_reasoning_text = current_reasoning
-                            reasoning_content = current_reasoning
-                            yield {
-                                "type": StreamEventType.ASSISTANT_REASONING_DELTA.value,
-                                "payload": {"delta": r_delta},
-                            }
-
-                # 2) 从新增 ToolMessage 解析 products，并发 assistant.products
-                for m in messages:
-                    if not isinstance(m, ToolMessage):
-                        continue
-                    msg_id = getattr(m, "id", None)
-                    if isinstance(msg_id, str) and msg_id in seen_message_ids:
-                        continue
-                    if isinstance(msg_id, str):
-                        seen_message_ids.add(msg_id)
-
-                    content = m.content
-                    try:
-                        if isinstance(content, str):
-                            products_data = json.loads(content)
-                        elif isinstance(content, (list, dict)):
-                            products_data = content
-                        else:
-                            continue
-                        yield {
-                            "type": StreamEventType.ASSISTANT_PRODUCTS.value,
-                            "payload": {
-                                "items": products_data if isinstance(products_data, list) else [products_data]
-                            },
-                        }
-                    except Exception:
-                        continue
-
-            # 发送完成事件
-            yield {
-                "type": StreamEventType.ASSISTANT_FINAL.value,
-                "payload": {
-                    "content": full_content,
-                    "reasoning": reasoning_content if reasoning_content else None,
-                    "products": products_data
-                    if isinstance(products_data, list) or products_data is None
-                    else [products_data],
-                },
-            }
-
-        except Exception as e:
-            logger.exception("❌ 聊天失败", error=str(e))
-            raise
 
     async def chat_emit(
         self,
@@ -400,37 +267,6 @@ class AgentService:
         emitter = getattr(context, "emitter", None)
         if emitter is None or not hasattr(emitter, "aemit"):
             raise RuntimeError("chat_emit 需要 context.emitter.aemit()（用于高频不丢事件）")
-
-        def _looks_like_final_content(text: str) -> bool:
-            """启发式判断：某些 provider 可能把“最终回答”塞到 reasoning_content。
-
-            如果误判，会导致把一部分思考当成 content；但相比“content 长期为空”更可控，
-            且前端已经按 segments 保留时间顺序内容，不会丢失。
-            """
-            t = (text or "").strip()
-            if not t:
-                return False
-            # 结构化/Markdown 强信号
-            if "###" in t or "\n###" in t or "**" in t:
-                return True
-            # 商品推荐模板强信号
-            keywords = [
-                "根据您的需求",
-                "我为您推荐",
-                "推荐以下",
-                "推荐理由",
-                "适合人群",
-                "推荐建议",
-                "商品名称",
-                "价格",
-                "¥",
-            ]
-            if any(k in t for k in keywords):
-                return True
-            # 句子完整度信号：包含多行/长段落更像最终输出
-            if "\n" in t and len(t) >= 80:
-                return True
-            return False
 
         full_content = ""
         full_reasoning = ""
@@ -481,25 +317,14 @@ class AgentService:
                         or ""
                     )
                     if isinstance(rk, str) and rk:
-                        # 关键：区分 rk 是“思考”还是“最终内容”
-                        route_to_content = (not has_content_started) and _looks_like_final_content(rk)
-                        if route_to_content:
-                            # provider 把最终回答塞进 reasoning_content：把它当 content 推送
-                            has_content_started = True
-                            full_content += rk
-                            content_event_count += 1
-                            await emitter.aemit(
-                                StreamEventType.ASSISTANT_DELTA.value,
-                                {"delta": rk},
-                            )
-                        else:
-                            full_reasoning += rk
-                            reasoning_char_count += len(rk)
-                            reasoning_event_count += 1
-                            await emitter.aemit(
-                                StreamEventType.ASSISTANT_REASONING_DELTA.value,
-                                {"delta": rk},
-                            )
+                        # 约定：reasoning_content 永远作为“思考”推送，避免 Markdown/关键词启发式误判导致混流
+                        full_reasoning += rk
+                        reasoning_char_count += len(rk)
+                        reasoning_event_count += 1
+                        await emitter.aemit(
+                            StreamEventType.ASSISTANT_REASONING_DELTA.value,
+                            {"delta": rk},
+                        )
 
                 # 2) 工具消息：解析 products（保持你现有协议）
                 elif isinstance(msg, ToolMessage):
@@ -530,10 +355,10 @@ class AgentService:
                         continue
 
             # 发送完成事件（final 用于 Orchestrator 聚合 + 落库对齐）
-            # 兜底：如果 content 太短但 reasoning 很长，说明 provider 可能把最终输出塞进了 reasoning。
-            if len(full_content) < 20 and len(full_reasoning) > 120:
+            # 兜底：仅当“全程没有任何 content delta”时，才把 reasoning 兜底成 content（避免混流）
+            if content_event_count == 0 and full_reasoning.strip():
                 logger.warning(
-                    "检测到 content 过短而 reasoning 过长，兜底将 reasoning 作为 content 输出",
+                    "检测到 content 全程为空，兜底将 reasoning 作为 content 输出",
                     conversation_id=conversation_id,
                     content_len=len(full_content),
                     reasoning_len=len(full_reasoning),

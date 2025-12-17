@@ -25,6 +25,8 @@
 
 import json
 
+from typing import Annotated
+
 from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
 
@@ -58,14 +60,11 @@ class SearchProductsResponse(BaseModel):
     query: str = Field(description="原始查询")
 
 
-class SearchProductsInput(BaseModel):
-    """search_products 的入参 schema（仅包含 LLM 可控参数）"""
-
-    query: str = Field(description="用户的搜索需求描述")
-
-
-@tool(args_schema=SearchProductsInput)
-async def search_products(query: str, runtime: ToolRuntime | None = None) -> str:
+@tool
+async def search_products(
+    query: Annotated[str, Field(description="用户的搜索需求描述")],
+    runtime: ToolRuntime,
+) -> str:
     """根据用户需求搜索匹配的商品。
 
     使用增强检索策略（向量相似度 + 关键词过滤 + 相关性重排序）来找到最匹配的商品。
@@ -88,14 +87,13 @@ async def search_products(query: str, runtime: ToolRuntime | None = None) -> str
         >>> search_products("1000元以下的耳机")
         '[{"id": "P002", "name": "小米耳机", "price": 899.0, ...}]'
     """
-    if runtime and getattr(runtime, "context", None) and getattr(runtime.context, "emitter", None):
-        runtime.context.emitter.emit(
-            StreamEventType.TOOL_START.value,
-            {
-                "name": "search_products",
-                "input": {"query": query},
-            },
-        )
+    runtime.context.emitter.emit(
+        StreamEventType.TOOL_START.value,
+        {
+            "name": "search_products",
+            "input": {"query": query},
+        },
+    )
 
     logger.info(
         "┌── 工具: search_products 开始 ──┐",
@@ -175,19 +173,15 @@ async def search_products(query: str, runtime: ToolRuntime | None = None) -> str
 
         # 步骤 4: 返回结果
         result_json = json.dumps(results, ensure_ascii=False, indent=2)
-        if (
-            runtime
-            and getattr(runtime, "context", None)
-            and getattr(runtime.context, "emitter", None)
-        ):
-            runtime.context.emitter.emit(
-                StreamEventType.TOOL_END.value,
-                {
-                    "name": "search_products",
-                    "output_preview": results[:3],
-                    "count": len(results),
-                },
-            )
+
+        runtime.context.emitter.emit(
+            StreamEventType.TOOL_END.value,
+            {
+                "name": "search_products",
+                "output_preview": results[:3],
+                "count": len(results),
+            },
+        )
         logger.info(
             "└── 工具: search_products 结束 ──┘",
             output_data={
@@ -201,17 +195,12 @@ async def search_products(query: str, runtime: ToolRuntime | None = None) -> str
         return result_json
 
     except Exception as e:
-        if (
-            runtime
-            and getattr(runtime, "context", None)
-            and getattr(runtime.context, "emitter", None)
-        ):
-            runtime.context.emitter.emit(
-                StreamEventType.TOOL_END.value,
-                {
-                    "name": "search_products",
-                    "error": str(e),
-                },
-            )
+        runtime.context.emitter.emit(
+            StreamEventType.TOOL_END.value,
+            {
+                "name": "search_products",
+                "error": str(e),
+            },
+        )
         logger.exception("搜索商品失败", query=query, error=str(e))
         return json.dumps({"error": f"搜索失败: {e}", "query": query}, ensure_ascii=False)

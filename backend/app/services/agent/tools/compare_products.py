@@ -31,7 +31,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Annotated, Any
 
 from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
@@ -79,14 +79,11 @@ class CompareProductsResponse(BaseModel):
     summary: str | None = Field(default=None, description="对比总结")
 
 
-class CompareProductsInput(BaseModel):
-    """compare_products 的入参 schema（仅包含 LLM 可控参数）"""
-
-    product_ids: list[str] = Field(description="要比较的商品ID列表（至少2个）")
-
-
-@tool(args_schema=CompareProductsInput)
-def compare_products(product_ids: list[str], runtime: ToolRuntime | None = None) -> str:
+@tool
+def compare_products(
+    product_ids: Annotated[list[str], Field(description="要比较的商品ID列表（至少2个）")],
+    runtime: ToolRuntime,
+) -> str:
     """比较多个商品的差异。
 
     对比多个商品的价格、分类、特性等信息，帮助用户做出购买决策。
@@ -114,14 +111,13 @@ def compare_products(product_ids: list[str], runtime: ToolRuntime | None = None)
     Note:
         建议先使用 search_products 搜索商品，再从结果中提取ID进行对比。
     """
-    if runtime and getattr(runtime, "context", None) and getattr(runtime.context, "emitter", None):
-        runtime.context.emitter.emit(
-            StreamEventType.TOOL_START.value,
-            {
-                "name": "compare_products",
-                "input": {"product_ids": product_ids},
-            },
-        )
+    runtime.context.emitter.emit(
+        StreamEventType.TOOL_START.value,
+        {
+            "name": "compare_products",
+            "input": {"product_ids": product_ids},
+        },
+    )
 
     logger.info(
         "┌── 工具: compare_products 开始 ──┐",
@@ -159,10 +155,24 @@ def compare_products(product_ids: list[str], runtime: ToolRuntime | None = None)
                     break
 
         if not products:
+            runtime.context.emitter.emit(
+                StreamEventType.TOOL_END.value,
+                {
+                    "name": "compare_products",
+                    "error": "未找到要比较的商品",
+                },
+            )
             logger.warning("未找到任何要比较的商品")
             return json.dumps({"error": "未找到要比较的商品"}, ensure_ascii=False)
 
         if len(products) < 2:
+            runtime.context.emitter.emit(
+                StreamEventType.TOOL_END.value,
+                {
+                    "name": "compare_products",
+                    "error": "找到的商品不足2个，无法进行对比",
+                },
+            )
             logger.warning("找到的商品不足2个", found=len(products))
             return json.dumps(
                 {"error": "找到的商品不足2个，无法进行对比", "found_count": len(products)},
@@ -184,6 +194,14 @@ def compare_products(product_ids: list[str], runtime: ToolRuntime | None = None)
             },
         }
 
+        runtime.context.emitter.emit(
+            StreamEventType.TOOL_END.value,
+            {
+                "name": "compare_products",
+                "output_preview": comparison["products"][:3],
+                "count": len(products),
+            },
+        )
         result_json = json.dumps(comparison, ensure_ascii=False, indent=2)
         logger.info(
             "└── 工具: compare_products 结束 ──┘",
@@ -193,5 +211,12 @@ def compare_products(product_ids: list[str], runtime: ToolRuntime | None = None)
         return result_json
 
     except Exception as e:
+        runtime.context.emitter.emit(
+            StreamEventType.TOOL_END.value,
+            {
+                "name": "compare_products",
+                "error": str(e),
+            },
+        )
         logger.exception("比较商品失败", product_ids=product_ids, error=str(e))
         return json.dumps({"error": f"比较失败: {e}"}, ensure_ascii=False)

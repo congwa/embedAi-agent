@@ -203,7 +203,7 @@ export function useChat(
           conversation_id: convId,
           message: content.trim(),
         }, controller)) {
-          console.log('[SSE Event]', event.type, event);
+          console.log('[SSE Event]', event.type, JSON.stringify(event.payload), event);
           const applyAssistantUpdate = (updater: (msg: ChatMessage) => ChatMessage) => {
             // 同上：捕获当前 id，避免 updater 延迟执行时读到被改写后的 assistantMessageId
             const targetId = assistantMessageId;

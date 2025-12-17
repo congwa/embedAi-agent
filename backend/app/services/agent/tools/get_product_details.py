@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 
-from typing import Any
+from typing import Annotated, Any
 
 from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
@@ -49,14 +49,11 @@ class ProductDetail(BaseModel):
     url: str | None = Field(default=None, description="商品链接")
 
 
-class GetProductDetailsInput(BaseModel):
-    """get_product_details 的入参 schema（仅包含 LLM 可控参数）"""
-
-    product_id: str = Field(description="商品ID，如 P001")
-
-
-@tool(args_schema=GetProductDetailsInput)
-def get_product_details(product_id: str, runtime: ToolRuntime | None = None) -> str:
+@tool
+def get_product_details(
+    product_id: Annotated[str, Field(description="商品ID，如 P001")],
+    runtime: ToolRuntime,
+) -> str:
     """获取指定商品的详细信息。
 
     通过商品ID精确查询商品的完整信息，包括详细描述、规格参数等。
@@ -77,14 +74,13 @@ def get_product_details(product_id: str, runtime: ToolRuntime | None = None) -> 
         >>> get_product_details("INVALID")
         '{"error": "未找到商品 INVALID"}'
     """
-    if runtime and getattr(runtime, "context", None) and getattr(runtime.context, "emitter", None):
-        runtime.context.emitter.emit(
-            StreamEventType.TOOL_START.value,
-            {
-                "name": "get_product_details",
-                "input": {"product_id": product_id},
-            },
-        )
+    runtime.context.emitter.emit(
+        StreamEventType.TOOL_START.value,
+        {
+            "name": "get_product_details",
+            "input": {"product_id": product_id},
+        },
+    )
 
     logger.info(
         "┌── 工具: get_product_details 开始 ──┐",
@@ -112,6 +108,14 @@ def get_product_details(product_id: str, runtime: ToolRuntime | None = None) -> 
                     "url": doc.metadata.get("url"),
                 }
 
+                runtime.context.emitter.emit(
+                    StreamEventType.TOOL_END.value,
+                    {
+                        "name": "get_product_details",
+                        "output_preview": product_detail,
+                        "count": 1,
+                    },
+                )
                 result_json = json.dumps(product_detail, ensure_ascii=False, indent=2)
                 logger.info(
                     "└── 工具: get_product_details 结束 ──┘",
@@ -123,5 +127,12 @@ def get_product_details(product_id: str, runtime: ToolRuntime | None = None) -> 
         return json.dumps({"error": f"未找到商品 {product_id}"}, ensure_ascii=False)
 
     except Exception as e:
+        runtime.context.emitter.emit(
+            StreamEventType.TOOL_END.value,
+            {
+                "name": "get_product_details",
+                "error": str(e),
+            },
+        )
         logger.exception("获取商品详情失败", product_id=product_id, error=str(e))
         return json.dumps({"error": f"获取详情失败: {e}"}, ensure_ascii=False)

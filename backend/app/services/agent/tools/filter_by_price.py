@@ -35,6 +35,8 @@ from __future__ import annotations
 
 import json
 
+from typing import Annotated
+
 from langchain.tools import ToolRuntime, tool
 from pydantic import BaseModel, Field
 
@@ -65,18 +67,11 @@ class FilterByPriceResponse(BaseModel):
     total_count: int = Field(description="结果数量")
 
 
-class FilterByPriceInput(BaseModel):
-    """filter_by_price 的入参 schema（仅包含 LLM 可控参数）"""
-
-    min_price: float | None = Field(default=None, description="最低价格（元）")
-    max_price: float | None = Field(default=None, description="最高价格（元）")
-
-
-@tool(args_schema=FilterByPriceInput)
+@tool
 def filter_by_price(
-    min_price: float | None = None,
-    max_price: float | None = None,
-    runtime: ToolRuntime | None = None,
+    runtime: ToolRuntime,
+    min_price: Annotated[float | None, Field(default=None, description="最低价格（元）")] = None,
+    max_price: Annotated[float | None, Field(default=None, description="最高价格（元）")] = None,
 ) -> str:
     """按价格区间过滤商品。
 
@@ -111,14 +106,13 @@ def filter_by_price(
         - 可以先价格过滤，再根据其他条件筛选
         - 默认最多返回 5 个商品
     """
-    if runtime and getattr(runtime, "context", None) and getattr(runtime.context, "emitter", None):
-        runtime.context.emitter.emit(
-            StreamEventType.TOOL_START.value,
-            {
-                "name": "filter_by_price",
-                "input": {"min_price": min_price, "max_price": max_price},
-            },
-        )
+    runtime.context.emitter.emit(
+        StreamEventType.TOOL_START.value,
+        {
+            "name": "filter_by_price",
+            "input": {"min_price": min_price, "max_price": max_price},
+        },
+    )
 
     logger.info(
         "┌── 工具: filter_by_price 开始 ──┐",
@@ -189,6 +183,14 @@ def filter_by_price(
                 break
 
         if not results:
+            runtime.context.emitter.emit(
+                StreamEventType.TOOL_END.value,
+                {
+                    "name": "filter_by_price",
+                    "output_preview": [],
+                    "count": 0,
+                },
+            )
             logger.warning("未找到符合价格条件的商品")
             return json.dumps(
                 {
@@ -199,6 +201,14 @@ def filter_by_price(
                 ensure_ascii=False,
             )
 
+        runtime.context.emitter.emit(
+            StreamEventType.TOOL_END.value,
+            {
+                "name": "filter_by_price",
+                "output_preview": results[:3],
+                "count": len(results),
+            },
+        )
         result_json = json.dumps(results, ensure_ascii=False, indent=2)
         logger.info(
             "└── 工具: filter_by_price 结束 ──┘",
@@ -211,5 +221,12 @@ def filter_by_price(
         return result_json
 
     except Exception as e:
+        runtime.context.emitter.emit(
+            StreamEventType.TOOL_END.value,
+            {
+                "name": "filter_by_price",
+                "error": str(e),
+            },
+        )
         logger.exception("价格过滤失败", error=str(e))
         return json.dumps({"error": f"价格过滤失败: {e}"}, ensure_ascii=False)
