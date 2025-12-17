@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 
@@ -21,28 +22,17 @@ class DomainEmitter(Protocol):
     def emit(self, type: str, payload: Any) -> None: ...
 
 
+@dataclass(frozen=True, slots=True)
 class ChatContext:
-    """Graph run scoped context（通过 astream_events 的 context 参数注入）。
+    """Graph run scoped context（通过 LangGraph 的 invoke/stream 传入 context 注入）。
 
-    使用简单的类而非 Pydantic BaseModel，避免 JsonSchema 生成问题。
-    LangChain 会将此对象注入到 ToolRuntime.context 中。
+    说明：
+    - LangGraph 会把 context 注入到 Runtime.context
+    - ToolNode 会把 Runtime.context 注入到 ToolRuntime.context
+    - 因此 middleware/tools 都能通过 runtime.context 访问同一个 ChatContext
     """
 
-    def __init__(
-        self,
-        conversation_id: str,
-        user_id: str,
-        assistant_message_id: str,
-        emitter: Any,
-    ) -> None:
-        self.conversation_id = conversation_id
-        self.user_id = user_id
-        self.assistant_message_id = assistant_message_id
-        self.emitter = emitter
-
-    def __repr__(self) -> str:
-        return (
-            f"ChatContext(conversation_id={self.conversation_id!r}, "
-            f"user_id={self.user_id!r}, "
-            f"assistant_message_id={self.assistant_message_id!r})"
-        )
+    conversation_id: str
+    user_id: str
+    assistant_message_id: str
+    emitter: Any

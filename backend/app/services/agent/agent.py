@@ -22,6 +22,7 @@ from app.services.agent.tools import (
 )
 from app.services.agent.middleware.logging import LoggingMiddleware
 from app.services.agent.middleware.intent_recognition import IntentRecognitionMiddleware
+from app.services.agent.middleware.sse_events import SSEMiddleware
 from app.services.streaming.context import ChatContext
 from app.schemas.events import StreamEventType
 from app.schemas.recommendation import RecommendationResult
@@ -186,7 +187,10 @@ class AgentService:
             ]
 
             # 准备中间件列表
-            middlewares = [LoggingMiddleware()]
+            # 中间件职责拆分：
+            # - SSEMiddleware：只负责 llm.call.start/end 事件推送（前端可用于 Debug/性能）
+            # - LoggingMiddleware：只负责 logger 记录（不发送任何 SSE 事件）
+            middlewares = [SSEMiddleware(), LoggingMiddleware()]
 
             # 可选：添加意图识别中间件（放在最前面，优先执行）
             if use_intent_recognition:
@@ -210,8 +214,9 @@ class AgentService:
                     "system_prompt": SYSTEM_PROMPT,
                     "checkpointer": checkpointer,
                     "middleware": middlewares,
-                    # 移除 context_schema 以避免 Pydantic JsonSchema 生成问题
-                    # ToolRuntime 会自动处理 context 注入
+                    # 启用 LangGraph 标准 context 注入：invoke/stream 时传入的 context 会被注入到 Runtime.context，
+                    # ToolNode 会进一步注入到 ToolRuntime.context，供 tools/middleware 使用。
+                    "context_schema": ChatContext,
                 }
 
                 # 可选：使用结构化输出
@@ -255,6 +260,9 @@ class AgentService:
         products_data = None
         chunk_count = 0
         tool_calls = []
+        last_ai_text = ""
+        last_reasoning_text = ""
+        seen_message_ids: set[str] = set()
 
         try:
             # 准备 Agent 输入
@@ -263,112 +271,88 @@ class AgentService:
             if context is not None:
                 agent_config["metadata"] = {"chat_context": context}
 
-            try:
-                event_iter = agent.astream_events(
-                    agent_input,
-                    config=agent_config,
-                    version="v2",
-                    context=context,
-                )
-            except TypeError:
-                logger.warning("astream_events 不支持 context 参数，将忽略 context 注入")
-                event_iter = agent.astream_events(
-                    agent_input,
-                    config=agent_config,
-                    version="v2",
-                )
+            # 使用 LangGraph 标准流式接口：context 会被注入到 Runtime.context / ToolRuntime.context
+            async for state in agent.astream(
+                agent_input,
+                config=agent_config,
+                context=context,
+                stream_mode="values",
+            ):
+                # stream_mode="values" 时，state 是完整 state dict
+                messages = state.get("messages") if isinstance(state, dict) else None
+                if not isinstance(messages, list):
+                    continue
 
-            async for event in event_iter:
-                event_type = event.get("event")
-                event_name = event.get("name", "")
+                # 1) 从最新 AIMessage 生成 assistant.delta / assistant.reasoning.delta
+                last_ai: AIMessage | None = None
+                for m in reversed(messages):
+                    if isinstance(m, AIMessage):
+                        last_ai = m
+                        break
 
-                # 处理模型流式输出
-                if event_type == "on_chat_model_stream":
-                    chunk = event.get("data", {}).get("chunk")
-                    if chunk:
-                        # 处理推理内容（如果存在）
-                        chunk_reasoning = None
-                        if hasattr(chunk, "additional_kwargs") and chunk.additional_kwargs:
-                            chunk_reasoning = chunk.additional_kwargs.get("reasoning_content")
+                if last_ai is not None:
+                    current_text = last_ai.content or ""
+                    if isinstance(current_text, list):
+                        # content_blocks 场景：这里只做简单兜底
+                        current_text = "".join(str(x) for x in current_text)
 
-                        # 累积推理内容
-                        if chunk_reasoning:
-                            reasoning_content += chunk_reasoning
+                    if isinstance(current_text, str) and current_text.startswith(last_ai_text):
+                        delta = current_text[len(last_ai_text) :]
+                    else:
+                        # 非严格前缀（例如模型重写），直接以全量覆盖追加
+                        delta = current_text
+
+                    if delta:
+                        last_ai_text = current_text
+                        full_content = current_text
+                        chunk_count += 1
+                        yield {
+                            "type": StreamEventType.ASSISTANT_DELTA.value,
+                            "payload": {"delta": delta},
+                        }
+
+                    current_reasoning = ""
+                    if getattr(last_ai, "additional_kwargs", None):
+                        current_reasoning = last_ai.additional_kwargs.get("reasoning_content") or ""
+                    if current_reasoning and isinstance(current_reasoning, str):
+                        if current_reasoning.startswith(last_reasoning_text):
+                            r_delta = current_reasoning[len(last_reasoning_text) :]
+                        else:
+                            r_delta = current_reasoning
+                        if r_delta:
+                            last_reasoning_text = current_reasoning
+                            reasoning_content = current_reasoning
                             yield {
                                 "type": StreamEventType.ASSISTANT_REASONING_DELTA.value,
-                                "payload": {"delta": chunk_reasoning},
+                                "payload": {"delta": r_delta},
                             }
 
-                        # 处理普通文本内容
-                        if hasattr(chunk, "content") and chunk.content:
-                            content = chunk.content
-                            full_content += content
-                            chunk_count += 1
+                # 2) 从新增 ToolMessage 解析 products，并发 assistant.products
+                for m in messages:
+                    if not isinstance(m, ToolMessage):
+                        continue
+                    msg_id = getattr(m, "id", None)
+                    if isinstance(msg_id, str) and msg_id in seen_message_ids:
+                        continue
+                    if isinstance(msg_id, str):
+                        seen_message_ids.add(msg_id)
 
-                            yield {
-                                "type": StreamEventType.ASSISTANT_DELTA.value,
-                                "payload": {"delta": content},
-                            }
-
-                # 处理工具调用开始
-                elif event_type == "on_tool_start":
-                    tool_input = event.get("data", {}).get("input", {})
-                    logger.info(
-                        "🔧 工具调用开始",
-                        tool_name=event_name,
-                        tool_input=tool_input,
-                    )
-                    tool_calls.append(
-                        {
-                            "name": event_name,
-                            "input": tool_input,
-                            "status": "started",
+                    content = m.content
+                    try:
+                        if isinstance(content, str):
+                            products_data = json.loads(content)
+                        elif isinstance(content, (list, dict)):
+                            products_data = content
+                        else:
+                            continue
+                        yield {
+                            "type": StreamEventType.ASSISTANT_PRODUCTS.value,
+                            "payload": {
+                                "items": products_data if isinstance(products_data, list) else [products_data]
+                            },
                         }
-                    )
-
-                # 处理工具调用结束
-                elif event_type == "on_tool_end":
-                    output = event.get("data", {}).get("output")
-
-                    logger.info(
-                        "✅ 工具调用结束",
-                        tool_name=event_name,
-                        output_type=type(output).__name__,
-                        output_preview=str(output)[:300] if output else None,
-                    )
-
-                    # 更新工具调用状态
-                    for tc in tool_calls:
-                        if tc["name"] == event_name and tc["status"] == "started":
-                            tc["status"] = "completed"
-                            tc["output_type"] = type(output).__name__
-                            break
-
-                    if output:
-                        try:
-                            # 处理不同类型的输出
-                            if isinstance(output, str):
-                                products_data = json.loads(output)
-                            elif isinstance(output, ToolMessage):
-                                content = output.content
-                                if isinstance(content, str):
-                                    products_data = json.loads(content)
-                                else:
-                                    products_data = content
-                            elif isinstance(output, (list, dict)):
-                                products_data = output
-                            else:
-                                continue
-                            yield {
-                                "type": StreamEventType.ASSISTANT_PRODUCTS.value,
-                                "payload": {
-                                    "items": products_data
-                                    if isinstance(products_data, list)
-                                    else [products_data]
-                                },
-                            }
-                        except (json.JSONDecodeError, Exception):
-                            pass
+                    except Exception:
+                        continue
 
             # 发送完成事件
             yield {

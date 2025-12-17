@@ -127,6 +127,7 @@ export function useChat(
           conversation_id: convId,
           message: content.trim(),
         }, controller)) {
+          console.log('[SSE Event]', event.type, event);
           const applyAssistantUpdate = (updater: (msg: ChatMessage) => ChatMessage) => {
             setMessages((prev) =>
               prev.map((msg) => (msg.id === assistantMessageId ? updater(msg) : msg))
@@ -159,12 +160,12 @@ export function useChat(
               applyAssistantUpdate((msg) => ({ ...msg, products }));
             }
           } else if (event.type === "assistant.final") {
-            const payload = event.payload as Extract<ChatEvent["payload"], { content: string }>;
+            const payload = event.payload as Extract<ChatEvent["payload"], { content: string; products?: Product[] | null }>;
             if (payload?.content) {
               fullContent = payload.content;
             }
-            if (payload && "products" in payload && Array.isArray((payload as any).products)) {
-              products = (payload as any).products as Product[];
+            if (payload?.products && Array.isArray(payload.products)) {
+              products = payload.products;
             }
 
             applyAssistantUpdate((msg) => ({ ...msg, content: fullContent, products, isStreaming: false }));

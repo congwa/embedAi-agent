@@ -10,10 +10,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from langchain.agents.middleware.types import AgentMiddleware, ModelRequest, ModelResponse
-from langchain_core.messages import BaseMessage
+from langchain_core.messages import BaseMessage, get_buffer_string
 
 from app.core.logging import get_logger
-from app.schemas.events import StreamEventType
 
 logger = get_logger("middleware.llm")
 
@@ -108,6 +107,20 @@ def _serialize_messages(messages: list) -> list[dict[str, Any]]:
     return [_serialize_message(m) for m in messages if isinstance(m, BaseMessage)]
 
 
+def _build_prompt_preview(messages: list[Any]) -> dict[str, Any]:
+    """将最终送入 LLM 的 messages 转成便于观察的字符串预览（用于日志）。
+
+    注意：真实请求给 provider 时通常是结构化 messages dict，而不是单一字符串。
+    这里的字符串仅用于调试/观测：按 role 前缀拼接 message.text。
+    """
+    msg_objects = [m for m in messages if isinstance(m, BaseMessage)]
+    prompt = get_buffer_string(msg_objects)
+    return {
+        "text_preview": _truncate_text(prompt, limit=5000),
+        "text_length": len(prompt),
+    }
+
+
 def _serialize_tool(tool: Any) -> dict[str, Any]:
     """序列化工具信息（BaseTool 或 provider dict tool）。"""
     if isinstance(tool, dict):
@@ -134,24 +147,6 @@ def _get_model_identity(model: Any) -> dict[str, Any]:
     }
 
 
-def _get_emitter_from_request(request: ModelRequest) -> Any:
-    """从 ModelRequest.runtime.context (ChatContext) 取 emitter。"""
-    runtime = getattr(request, "runtime", None)
-    chat_context = getattr(runtime, "context", None) if runtime is not None else None
-    emitter = getattr(chat_context, "emitter", None)
-    if emitter is not None and hasattr(emitter, "emit"):
-        return emitter
-    return None
-
-
-def _emit(emitter: Any, event_type: StreamEventType, payload: dict[str, Any]) -> None:
-    try:
-        emitter.emit(event_type.value, payload)
-    except Exception:
-        # emitter 层面不应该影响业务路径
-        return
-
-
 class LoggingMiddleware(AgentMiddleware):
     """日志中间件
 
@@ -173,34 +168,24 @@ class LoggingMiddleware(AgentMiddleware):
         """记录 LLM 调用的输入输出"""
         start_time = time.time()
         llm_call_id = uuid.uuid4().hex
-        emitter = _get_emitter_from_request(request)
 
         # LangChain 真正送入 model 的 messages = [system_message, *request.messages]
         effective_messages: list[Any] = list(request.messages)
         if request.system_message is not None:
             effective_messages = [request.system_message, *effective_messages]
 
-        if emitter:
-            _emit(
-                emitter,
-                StreamEventType.LLM_CALL_START,
-                {
-                    "llm_call_id": llm_call_id,
-                    "message_count": len(effective_messages),
-                },
-            )
-
         # 序列化输入
         request_data = {
             "llm_call_id": llm_call_id,
-            "model": _get_model_identity(request.model),
-            "messages": _serialize_messages(effective_messages),
+            # "model": _get_model_identity(request.model), # 无用 暂时不记录
+            # "messages": _serialize_messages(effective_messages), # 无用 暂时不记录
             "message_count": len(effective_messages),
-            "tools": [_serialize_tool(t) for t in request.tools],
+            "prompt": _build_prompt_preview(effective_messages),
+            # "tools": [_serialize_tool(t) for t in request.tools], # 无用 暂时不记录
             "tool_count": len(request.tools),
-            "tool_choice": request.tool_choice,
-            "response_format": _truncate_text(request.response_format, limit=200),
-            "model_settings": request.model_settings,
+            "tool_choice": request.tool_choice, # 记录了模型选择的工具的配置
+            # "response_format": _truncate_text(request.response_format, limit=200), # 无用 暂时不记录
+            # "model_settings": request.model_settings, # 无用 暂时不记录
         }
 
         logger.info("LLM 调用开始", llm_request=request_data)
@@ -224,16 +209,6 @@ class LoggingMiddleware(AgentMiddleware):
             }
 
             logger.info("LLM 调用完成", llm_response=response_data)
-            if emitter:
-                _emit(
-                    emitter,
-                    StreamEventType.LLM_CALL_END,
-                    {
-                        "llm_call_id": llm_call_id,
-                        "elapsed_ms": elapsed_ms,
-                        "message_count": len(response.result),
-                    },
-                )
             return response
 
         except Exception as e:
@@ -246,16 +221,6 @@ class LoggingMiddleware(AgentMiddleware):
                 elapsed_ms=elapsed_ms,
                 exc_info=True,
             )
-            if emitter:
-                _emit(
-                    emitter,
-                    StreamEventType.LLM_CALL_END,
-                    {
-                        "llm_call_id": llm_call_id,
-                        "elapsed_ms": elapsed_ms,
-                        "error": str(e),
-                    },
-                )
             raise
 
     def _serialize_structured(self, obj: Any) -> dict[str, Any] | str:
