@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.4] - 2025-12-17
 
+### 2025-12-18 16:22 (UTC+08:00)
+
+#### 🐛 修复 products 污染导致空卡片 (Fix Empty ProductCard Rendering)
+
+- **后端 products 解析修复** (`backend/app/services/agent/agent.py`):
+  - ToolMessage 解析 products 时使用临时变量，避免 normalize 失败时污染 `products_data`
+  - 防止 `assistant.final` 携带非商品对象（如 `{"products": [], "message": ...}`）导致前端渲染空 `ProductCard` / `product.id` 缺失日志
+
+### 2025-12-18 15:43 (UTC+08:00)
+
+#### 🎨 前端 SSE 展示重构 (Frontend SSE Display Refactor)
+
+- **消息结构升级** (`frontend/hooks/use-chat.ts`):
+  - `timeline` 简化为仅保留消息项（不再插入工具/LLM 卡片）
+  - 将 `llm`（思考中/完成/耗时/错误）、`toolsSummary`（工具执行摘要）、`trace`（运行轨迹）写入到 `ChatMessage`
+  - `llm.call.start` 到达时自动插入空的 reasoning segment，确保推理折叠标题立即出现并承载状态
+
+- **UI 展示重构** (`frontend/components/features/chat/ChatContent.tsx`):
+  - 推理折叠标题右侧常驻：运行轨迹入口 + LLM 状态 + 工具摘要
+  - 运行轨迹使用 `Steps` 面板展示（LLM / Tool / Products / Error 全部可追溯）
+  - 移除正文区域 “思考中...” 占位，避免主消息流被过程事件打断
+
 ### 2025-12-18 12:35 (UTC+08:00)
 
 #### 🧠 推理内容与流式兼容 (Reasoning & Streaming Compatibility)

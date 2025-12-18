@@ -302,7 +302,8 @@ class AgentService:
         # 准备 Agent 输入
         agent_input = {"messages": [HumanMessage(content=message)]}
         agent_config: dict[str, Any] = {"configurable": {"thread_id": conversation_id}}
-        agent_config["metadata"] = {"chat_context": context}
+        
+        # agent_config["metadata"] = {"chat_context": context}
 
         # 统计/观测：用于 debug 数据流（不影响业务）
         reasoning_char_count = 0
@@ -361,14 +362,15 @@ class AgentService:
 
                     content = msg.content
                     try:
+                        parsed_products_data: Any
                         if isinstance(content, str):
-                            products_data = json.loads(content)
+                            parsed_products_data = json.loads(content)
                         elif isinstance(content, (list, dict)):
-                            products_data = content
+                            parsed_products_data = content
                         else:
                             continue
 
-                        normalized_products = _normalize_products_payload(products_data)
+                        normalized_products = _normalize_products_payload(parsed_products_data)
                         if normalized_products is None:
                             continue
 
