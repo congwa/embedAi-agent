@@ -6,6 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.1.5] - 2025-12-19
+
+### 2025-12-19 10:50 (UTC+08:00)
+
+#### ⏱️ 时间线渲染重构 (Timeline-based Chat Rendering)
+
+实现 **Cursor/Windsurf 风格的时序时间线渲染**，SSE 事件按到达顺序逐条显示，同一个 span 的 start/end 更新同一张卡片。
+
+##### 🔧 后端改动 (Backend Changes)
+
+- **事件 payload 增强** (`backend/app/schemas/events.py`):
+  - `ToolStartPayload` / `ToolEndPayload` 新增 `tool_call_id` 字段，支持前端配对 start/end 事件
+  - `ToolEndPayload` 新增 `status` 字段（`success` / `error` / `empty`）
+
+- **工具 tool_call_id 注入** (`backend/app/services/agent/tools/*.py`):
+  - 5 个工具（`search_products` / `get_product_details` / `filter_by_price` / `compare_products` / `guide_user`）均生成并传递 `tool_call_id`
+
+##### ✨ 前端改动 (Frontend Changes)
+
+- **Timeline Reducer** (`frontend/hooks/use-timeline-reducer.ts`):
+  - 新增纯函数 reducer，处理 7 种 `TimelineItem` 类型
+  - 支持按 `id` 快速定位更新（O(1)）
+  - 推理/正文增量自动归属当前运行的 LLM 调用
+
+- **Timeline 组件** (`frontend/components/features/chat/timeline/`):
+  - `TimelineLlmCallItem`: 模型调用状态卡片（思考中/完成/失败）
+  - `TimelineToolCallItem`: 工具执行状态卡片
+  - `TimelineReasoningItem`: 推理内容（流式，可折叠）
+  - `TimelineContentItem`: 正文内容（流式）
+  - `TimelineProductsItem`: 商品卡片网格
+  - `TimelineUserMessageItem`: 用户消息气泡
+  - `TimelineErrorItem`: 错误提示条
+
+- **新版 Hook 与组件** (`frontend/hooks/use-chat-v2.ts`, `frontend/components/features/chat/ChatContentV2.tsx`):
+  - 使用 reducer 管理 timeline 状态
+  - 渲染 timeline items 而非消息列表
+
+##### 📡 时间线 Item 类型 (TimelineItem Types)
+
+| 类型 | 说明 |
+|------|------|
+| `user.message` | 用户消息气泡 |
+| `llm.call` | 模型调用状态卡片（start 插入、end 更新） |
+| `assistant.reasoning` | 推理内容（流式，归属当前 LLM call） |
+| `assistant.content` | 正文内容（流式） |
+| `tool.call` | 工具执行状态卡片（start 插入、end 更新） |
+| `assistant.products` | 商品卡片网格 |
+| `error` | 错误条 |
+
+##### 🎯 事件流示例 (Event Flow Example)
+
+```
+09:10:01 llm.call.start      → 插入「模型思考中」卡片
+09:10:02 reasoning.delta     → 在卡片下方显示推理内容
+09:10:10 llm.call.end        → 更新卡片为「思考完成 · 9000ms」
+09:10:11 tool.start          → 插入「商品搜索中」卡片
+09:10:12 tool.end            → 更新卡片为「搜索完成 · 5项 · 1234ms」
+09:10:13 llm.call.start      → 插入新的「模型思考中」卡片
+...
+```
+
+---
+
 ## [0.1.4] - 2025-12-17
 
 ### 2025-12-18 16:59 (UTC+08:00)
