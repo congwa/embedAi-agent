@@ -99,6 +99,30 @@ class Settings(BaseSettings):
     CATALOG_PROFILE_TTL_SECONDS: float = 600.0  # Agent 侧缓存 TTL（秒）
     CATALOG_PROFILE_TOP_CATEGORIES: int = 3  # 画像中展示的 Top 类目数量（建议 3，保证短）
 
+    # ========== 记忆系统配置 ==========
+    # 总开关
+    MEMORY_ENABLED: bool = True
+
+    # LangGraph Store（长期记忆基座）
+    MEMORY_STORE_ENABLED: bool = True
+    MEMORY_STORE_DB_PATH: str = "./data/memory_store.db"
+
+    # 事实型长期记忆（Qdrant 向量检索）
+    MEMORY_FACT_ENABLED: bool = True
+    MEMORY_FACT_DB_PATH: str = "./data/facts.db"
+    MEMORY_FACT_COLLECTION: str = "memory_facts"  # Qdrant 独立集合
+    MEMORY_FACT_SIMILARITY_THRESHOLD: float = 0.5  # Qdrant score 阈值
+    MEMORY_FACT_MAX_RESULTS: int = 10
+    MEMORY_FACT_EXTRACTION_MODEL: str | None = None  # 留空则使用 LLM_CHAT_MODEL
+
+    # 图谱记忆
+    MEMORY_GRAPH_ENABLED: bool = True
+    MEMORY_GRAPH_FILE_PATH: str = "./data/knowledge_graph.jsonl"
+
+    # 记忆编排
+    MEMORY_ORCHESTRATION_ENABLED: bool = True
+    MEMORY_ASYNC_WRITE: bool = True
+
     @property
     def database_url(self) -> str:
         """SQLite 数据库 URL"""
@@ -113,6 +137,17 @@ class Settings(BaseSettings):
         """确保数据目录存在"""
         Path(self.DATABASE_PATH).parent.mkdir(parents=True, exist_ok=True)
         Path(self.CHECKPOINT_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+
+    def ensure_memory_dirs(self) -> None:
+        """确保记忆相关目录存在"""
+        Path(self.MEMORY_STORE_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.MEMORY_FACT_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+        Path(self.MEMORY_GRAPH_FILE_PATH).parent.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def effective_fact_extraction_model(self) -> str:
+        """获取有效的事实抽取模型"""
+        return self.MEMORY_FACT_EXTRACTION_MODEL or self.LLM_CHAT_MODEL
 
     @property
     def effective_embedding_api_key(self) -> str:

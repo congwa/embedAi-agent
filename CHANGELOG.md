@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] - 2025-12-19
+
+### Overview
+
+本版本聚焦于「记忆系统 MVP」，完善了三类记忆能力及其编排能力：
+
+1. **LangGraph Store（长期画像）**：用于跨会话维度存储用户偏好、预算范围、任务进度等结构化信息，为 Agent 提供稳定的上下文基线。
+2. **Fact Memory（事实型记忆）**：自动从对话中提取事实，去重后写入 SQLite（元数据）与独立 Qdrant 集合 `memory_facts`（向量），支持回放与高相似度召回。
+3. **Graph Memory（图谱记忆）**：以 JSONL 形式记录实体-关系-观察，适合描述“用户与商品/计划/家庭成员之间”的结构化链接。
+4. **Memory Orchestration Middleware**：在请求开始阶段注入画像 + 事实 + 图谱，在请求结束后异步写入记忆，实现闭环流水线。
+
+### Added
+
+- **记忆向量存储模块**：新增 `vector_store.py`，负责初始化/缓存 Qdrant 客户端，自动创建独立集合 `memory_facts`，并对嵌入模型进行统一管理。
+- **记忆配置扩展**：`.env.example` 与 `Settings` 增加 `MEMORY_FACT_COLLECTION`、`MEMORY_FACT_SIMILARITY_THRESHOLD` 等参数，允许针对不同环境调整集合名称与过滤阈值。
+- **文档补全**：`backend/app/services/memory/README.md` 新增“多层混合记忆 + 中间件编排”说明，详细描述 LangGraph Store、Fact Memory（SQLite + Qdrant）、Graph Memory、Orchestration 中间件的职责与交互流程。
+
+### Changed
+
+- **事实型长期记忆**：
+  - `FactMemoryService` 写入阶段同时更新 SQLite（元数据 + 历史记录）与 Qdrant 向量；检索阶段改为调用 Qdrant `similarity_search_with_score`，并在失败时自动回退至关键词搜索。
+  - `update_fact` / `delete_fact` 同步维护 Qdrant 向量数据，确保与 SQLite 状态一致。
+  - `Fact` 数据模型移除本地 `embedding` 字段，由 Qdrant 负责托管向量，避免重复存储与手工余弦计算。
+- **记忆编排说明**：README 中的数据流图、工作流示例更新为“注入记忆 → Agent 推理 → 异步写入 SQLite + Qdrant”的完整闭环，并补充回退机制、并发安全策略。
 
 ## [0.1.5] - 2025-12-19
 

@@ -30,6 +30,7 @@ from app.services.agent.middleware.intent_recognition import IntentRecognitionMi
 from app.services.agent.middleware.response_sanitization import ResponseSanitizationMiddleware
 from app.services.agent.middleware.llm_call_sse import SSEMiddleware
 from app.services.agent.middleware.strict_mode import StrictModeMiddleware
+from app.services.memory.middleware.orchestration import MemoryOrchestrationMiddleware
 from app.services.streaming.context import ChatContext
 from app.schemas.events import StreamEventType
 from app.schemas.recommendation import RecommendationResult
@@ -419,6 +420,13 @@ class AgentService:
             # strict 模式：添加 StrictModeMiddleware（放在最后，对最终响应做检查）
             if mode == "strict":
                 middlewares.append(StrictModeMiddleware())
+
+            # 记忆编排中间件：注入记忆上下文 + 异步写入（放在最前面，先处理记忆）
+            if settings.MEMORY_ENABLED and settings.MEMORY_ORCHESTRATION_ENABLED:
+                try:
+                    middlewares.insert(0, MemoryOrchestrationMiddleware())
+                except Exception:
+                    pass
 
             # 获取对应模式的 system prompt
             base_prompt = self._get_system_prompt(mode)
