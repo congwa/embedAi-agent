@@ -28,6 +28,7 @@ from app.services.agent.tools import (
 from app.services.agent.middleware.logging import LoggingMiddleware
 from app.services.agent.middleware.response_sanitization import ResponseSanitizationMiddleware
 from app.services.agent.middleware.llm_call_sse import SSEMiddleware
+from app.services.agent.middleware.sequential_tools import SequentialToolExecutionMiddleware
 from app.services.agent.middleware.strict_mode import StrictModeMiddleware
 from app.services.memory.middleware.orchestration import MemoryOrchestrationMiddleware
 from app.services.streaming.context import ChatContext
@@ -334,6 +335,7 @@ class AgentService:
             # 中间件职责拆分：
             # - ResponseSanitizationMiddleware：检测并清洗异常响应格式（最先处理响应）
             # - SSEMiddleware：只负责 llm.call.start/end 事件推送（前端可用于 Debug/性能）
+            # - SequentialToolExecutionMiddleware：工具串行执行（可选，根据配置决定）
             # - LoggingMiddleware：只负责 logger 记录（不发送任何 SSE 事件）
             middlewares = [
                 ResponseSanitizationMiddleware(
@@ -341,8 +343,13 @@ class AgentService:
                     custom_fallback_message=settings.RESPONSE_SANITIZATION_CUSTOM_MESSAGE,
                 ),
                 SSEMiddleware(),
-                LoggingMiddleware(),
             ]
+            
+            # 可选：添加串行工具执行中间件
+            if settings.AGENT_SERIALIZE_TOOLS:
+                middlewares.append(SequentialToolExecutionMiddleware())
+            
+            middlewares.append(LoggingMiddleware())
 
             # 可选：添加任务规划中间件
             if use_todo_middleware:

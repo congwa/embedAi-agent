@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **ToolPolicy 配置层** (`backend/app/services/agent/policy.py`): 定义 natural/free/strict 策略（最小工具调用、允许直接回答、回退提示等），供 StrictModeMiddleware 使用。
+- **Agent 工具执行配置** (`backend/app/core/config.py`, `backend/.env.example`): 新增 `AGENT_SERIALIZE_TOOLS` 配置项，支持控制工具调用是否串行执行（避免并发问题）。
+- **串行工具执行中间件** (`backend/app/services/agent/middleware/sequential_tools.py`): 新增 `SequentialToolExecutionMiddleware`，当模型返回多个工具调用时强制按顺序执行。
+- **中间件集成** (`backend/app/services/agent/agent.py`): 根据配置条件性地添加串行工具执行中间件到Agent流程。
 
 ### Changed
 

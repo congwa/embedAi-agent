@@ -99,6 +99,10 @@ class Settings(BaseSettings):
     CATALOG_PROFILE_TTL_SECONDS: float = 600.0  # Agent 侧缓存 TTL（秒）
     CATALOG_PROFILE_TOP_CATEGORIES: int = 3  # 画像中展示的 Top 类目数量（建议 3，保证短）
 
+    # ========== Agent 工具执行配置 ==========
+    # 工具串行执行：当模型一次返回多个 tool_calls 时，是否强制按顺序执行（而非并行）
+    AGENT_SERIALIZE_TOOLS: bool = True
+
     # ========== 记忆系统配置 ==========
     # 总开关
     MEMORY_ENABLED: bool = True
