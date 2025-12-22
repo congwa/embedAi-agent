@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.7] - 2025-12-22
 
+### 2025-12-22 17:06 (UTC+08:00)
+
+#### Added
+
+- **Agent 工具稳健性配置** (`backend/.env.example`, `backend/app/core/config.py`): 新增工具重试与调用次数限制配置（`AGENT_TOOL_RETRY_*`, `AGENT_TOOL_LIMIT_*`），并补全 TODO 规划开关及自定义提示/描述字段。
+- **中间件扩展** (`backend/app/services/agent/agent.py`, `backend/app/services/agent/middleware/todo_broadcast.py`): 条件注入 `ToolRetryMiddleware`、`ToolCallLimitMiddleware`、`TodoListMiddleware`，并新增 `TodoBroadcastMiddleware` 在 todos 变更时向前端推送 SSE。
+- **SSE 事件类型** (`backend/app/schemas/events.py`): 新增 `assistant.todos` 事件与 TODO payload 定义。
+- **前端待办渲染** (`frontend/hooks/use-timeline-reducer.ts`, `frontend/types/chat.ts`, `frontend/components/features/chat/TimelineTodosItem.tsx`, `frontend/components/prompt-kit/todo-list.tsx`, `frontend/components/features/chat/ChatContent.tsx`, `frontend/components/features/chat/timeline/index.ts`): 时间线 reducer 支持 `assistant.todos`，新增 TodoList 组件与时间线项渲染，展示待办清单及状态。
+
 ### Overview
 
 - System prompt 与工具说明全面改为“能力描述”，彻底移除英文工具名曝光，配合策略层实现纯中文提示体验。

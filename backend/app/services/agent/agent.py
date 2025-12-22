@@ -9,6 +9,8 @@ from typing import Any
 import aiosqlite
 from langchain.agents import create_agent
 from langchain.agents.middleware.todo import TodoListMiddleware
+from langchain.agents.middleware.tool_call_limit import ToolCallLimitMiddleware
+from langchain.agents.middleware.tool_retry import ToolRetryMiddleware
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
@@ -30,6 +32,7 @@ from app.services.agent.middleware.response_sanitization import ResponseSanitiza
 from app.services.agent.middleware.llm_call_sse import SSEMiddleware
 from app.services.agent.middleware.sequential_tools import SequentialToolExecutionMiddleware
 from app.services.agent.middleware.strict_mode import StrictModeMiddleware
+from app.services.agent.middleware.todo_broadcast import TodoBroadcastMiddleware
 from app.services.memory.middleware.orchestration import MemoryOrchestrationMiddleware
 from app.services.streaming.context import ChatContext
 from app.schemas.events import StreamEventType
@@ -302,14 +305,12 @@ class AgentService:
     async def get_agent(
         self,
         mode: str = "natural",
-        use_todo_middleware: bool = False,
         use_structured_output: bool = False,
     ) -> CompiledStateGraph:
         """获取 Agent 实例
 
         Args:
             mode: 聊天模式（natural/free/strict）
-            use_todo_middleware: 是否使用任务规划中间件
             use_structured_output: 是否使用结构化输出
 
         Returns:
@@ -337,6 +338,9 @@ class AgentService:
             # - SSEMiddleware：只负责 llm.call.start/end 事件推送（前端可用于 Debug/性能）
             # - SequentialToolExecutionMiddleware：工具串行执行（可选，根据配置决定）
             # - LoggingMiddleware：只负责 logger 记录（不发送任何 SSE 事件）
+            # - TodoListMiddleware：任务规划（可选，根据配置决定）
+            # - ToolCallLimitMiddleware：工具调用限制（可选，根据配置决定）
+            # - ToolRetryMiddleware：工具重试（可选，根据配置决定）
             middlewares = [
                 ResponseSanitizationMiddleware(
                     enabled=settings.RESPONSE_SANITIZATION_ENABLED,
@@ -351,12 +355,52 @@ class AgentService:
             
             middlewares.append(LoggingMiddleware())
 
-            # 可选：添加任务规划中间件
-            if use_todo_middleware:
+            # 可选：添加工具重试中间件（放在工具调用限制之前，先重试再计数）
+            if settings.AGENT_TOOL_RETRY_ENABLED:
                 try:
-                    middlewares.append(TodoListMiddleware())
-                except Exception:
-                    pass
+                    middlewares.append(ToolRetryMiddleware(
+                        max_retries=settings.AGENT_TOOL_RETRY_MAX_RETRIES,
+                        backoff_factor=settings.AGENT_TOOL_RETRY_BACKOFF_FACTOR,
+                        initial_delay=settings.AGENT_TOOL_RETRY_INITIAL_DELAY,
+                        max_delay=settings.AGENT_TOOL_RETRY_MAX_DELAY,
+                    ))
+                    logger.debug("启用工具重试中间件", max_retries=settings.AGENT_TOOL_RETRY_MAX_RETRIES)
+                except Exception as e:
+                    logger.warning("工具重试中间件初始化失败", error=str(e))
+
+            # 可选：添加工具调用限制中间件
+            if settings.AGENT_TOOL_LIMIT_ENABLED:
+                try:
+                    limit_kwargs = {"exit_behavior": settings.AGENT_TOOL_LIMIT_EXIT_BEHAVIOR}
+                    if settings.AGENT_TOOL_LIMIT_THREAD is not None:
+                        limit_kwargs["thread_limit"] = settings.AGENT_TOOL_LIMIT_THREAD
+                    if settings.AGENT_TOOL_LIMIT_RUN is not None:
+                        limit_kwargs["run_limit"] = settings.AGENT_TOOL_LIMIT_RUN
+                    # 至少需要一个限制
+                    if "thread_limit" in limit_kwargs or "run_limit" in limit_kwargs:
+                        middlewares.append(ToolCallLimitMiddleware(**limit_kwargs))
+                        logger.debug(
+                            "启用工具调用限制中间件",
+                            thread_limit=limit_kwargs.get("thread_limit"),
+                            run_limit=limit_kwargs.get("run_limit"),
+                        )
+                except Exception as e:
+                    logger.warning("工具调用限制中间件初始化失败", error=str(e))
+
+            # 可选：添加任务规划中间件（基于配置开关）
+            if settings.AGENT_TODO_ENABLED:
+                try:
+                    todo_kwargs = {}
+                    if settings.AGENT_TODO_SYSTEM_PROMPT:
+                        todo_kwargs["system_prompt"] = settings.AGENT_TODO_SYSTEM_PROMPT
+                    if settings.AGENT_TODO_TOOL_DESCRIPTION:
+                        todo_kwargs["tool_description"] = settings.AGENT_TODO_TOOL_DESCRIPTION
+                    middlewares.append(TodoListMiddleware(**todo_kwargs))
+                    # 添加 TODO 广播中间件（放在 TodoListMiddleware 之后，捕获 state.todos 变化）
+                    middlewares.append(TodoBroadcastMiddleware())
+                    logger.debug("启用 TODO 规划中间件")
+                except Exception as e:
+                    logger.warning("TODO 规划中间件初始化失败", error=str(e))
 
             # strict 模式：添加 StrictModeMiddleware（放在最后，对最终响应做检查）
             if mode == "strict":

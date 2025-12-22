@@ -18,6 +18,8 @@ import type {
   ToolStartPayload,
   ToolEndPayload,
   ProductsPayload,
+  TodosPayload,
+  TodoItem,
   FinalPayload,
   ErrorPayload,
 } from "@/types/chat";
@@ -113,6 +115,15 @@ export interface ErrorItem {
   ts: number;
 }
 
+/** TODO 列表 item */
+export interface TodosItem {
+  type: "assistant.todos";
+  id: string;
+  turnId: string;
+  todos: TodoItem[];
+  ts: number;
+}
+
 /** 时间线 item 联合类型 */
 export type TimelineItem =
   | UserMessageItem
@@ -121,6 +132,7 @@ export type TimelineItem =
   | ContentItem
   | ToolCallItem
   | ProductsItem
+  | TodosItem
   | ErrorItem;
 
 /** Timeline state */
@@ -430,6 +442,37 @@ export function timelineReducer(
         id: `products:${event.seq}`,
         turnId,
         products,
+        ts: now,
+      };
+      return insertItem(state, item);
+    }
+
+    case "assistant.todos": {
+      const payload = event.payload as TodosPayload;
+      const todos = payload.todos;
+      if (!todos || todos.length === 0) return state;
+
+      // 查找是否已存在同 turn 的 todos item，如果存在则更新
+      const existingTodos = getLastItemOfType<TodosItem>(
+        state,
+        "assistant.todos",
+        turnId
+      );
+
+      if (existingTodos) {
+        // 更新现有的 todos item
+        return updateItemById(state, existingTodos.id, (item) => {
+          if (item.type !== "assistant.todos") return item;
+          return { ...item, todos, ts: now };
+        });
+      }
+
+      // 创建新的 todos item
+      const item: TodosItem = {
+        type: "assistant.todos",
+        id: `todos:${event.seq}`,
+        turnId,
+        todos,
         ts: now,
       };
       return insertItem(state, item);

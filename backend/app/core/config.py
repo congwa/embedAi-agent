@@ -103,6 +103,27 @@ class Settings(BaseSettings):
     # 工具串行执行：当模型一次返回多个 tool_calls 时，是否强制按顺序执行（而非并行）
     AGENT_SERIALIZE_TOOLS: bool = True
 
+    # ========== Agent TODO 规划中间件配置 ==========
+    # 启用后，Agent 会自动注入 write_todos 工具和规划提示，用于复杂多步任务的规划与跟踪
+    AGENT_TODO_ENABLED: bool = True  # 是否启用 TodoListMiddleware
+    AGENT_TODO_SYSTEM_PROMPT: str | None = None  # 自定义系统提示（可选，留空使用默认）
+    AGENT_TODO_TOOL_DESCRIPTION: str | None = None  # 自定义工具描述（可选，留空使用默认）
+
+    # ========== Agent 工具调用限制中间件配置 ==========
+    # 限制工具调用次数，防止 Agent 陷入无限循环
+    AGENT_TOOL_LIMIT_ENABLED: bool = True  # 是否启用 ToolCallLimitMiddleware
+    AGENT_TOOL_LIMIT_THREAD: int | None = None  # 线程级限制（跨 run 累计），留空不限制
+    AGENT_TOOL_LIMIT_RUN: int | None = 6  # 单次 run 限制，默认 6
+    AGENT_TOOL_LIMIT_EXIT_BEHAVIOR: str = "continue"  # 超限行为: continue/error/end
+
+    # ========== Agent 工具重试中间件配置 ==========
+    # 工具调用失败时自动重试
+    AGENT_TOOL_RETRY_ENABLED: bool = True  # 是否启用 ToolRetryMiddleware
+    AGENT_TOOL_RETRY_MAX_RETRIES: int = 2  # 最大重试次数
+    AGENT_TOOL_RETRY_BACKOFF_FACTOR: float = 2.0  # 指数退避因子
+    AGENT_TOOL_RETRY_INITIAL_DELAY: float = 1.0  # 初始延迟（秒）
+    AGENT_TOOL_RETRY_MAX_DELAY: float = 60.0  # 最大延迟（秒）
+
     # ========== 记忆系统配置 ==========
     # 总开关
     MEMORY_ENABLED: bool = True

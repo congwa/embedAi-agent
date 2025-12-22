@@ -101,6 +101,7 @@ export type ChatEventType =
   | "assistant.delta"
   | "assistant.reasoning.delta"
   | "assistant.products"
+  | "assistant.todos"
   | "assistant.final"
   | "tool.start"
   | "tool.end"
@@ -119,6 +120,15 @@ export interface TextDeltaPayload {
 
 export interface ProductsPayload {
   items: Product[];
+}
+
+export interface TodoItem {
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+}
+
+export interface TodosPayload {
+  todos: TodoItem[];
 }
 
 export interface FinalPayload {
@@ -164,6 +174,7 @@ export type ChatEventPayload =
   | MetaStartPayload
   | TextDeltaPayload
   | ProductsPayload
+  | TodosPayload
   | FinalPayload
   | ToolStartPayload
   | ToolEndPayload
@@ -186,6 +197,7 @@ export type ChatEvent =
   | (ChatEventBase & { type: "assistant.delta"; payload: TextDeltaPayload })
   | (ChatEventBase & { type: "assistant.reasoning.delta"; payload: TextDeltaPayload })
   | (ChatEventBase & { type: "assistant.products"; payload: ProductsPayload })
+  | (ChatEventBase & { type: "assistant.todos"; payload: TodosPayload })
   | (ChatEventBase & { type: "assistant.final"; payload: FinalPayload })
   | (ChatEventBase & { type: "tool.start"; payload: ToolStartPayload })
   | (ChatEventBase & { type: "tool.end"; payload: ToolEndPayload })

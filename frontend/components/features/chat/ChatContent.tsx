@@ -23,6 +23,7 @@ import {
   TimelineReasoningItem,
   TimelineContentItem,
   TimelineProductsItem,
+  TimelineTodosItem,
   TimelineUserMessageItem,
   TimelineErrorItem,
 } from "./timeline";
@@ -125,6 +126,16 @@ export function ChatContent({
               <TimelineProductsItem item={item} />
             </div>
           </Message>
+        );
+
+      case "assistant.todos":
+        return (
+          <div
+            key={item.id}
+            className="mx-auto w-full max-w-3xl px-6"
+          >
+            <TimelineTodosItem item={item} />
+          </div>
         );
 
       case "error":

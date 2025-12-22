@@ -36,6 +36,8 @@ class StreamEventType(StrEnum):
     MEMORY_EXTRACTION_COMPLETE = "memory.extraction.complete" # 记忆抽取完成
     MEMORY_PROFILE_UPDATED = "memory.profile.updated" # 用户画像更新
 
+    ASSISTANT_TODOS = "assistant.todos" # TODO 规划列表更新
+
     ERROR = "error"
 
 
@@ -101,3 +103,14 @@ class MemoryProfileUpdatedPayload(TypedDict):
     user_id: str
     updated_fields: list[str]
     source: NotRequired[str]  # "fact" | "graph" | "user_input" | "system"
+
+
+class TodoItem(TypedDict):
+    """单个 TODO 项"""
+    content: str
+    status: str  # "pending" | "in_progress" | "completed"
+
+
+class TodosPayload(TypedDict):
+    """TODO 列表更新事件 payload"""
+    todos: list[TodoItem]
