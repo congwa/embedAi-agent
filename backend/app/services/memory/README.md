@@ -9,7 +9,8 @@ memory/
 ├── __init__.py          # 模块导出
 ├── models.py            # 数据模型（Entity, Relation, Fact, UserProfile）
 ├── prompts.py           # LLM 提示词模板（事实抽取、行动判定、图谱抽取）
-├── store.py             # LangGraph Store（跨会话用户画像）
+├── store.py             # LangGraph Store（跨会话用户画像存储）
+├── profile_service.py   # 用户画像服务（规则引擎 + 统一读写）
 ├── fact_memory.py       # 事实型长期记忆服务（SQLite + Qdrant）
 ├── graph_memory.py      # 图谱记忆（Python 原生实现）
 ├── vector_store.py      # 记忆专用 Qdrant 集合管理
@@ -148,14 +149,57 @@ entities, relations = await manager.extract_and_save("user_123", messages)
 - `MEMORY_GRAPH_ENABLED`: 是否启用（默认 true）
 - `MEMORY_GRAPH_FILE_PATH`: JSONL 存储路径
 
-### 4. 记忆编排中间件
+### 4. 用户画像服务（ProfileService）
 
-自动在 Agent 调用时注入记忆上下文，并在对话结束后异步写入记忆。
+从事实和图谱中自动提取结构化画像信息，统一管理画像的读写与更新。
+
+```python
+from app.services.memory import get_profile_service, ProfileUpdateSource
+
+service = await get_profile_service()
+
+# 获取用户画像
+profile = await service.get_profile("user_123")
+
+# 用户显式更新画像
+result = await service.update_profile(
+    "user_123",
+    {"budget_max": 5000, "tone_preference": "友好"},
+    source=ProfileUpdateSource.USER_INPUT
+)
+
+# 从事实更新画像（自动提取预算、品类等）
+result = await service.update_from_facts("user_123", facts)
+
+# 从图谱更新画像（自动提取偏好关系、任务进度）
+result = await service.update_from_graph("user_123", graph)
+```
+
+**规则引擎支持的自动提取：**
+- **预算区间**：从"预算3000""3000-5000""不超过5000"等文本提取 `budget_min/max`
+- **品类偏好**：识别手机、电脑、耳机等品类关键词 → `favorite_categories`
+- **品牌偏好**：识别苹果、华为、小米等品牌 → `custom_data.brand_preferences`
+- **语气偏好**：识别友好、专业、简洁等关键词 → `tone_preference`
+- **任务进度**：从图谱实体中提取任务状态 → `task_progress`
+
+**API 接口：**
+- `GET /api/v1/users/{user_id}/profile`: 获取用户画像
+- `POST /api/v1/users/{user_id}/profile`: 更新用户画像
+- `DELETE /api/v1/users/{user_id}/profile`: 删除用户画像
+
+### 5. 记忆编排中间件
+
+自动在 Agent 调用时注入记忆上下文，并在对话结束后异步写入记忆和更新画像。
 
 **三阶段处理：**
-1. **Request Start**: 检查记忆开关
-2. **Params Transform**: 注入用户画像、事实记忆、图谱到 system prompt
-3. **Request End**: 异步触发事实抽取和图谱抽取
+1. **awrap_model_call**: 检索记忆（画像 + 事实 + 图谱）并注入到 system prompt
+2. **aafter_agent**: Agent 完成后异步触发事实抽取、图谱抽取和画像更新
+3. **SSE 通知**: 记忆抽取开始/完成、画像更新事件推送给前端
+
+**SSE 事件类型：**
+- `memory.extraction.start`: 记忆抽取开始
+- `memory.extraction.complete`: 记忆抽取完成（含事实/实体/关系数量）
+- `memory.profile.updated`: 用户画像更新（含更新的字段列表）
 
 **配置项：**
 - `MEMORY_ENABLED`: 总开关（默认 true）
@@ -216,11 +260,47 @@ MEMORY_ASYNC_WRITE=true
 │   │ 5. 异步触发事实抽取          │   │
 │   │ 6. 异步触发图谱抽取          │   │
 │   │ 7. 写入 SQLite + Qdrant      │   │
+│   │ 8. ProfileService 更新画像   │   │
+│   │ 9. SSE 通知前端              │   │
 │   └─────────────────────────────┘   │
 └─────────────────────────────────────┘
     │
     ▼
 响应输出
+```
+
+## 画像更新闭环
+
+```
+事实抽取                     图谱抽取
+    │                           │
+    ▼                           ▼
+┌─────────────────┐    ┌─────────────────┐
+│ 规则引擎提取    │    │ 关系/实体提取    │
+│ - 预算区间      │    │ - 偏好关系      │
+│ - 品类/品牌     │    │ - 任务进度      │
+│ - 语气偏好      │    │                 │
+└────────┬────────┘    └────────┬────────┘
+         │                      │
+         └──────────┬───────────┘
+                    ▼
+           ┌───────────────────┐
+           │  ProfileService   │
+           │  update_profile() │
+           └─────────┬─────────┘
+                     │
+                     ▼
+           ┌───────────────────┐
+           │  UserProfileStore │
+           │  (SQLite)         │
+           └─────────┬─────────┘
+                     │
+                     ▼
+           ┌───────────────────┐
+           │  SSE 通知前端     │
+           │  memory.profile   │
+           │  .updated         │
+           └───────────────────┘
 ```
 
 ## 注意事项

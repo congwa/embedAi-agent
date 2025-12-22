@@ -34,6 +34,7 @@ class StreamEventType(StrEnum):
 
     MEMORY_EXTRACTION_START = "memory.extraction.start" # 记忆抽取开始
     MEMORY_EXTRACTION_COMPLETE = "memory.extraction.complete" # 记忆抽取完成
+    MEMORY_PROFILE_UPDATED = "memory.profile.updated" # 用户画像更新
 
     ERROR = "error"
 
@@ -94,3 +95,9 @@ class MemoryExtractionCompletePayload(TypedDict):
     duration_ms: NotRequired[int]
     status: NotRequired[str]  # "success" | "failed"
     error: NotRequired[str]
+
+
+class MemoryProfileUpdatedPayload(TypedDict):
+    user_id: str
+    updated_fields: list[str]
+    source: NotRequired[str]  # "fact" | "graph" | "user_input" | "system"

@@ -22,6 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **记忆配置扩展**：`.env.example` 与 `Settings` 增加 `MEMORY_FACT_COLLECTION`、`MEMORY_FACT_SIMILARITY_THRESHOLD` 等参数，允许针对不同环境调整集合名称与过滤阈值。
 - **文档补全**：`backend/app/services/memory/README.md` 新增“多层混合记忆 + 中间件编排”说明，详细描述 LangGraph Store、Fact Memory（SQLite + Qdrant）、Graph Memory、Orchestration 中间件的职责与交互流程。
 - **记忆抽取 SSE 事件** (`backend/app/schemas/events.py`, `backend/app/services/memory/middleware/orchestration.py`)：新增 `memory.extraction.start/complete` 事件类型及 payload，在记忆抽取开始/完成时向前端推送进度与统计信息，便于实时展示记忆写入状态。
+- **用户画像服务** (`backend/app/services/memory/profile_service.py`)：
+  - 新增 `ProfileService` 统一管理画像的读写与更新，支持从事实/图谱自动提取结构化画像信息。
+  - 规则引擎支持自动提取：预算区间（`budget_min/max`）、品类偏好（`favorite_categories`）、品牌偏好（`custom_data.brand_preferences`）、语气偏好（`tone_preference`）、任务进度（`task_progress`）。
+  - 新增 `ProfileUpdateSource` 枚举区分更新来源（fact/graph/user_input/system），支持来源优先级冲突解决。
+- **画像更新 SSE 事件** (`backend/app/schemas/events.py`)：新增 `memory.profile.updated` 事件类型及 `MemoryProfileUpdatedPayload`，在画像更新时向前端推送更新字段列表和来源。
+- **用户画像 API** (`backend/app/routers/users.py`)：
+  - `GET /api/v1/users/{user_id}/profile`: 获取用户画像
+  - `POST /api/v1/users/{user_id}/profile`: 更新用户画像（用户显式设置）
+  - `DELETE /api/v1/users/{user_id}/profile`: 删除用户画像
 
 ### Changed
 
@@ -31,9 +40,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Fact` 数据模型移除本地 `embedding` 字段，由 Qdrant 负责托管向量，避免重复存储与手工余弦计算。
 - **记忆检索阈值语义** (`backend/app/core/config.py`, `backend/app/services/memory/fact_memory.py`)：将 `MEMORY_FACT_SIMILARITY_THRESHOLD` 明确为“距离阈值（越小越相似）”，检索逻辑改为过滤距离大于阈值的结果，与 Qdrant 的 Distance 语义保持一致。
 - **记忆编排中间件** (`backend/app/services/memory/middleware/orchestration.py`)：
-  - 新增 `MemoryWriteResult` 结构，统一记录事实/实体/关系写入统计及错误信息。
+  - 新增 `MemoryWriteResult` 结构，统一记录事实/实体/关系/画像写入统计及错误信息。
   - 将记忆写入流程从 `awrap_model_call` 挪至 `aafter_agent` 钩子，仅在整轮 Agent 结束后执行一次，避免多次重复写入并保证抽取使用独立 LLM 调用。
   - 增加 SSE 通知包装器，在记忆抽取开始与完成时通过 `StreamEventType` 向前端发送实时状态（含耗时与写入数量），支持同步/异步两种执行模式。
+  - `_process_memory_write` 在事实/图谱抽取后自动调用 `ProfileService` 更新用户画像，并通过 SSE 推送 `memory.profile.updated` 事件。
+- **事实记忆服务** (`backend/app/services/memory/fact_memory.py`)：新增 `get_recent_facts()` 方法，支持获取用户最近添加的事实用于画像更新。
 - **记忆编排说明**：README 中的数据流图、工作流示例更新为“注入记忆 → Agent 推理 → 异步写入 SQLite + Qdrant”的完整闭环，并补充回退机制、并发安全策略。
 
 ## [0.1.5] - 2025-12-19

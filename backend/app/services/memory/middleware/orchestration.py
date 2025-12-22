@@ -51,6 +51,8 @@ class MemoryWriteResult:
     facts_added: int = 0
     entities_created: int = 0
     relations_created: int = 0
+    profile_updated_fields: list[str] | None = None
+    profile_update_source: str | None = None
     success: bool = True
     error: str | None = None
 
@@ -266,6 +268,7 @@ class MemoryOrchestrationMiddleware(AgentMiddleware):
             return MemoryWriteResult()
 
         try:
+            total_start = time.perf_counter()
             # 构建对话上下文
             conversation = []
             for msg in messages:
@@ -284,8 +287,13 @@ class MemoryOrchestrationMiddleware(AgentMiddleware):
             fact_count = 0
             entity_count = 0
             relation_count = 0
+            profile_updated_fields: list[str] = []
+            profile_update_source: str | None = None
+            extracted_facts = []
+            extracted_graph = None
 
             # 事实抽取与写入
+            fact_start = time.perf_counter()
             if settings.MEMORY_FACT_ENABLED:
                 try:
                     from app.services.memory.fact_memory import get_fact_memory_service
@@ -294,10 +302,23 @@ class MemoryOrchestrationMiddleware(AgentMiddleware):
                     fact_count = await fact_service.process_conversation(
                         user_id, conversation
                     )
+                    # 获取最近添加的事实用于画像更新
+                    if fact_count > 0:
+                        extracted_facts = await fact_service.get_recent_facts(
+                            user_id, limit=fact_count
+                        )
                 except Exception as e:
                     logger.warning("事实记忆写入失败", error=str(e))
+            fact_elapsed = int((time.perf_counter() - fact_start) * 1000)
+            logger.debug(
+                "memory.write.fact_complete",
+                user_id=user_id,
+                fact_count=fact_count,
+                elapsed_ms=fact_elapsed,
+            )
 
             # 图谱抽取与写入
+            graph_start = time.perf_counter()
             if settings.MEMORY_GRAPH_ENABLED:
                 try:
                     from app.services.memory.graph_memory import get_graph_manager
@@ -306,22 +327,84 @@ class MemoryOrchestrationMiddleware(AgentMiddleware):
                     entity_count, relation_count = await graph_manager.extract_and_save(
                         user_id, conversation
                     )
+                    # 获取用户图谱用于画像更新
+                    if entity_count > 0 or relation_count > 0:
+                        extracted_graph = await graph_manager.get_user_graph(user_id)
                 except Exception as e:
                     logger.warning("图谱记忆写入失败", error=str(e))
+            graph_elapsed = int((time.perf_counter() - graph_start) * 1000)
+            logger.debug(
+                "memory.write.graph_complete",
+                user_id=user_id,
+                entity_count=entity_count,
+                relation_count=relation_count,
+                elapsed_ms=graph_elapsed,
+            )
 
-            if fact_count > 0 or entity_count > 0:
+            # 从事实和图谱更新用户画像
+            profile_start = time.perf_counter()
+            if settings.MEMORY_STORE_ENABLED and (extracted_facts or extracted_graph):
+                try:
+                    from app.services.memory.profile_service import get_profile_service
+
+                    profile_service = await get_profile_service()
+
+                    # 从事实更新画像
+                    if extracted_facts:
+                        fact_result = await profile_service.update_from_facts(
+                            user_id, extracted_facts
+                        )
+                        if fact_result.updated_fields:
+                            profile_updated_fields.extend(fact_result.updated_fields)
+                            profile_update_source = "fact"
+
+                    # 从图谱更新画像
+                    if extracted_graph and (
+                        extracted_graph.entities or extracted_graph.relations
+                    ):
+                        graph_result = await profile_service.update_from_graph(
+                            user_id, extracted_graph
+                        )
+                        if graph_result.updated_fields:
+                            profile_updated_fields.extend(graph_result.updated_fields)
+                            if not profile_update_source:
+                                profile_update_source = "graph"
+                            else:
+                                profile_update_source = "fact+graph"
+
+                    if profile_updated_fields:
+                        logger.info(
+                            "用户画像更新",
+                            user_id=user_id,
+                            updated_fields=profile_updated_fields,
+                            source=profile_update_source,
+                        )
+                except Exception as e:
+                    logger.warning("画像更新失败", error=str(e), user_id=user_id)
+            profile_elapsed = int((time.perf_counter() - profile_start) * 1000)
+            logger.debug(
+                "memory.write.profile_complete",
+                user_id=user_id,
+                updated_fields=profile_updated_fields,
+                elapsed_ms=profile_elapsed,
+            )
+
+            if fact_count > 0 or entity_count > 0 or profile_updated_fields:
                 logger.info(
                     "记忆写入完成",
                     user_id=user_id,
                     facts=fact_count,
                     entities=entity_count,
                     relations=relation_count,
+                    profile_fields=len(profile_updated_fields),
                 )
 
             return MemoryWriteResult(
                 facts_added=fact_count,
                 entities_created=entity_count,
                 relations_created=relation_count,
+                profile_updated_fields=profile_updated_fields if profile_updated_fields else None,
+                profile_update_source=profile_update_source,
                 success=True,
             )
 
@@ -471,6 +554,20 @@ class MemoryOrchestrationMiddleware(AgentMiddleware):
                     )
                 except Exception as e:
                     logger.warning("发送记忆抽取完成事件失败", error=str(e))
+
+                # 发送画像更新事件
+                if result.profile_updated_fields:
+                    try:
+                        await emitter.aemit(
+                            StreamEventType.MEMORY_PROFILE_UPDATED.value,
+                            {
+                                "user_id": user_id,
+                                "updated_fields": result.profile_updated_fields,
+                                "source": result.profile_update_source,
+                            },
+                        )
+                    except Exception as e:
+                        logger.warning("发送画像更新事件失败", error=str(e))
 
         # 根据配置决定异步或同步执行
         if self.async_write:

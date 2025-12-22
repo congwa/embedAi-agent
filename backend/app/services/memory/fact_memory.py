@@ -588,6 +588,40 @@ class FactMemoryService:
 
         return facts
 
+    async def get_recent_facts(self, user_id: str, limit: int = 10) -> list[Fact]:
+        """获取用户最近的事实
+
+        Args:
+            user_id: 用户 ID
+            limit: 最大返回数量
+
+        Returns:
+            最近更新的事实列表
+        """
+        await self.setup()
+
+        async with self._conn.execute(
+            """
+            SELECT id, user_id, content, hash, created_at, updated_at, metadata
+            FROM facts WHERE user_id = ? ORDER BY updated_at DESC LIMIT ?
+            """,
+            (user_id, limit),
+        ) as cursor:
+            facts = []
+            async for row in cursor:
+                facts.append(
+                    Fact(
+                        id=row[0],
+                        user_id=row[1],
+                        content=row[2],
+                        hash=row[3],
+                        created_at=datetime.fromisoformat(row[4]),
+                        updated_at=datetime.fromisoformat(row[5]),
+                        metadata=json.loads(row[6]) if row[6] else {},
+                    )
+                )
+            return facts
+
     async def get_all_facts(self, user_id: str) -> list[Fact]:
         """获取用户所有事实"""
         await self.setup()

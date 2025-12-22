@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+import time
 from typing import Any
 
 from app.core.config import settings
@@ -432,7 +433,15 @@ class KnowledgeGraphManager:
         if not messages:
             return 0, 0
 
+        start_time = time.perf_counter()
+        logger.debug(
+            "graph.extract.start",
+            user_id=user_id,
+            message_count=len(messages),
+        )
+
         try:
+            llm_start = time.perf_counter()
             from app.core.llm import get_chat_model
 
             model = get_chat_model()
@@ -448,6 +457,13 @@ class KnowledgeGraphManager:
                     {"role": "user", "content": conversation},
                 ]
             )
+            llm_elapsed = int((time.perf_counter() - llm_start) * 1000)
+            logger.debug(
+                "graph.extract.llm_complete",
+                user_id=user_id,
+                llm_elapsed_ms=llm_elapsed,
+                message_count=len(recent_messages),
+            )
 
             content = response.content
             if isinstance(content, str):
@@ -456,8 +472,17 @@ class KnowledgeGraphManager:
                     lines = content.split("\n")
                     content = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
 
+                parse_start = time.perf_counter()
                 try:
                     data = json.loads(content)
+                    parse_elapsed = int((time.perf_counter() - parse_start) * 1000)
+                    logger.debug(
+                        "graph.extract.parse_complete",
+                        user_id=user_id,
+                        parse_elapsed_ms=parse_elapsed,
+                        entity_count=len(data.get("entities", [])),
+                        relation_count=len(data.get("relations", [])),
+                    )
 
                     # 解析实体
                     entities = []
@@ -491,14 +516,20 @@ class KnowledgeGraphManager:
                             )
 
                     # 保存
+                    write_start = time.perf_counter()
                     new_entities = await self.create_entities(entities)
                     new_relations = await self.create_relations(relations)
+                    write_elapsed = int((time.perf_counter() - write_start) * 1000)
 
                     logger.info(
                         "图谱抽取完成",
                         user_id=user_id,
                         new_entities=len(new_entities),
                         new_relations=len(new_relations),
+                        llm_elapsed_ms=llm_elapsed,
+                        parse_elapsed_ms=parse_elapsed,
+                        write_elapsed_ms=write_elapsed,
+                        total_elapsed_ms=int((time.perf_counter() - start_time) * 1000),
                     )
 
                     return len(new_entities), len(new_relations)
