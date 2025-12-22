@@ -102,7 +102,8 @@ class TodoBroadcastMiddleware(AgentMiddleware):
         注意：write_todos 工具返回 Command 对象，todos 在 Command.update["todos"] 中
         """
         # 从 ToolCallRequest 获取工具名（格式如 "write_todos" 或带前缀）
-        tool_name = getattr(request, "name", None) or ""
+        tool_call = getattr(request, "tool_call", None) or {}
+        tool_name = tool_call.get("name", "")
         
         logger.debug(
             "awrap_tool_call 被调用",
@@ -138,12 +139,9 @@ class TodoBroadcastMiddleware(AgentMiddleware):
                                 todo_count=len(todos),
                             )
                             
-                            # 从 ToolCallRequest 获取 context 并广播
-                            # ToolCallRequest 通常有 tool_call_context 或类似属性
-                            context = getattr(request, "context", None)
-                            if context is None:
-                                # 尝试从 tool_call_context 获取
-                                context = getattr(request, "tool_call_context", None)
+                            # 从 ToolCallRequest.runtime.context 获取（与 llm_call_sse.py 保持一致）
+                            runtime = getattr(request, "runtime", None)
+                            context = getattr(runtime, "context", None) if runtime else None
                             
                             if context:
                                 emitter = getattr(context, "emitter", None)
@@ -162,7 +160,7 @@ class TodoBroadcastMiddleware(AgentMiddleware):
                             else:
                                 logger.warning(
                                     "context 不可用",
-                                    request_attrs=[a for a in dir(request) if not a.startswith("_")],
+                                    has_runtime=runtime is not None,
                                 )
                     else:
                         logger.warning("Command.update 中没有 todos")
