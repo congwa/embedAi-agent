@@ -35,7 +35,8 @@ class SequentialToolExecutionMiddleware(AgentMiddleware):
         handler: Callable[[ToolCallRequest], Any],
     ) -> Any:
         """同步工具调用串行化"""
-        tool_name = getattr(request, "name", None) or "unknown"
+        tool_call = getattr(request, "tool_call", None) or {}
+        tool_name = tool_call.get("name", "")
         logger.debug("串行执行工具（同步）", tool_name=tool_name)
         with self._lock:
             return handler(request)
@@ -46,7 +47,8 @@ class SequentialToolExecutionMiddleware(AgentMiddleware):
         handler: Callable[[ToolCallRequest], Awaitable[Any]],
     ) -> Any:
         """异步工具调用串行化"""
-        tool_name = getattr(request, "name", None) or "unknown"
+        tool_call = getattr(request, "tool_call", None) or {}
+        tool_name = tool_call.get("name", "")
         logger.debug("串行执行工具（异步）", tool_name=tool_name)
         async with self._alock:
             return await handler(request)
