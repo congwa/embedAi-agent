@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2025-12-22
+
+### Overview
+
+- System prompt 与工具说明全面改为“能力描述”，彻底移除英文工具名曝光，配合策略层实现纯中文提示体验。
+- strict/natural/free 模式的约束由 `ToolPolicy` 与中间件驱动，提示词仅描述角色原则。
+
+### Added
+
+- **ToolPolicy 配置层** (`backend/app/services/agent/policy.py`): 定义 natural/free/strict 策略（最小工具调用、允许直接回答、回退提示等），供 StrictModeMiddleware 使用。
+
+### Changed
+
+- **System Prompt 升级** (`backend/app/services/agent/agent.py`): 三种模式的 system prompt 精简为核心原则 + 输出格式，不再列举具体工具或流程。
+- **工具文档统一** (`backend/app/services/agent/tools/*.py`): `compare_products`、`get_product_details`、`filter_by_price`、`guide_user` docstring 统一使用“商品搜索能力/价格筛选能力”描述，示例与 Note 不再出现英文工具名。
+- **Strict 模式执行逻辑** (`backend/app/services/agent/middleware/strict_mode.py`): 依据 ToolPolicy 判断最小工具调用次数、允许直接回答与回退提示，替代 prompt 层强制逻辑。
+- **依赖版本** (`backend/pyproject.toml`, `backend/uv.lock`, `frontend/package.json`): bump 至 0.1.7 并同步锁定文件。
+
+### Removed
+
+- **意图识别层** (`backend/app/services/agent/middleware/intent_recognition.py`, `backend/app/services/agent/intent_analyzer.py`, `backend/app/schemas/intent.py`): 删除规则/LLM 双重意图识别及工具过滤逻辑，改由策略层与模型自主判断。
+
 ## [0.1.6] - 2025-12-19
 
 ### Overview

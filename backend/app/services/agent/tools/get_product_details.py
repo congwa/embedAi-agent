@@ -62,7 +62,7 @@ def get_product_details(
 
     Args:
         product_id: 商品ID，格式如 "P001"、"P002" 等。
-                   可以从 search_products 的结果中获取。
+                   可以从上一次检索结果或对话记录中获取。
 
     Returns:
         JSON 格式的商品详细信息字符串。

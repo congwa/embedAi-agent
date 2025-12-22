@@ -110,7 +110,7 @@ def guide_user(
             "是否有明确的约束：预算/品牌/尺寸/重量/颜色/平台（京东/淘宝等）？",
         ]
         suggested_actions = [
-            "确认目标后我会调用 search_products / compare_products 等工具",
+            "确认目标后我会调用相应的检索和对比能力",
         ]
 
     else:

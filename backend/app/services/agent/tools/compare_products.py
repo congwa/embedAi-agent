@@ -110,7 +110,7 @@ def compare_products(
         '{"error": "至少需要2个商品才能进行比较"}'
 
     Note:
-        建议先使用 search_products 搜索商品，再从结果中提取ID进行对比。
+        建议先通过商品搜索能力获取候选列表，再从结果中提取ID进行对比。
     """
     tool_call_id = uuid.uuid4().hex
     runtime.context.emitter.emit(

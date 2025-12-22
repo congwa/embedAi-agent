@@ -1,7 +1,6 @@
 """严格模式中间件
 
-在 strict 模式下，确保模型必须调用工具才能给出回答。
-如果模型没有调用工具就直接回答，则替换为受控失败消息。
+基于工具策略（ToolPolicy）确保模型遵循工具调用约束，而不是依赖硬编码的提示词。
 """
 
 from collections.abc import Awaitable, Callable
@@ -14,6 +13,7 @@ from langchain.agents.middleware.types import (
 from langchain_core.messages import AIMessage
 
 from app.core.logging import get_logger
+from app.services.agent.policy import ToolPolicy, get_policy
 
 logger = get_logger("middleware.strict_mode")
 
@@ -51,15 +51,15 @@ def _has_tool_calls(msg: AIMessage) -> bool:
 
 class StrictModeMiddleware(AgentMiddleware):
     """严格模式中间件
-
-    在 strict 模式下：
-    - 如果模型返回的是纯文本回答（没有工具调用），则替换为受控失败消息
-    - 如果模型调用了工具，则正常放行
-
-    注意：这个中间件只在 strict 模式下生效
+    
+    基于工具策略（ToolPolicy）执行工具调用约束：
+    - 如果策略要求必须调用工具但模型没有调用，则替换为受控失败消息
+    - 如果策略允许直接回答，则正常放行
+    - 支持配置回退工具和最小工具调用次数
     """
 
-    def __init__(self, custom_fallback_message: str | None = None):
+    def __init__(self, policy: ToolPolicy | None = None, custom_fallback_message: str | None = None):
+        self.policy = policy
         self.fallback_message = custom_fallback_message or STRICT_MODE_FALLBACK_MESSAGE
 
     async def awrap_model_call(
@@ -68,40 +68,62 @@ class StrictModeMiddleware(AgentMiddleware):
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse:
         mode = _get_mode_from_request(request)
+        
+        # 获取当前模式的策略，如果没有传入策略则使用默认策略
+        policy = self.policy or get_policy(mode)
+        
+        logger.debug(
+            "应用严格模式策略",
+            mode=mode,
+            policy_description=policy.description,
+            min_tool_calls=policy.min_tool_calls,
+            allow_direct_answer=policy.allow_direct_answer,
+        )
 
-        if mode != "strict":
+        # 如果策略允许直接回答，直接放行
+        if policy.allow_direct_answer:
             return await handler(request)
 
         response = await handler(request)
 
+        # 检查工具调用次数是否满足策略要求
+        total_tool_calls = 0
+        for msg in response.result:
+            if isinstance(msg, AIMessage) and _has_tool_calls(msg):
+                total_tool_calls += 1
+
+        # 如果满足最小工具调用要求，正常放行
+        if total_tool_calls >= policy.min_tool_calls:
+            logger.debug(
+                "工具调用次数满足策略要求",
+                tool_calls=total_tool_calls,
+                min_required=policy.min_tool_calls,
+            )
+            return response
+
+        # 不满足策略要求，替换为受控失败消息
+        logger.warning(
+            "工具调用次数不满足策略要求，替换为受控失败消息",
+            tool_calls=total_tool_calls,
+            min_required=policy.min_tool_calls,
+            policy=policy.description,
+        )
+
         for i, msg in enumerate(response.result):
-            if not isinstance(msg, AIMessage):
-                continue
+            if isinstance(msg, AIMessage):
+                content = msg.content
+                if isinstance(content, list):
+                    content = "".join(str(x) for x in content)
 
-            if _has_tool_calls(msg):
-                logger.debug(
-                    "strict 模式：检测到工具调用，正常放行",
-                    tool_calls=getattr(msg, "tool_calls", None),
-                )
-                continue
-
-            content = msg.content
-            if isinstance(content, list):
-                content = "".join(str(x) for x in content)
-
-            if isinstance(content, str) and content.strip():
-                logger.warning(
-                    "strict 模式：检测到无工具调用的直接回答，替换为受控失败消息",
-                    content_preview=content[:100],
-                )
-                response.result[i] = AIMessage(
-                    content=self.fallback_message,
-                    additional_kwargs=(
-                        msg.additional_kwargs if hasattr(msg, "additional_kwargs") else {}
-                    ),
-                    response_metadata=(
-                        msg.response_metadata if hasattr(msg, "response_metadata") else {}
-                    ),
-                )
+                if isinstance(content, str) and content.strip():
+                    response.result[i] = AIMessage(
+                        content=self.fallback_message,
+                        additional_kwargs=(
+                            msg.additional_kwargs if hasattr(msg, "additional_kwargs") else {}
+                        ),
+                        response_metadata=(
+                            msg.response_metadata if hasattr(msg, "response_metadata") else {}
+                        ),
+                    )
 
         return response
