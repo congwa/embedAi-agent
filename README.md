@@ -1,17 +1,6 @@
 # 商品推荐 Agent（Look & Run in 5 Minutes）
 
-> 🎥 **演示视频**：点击下方按钮快速了解项目（或直接下载 `docs/agent0.mp4`）
->
-> <div align="center">
->   <a href="docs/agent0.mp4" target="_blank">
->     <img src="https://img.shields.io/badge/Play-Demo%20Video-orange?style=for-the-badge&logo=youtube" alt="播放演示视频" />
->   </a>
-> </div>
-
-<video width="640" height="360" controls>
-  <source src="https://github.com/congwa/embedAi-agent/blob/test/new/docs/agent0.mp4?raw=true" type="video/mp4" />
-  您的浏览器不支持 HTML5 视频标签。
-</video>
+![演示动图](docs/agent0.gif)
 
 ## 1. TL;DR
 
