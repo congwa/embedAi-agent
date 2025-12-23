@@ -118,7 +118,10 @@ export function useChat(
           },
           controller
         )) {
-          console.log("[SSE Event]", event.type, JSON.stringify(event.payload));
+          // frontend/hooks/use-chat.ts
+          if (event.type !== "assistant.delta" && event.type !== "assistant.reasoning.delta") {
+            console.log("[SSE Event]", event.type, JSON.stringify(event.payload));
+          }
           setTimelineState((prev) => timelineReducer(prev, event));
         }
 
