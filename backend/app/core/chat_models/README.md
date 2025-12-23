@@ -70,3 +70,109 @@
     - v0.3 风格：reasoning 在 `additional_kwargs["reasoning"]`（dict 形态）
     - Responses/v1 风格：reasoning 在 `content` blocks（list[dict] 形态）
 
+## Chat Models 多态架构
+
+## 核心设计
+
+本模块采用**多态架构**，让不同平台（SiliconFlow 等）在各自的子类中完成推理内容的提取与归一化，
+Agent 层只消费统一的 `ReasoningChunk` 结构。
+
+**关键约束**：
+- **不再使用** `additional_kwargs["reasoning_content"]`
+- Agent 层通过 `model.extract_reasoning(message)` 获取推理内容
+- 新增平台只需继承 `BaseReasoningChatModel` 并在 registry 注册
+
+---
+
+## 目录结构
+
+```
+chat_models/
+├── __init__.py          # 统一入口
+├── base.py              # ReasoningChunk 结构 + BaseReasoningChatModel 抽象基类
+├── registry.py          # 模型创建工厂，根据 provider 选择实现
+├── providers/
+│   └── reasoning_content.py  # SiliconFlow 实现
+└── README.md            # 本文档
+```
+
+---
+
+## 统一数据结构
+
+```python
+@dataclass(frozen=True, slots=True)
+class ReasoningChunk:
+    delta: str              # 推理增量文本
+    provider: str           # 来源平台标识（siliconflow, openai, ...）
+    source: str             # 数据来源路径（chunk.delta.reasoning_content, ...）
+```
+
+---
+
+## 使用方式
+
+```python
+from app.core.chat_models import create_chat_model
+
+# 创建模型（自动选择实现）
+model = create_chat_model(
+    model="moonshotai/Kimi-K2-Thinking",
+    base_url="https://api.siliconflow.cn/v1",
+    api_key="sk-...",
+    provider="siliconflow",
+    profile={"reasoning_output": True},
+)
+
+# Agent 层获取推理内容（统一接口）
+reasoning = model.extract_reasoning(message)
+if reasoning:
+    print(reasoning.delta)  # 推理增量文本
+```
+
+---
+
+## LangChain 两条 streaming 路径（供 provider 子类参考）
+
+### 路径 A：Chat Completions streaming
+- 原始结构：`chunk["choices"][0]["delta"]["reasoning_content"]`（SiliconFlow）
+- 原始结构：`chunk["choices"][0]["delta"]["reasoning"]`（OpenAI）
+- LangChain 不会自动放入 additional_kwargs
+- **本项目做法**：在 `_convert_chunk_to_generation_chunk` 中提取，存入 `message._reasoning_chunk`
+
+### 路径 B：Responses API streaming
+- 原始结构：`message.content = [{"type": "reasoning", "summary": [...]}]`
+- LangChain 会把 reasoning 作为 content blocks
+- **本项目做法**：如需支持，在 `_stream_responses` 中提取
+
+---
+
+## 扩展方式（新增平台）
+
+1. 在 `providers/` 下新建文件（如 `moonshot.py`）
+2. 继承 `BaseReasoningChatModel`
+3. 实现 `provider_name` 属性和 `_normalize_reasoning_from_chunk()` 方法
+4. 在 `registry.py` 的 `REASONING_MODEL_REGISTRY` 中注册
+
+```python
+# providers/moonshot.py
+class MoonshotReasoningChatModel(BaseReasoningChatModel):
+    @property
+    def provider_name(self) -> str:
+        return "moonshot"
+    
+    def _normalize_reasoning_from_chunk(self, chunk, message):
+        # 从 chunk 中提取推理内容
+        ...
+```
+
+```python
+# registry.py
+REASONING_MODEL_REGISTRY = {
+    "siliconflow": (...),
+    "moonshot": ("app.core.chat_models.providers.moonshot", "MoonshotReasoningChatModel"),
+}
+```
+
+**Agent 层代码无需任何修改。**
+

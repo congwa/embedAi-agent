@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2025-12-23
+
+### 2025-12-23 17:33 (UTC+08:00)
+
+#### Added
+
+- **推理模型多态基座** (`backend/app/core/chat_models/base.py`, `backend/app/core/chat_models/__init__.py`): 新增 `ReasoningChunk` 数据结构与 `BaseReasoningChatModel.extract_reasoning()` 统一入口，Agent 通过多态接口即可获取推理增量，彻底移除对 `additional_kwargs["reasoning_content"]` 的依赖。
+- **SiliconFlow 推理实现文档化** (`backend/app/core/chat_models/providers/reasoning_content.py`, `backend/app/core/chat_models/README.md`): 以 `SiliconFlowReasoningChatModel` 封装 `reasoning_content` 字段的提取流程，并补充多态架构设计/扩展指南，方便后续按平台扩展。
+- **推理模型注册表** (`backend/app/core/chat_models/registry.py`): 引入 `REASONING_MODEL_REGISTRY`，集中声明 provider → 模型实现的映射，新增平台只需注册即可被自动选择。
+
+#### Changed
+
+- **Agent 推理事件发送** (`backend/app/services/agent/agent.py`): SSE 推理增量改为调用 `model.extract_reasoning()`，兼容不同 provider 的推理字段并保留逐字符播报统计。
+- **版本号** (`backend/pyproject.toml`, `backend/uv.lock`, `frontend/package.json`): bump 至 0.1.8，确保前后端版本保持一致。
+
+#### Removed
+
+- **OpenAI 推理实现与旧单测** (`backend/app/core/chat_models/providers/openai.py`, `backend/tests/test_reasoning_content_injection.py`): 删除旧的 OpenAI 专用逻辑与对应单测，为多态实现压缩冗余代码。
+
 ## [0.1.7] - 2025-12-22
 
 ### 2025-12-23 10:16 (UTC+08:00)

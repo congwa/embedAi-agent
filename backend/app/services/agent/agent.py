@@ -3,8 +3,8 @@
 import asyncio
 import json
 import time
-from collections.abc import AsyncGenerator, Callable
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 import aiosqlite
@@ -563,7 +563,6 @@ class AgentService:
 
         return self._agents[mode]
 
-
     async def chat_emit(
         self,
         *,
@@ -576,11 +575,18 @@ class AgentService:
 
         说明：
         - 这里不直接返回/写 SSE，只发 domain events（type + payload）
-        - Orchestrator 作为唯一对外 SSE 出口：从 queue 读取 domain events -> make_event -> encode_sse
-        - 推理内容按“字符”拆分后逐条发送，达到逐字蹦出的效果
+        - Orchestrator 作为唯一对外 SSE 出口
+        
+        推理内容提取（多态架构）：
+        - 通过 model.extract_reasoning(msg) 获取统一的 ReasoningChunk
+        - 不同平台在各自的实现中完成推理字段提取
+        - 新增平台无需修改本文件
         """
         mode = getattr(context, "mode", "natural")
         agent = await self.get_agent(mode=mode)
+        
+        # 获取模型实例（用于多态的推理提取）
+        model = get_chat_model()
 
         emitter = getattr(context, "emitter", None)
         if emitter is None or not hasattr(emitter, "aemit"):
@@ -590,13 +596,10 @@ class AgentService:
         full_reasoning = ""
         products_data: Any | None = None
         seen_tool_message_ids: set[str] = set()
-        has_content_started = False
 
         # 准备 Agent 输入
         agent_input = {"messages": [HumanMessage(content=message)]}
         agent_config: dict[str, Any] = {"configurable": {"thread_id": conversation_id}}
-        
-        # agent_config["metadata"] = {"chat_context": context}
 
         # 统计/观测：用于 debug 数据流（不影响业务）
         reasoning_char_count = 0
@@ -614,15 +617,13 @@ class AgentService:
                 # 兼容不同版本：可能返回 msg 或 (msg, meta)
                 msg = item[0] if isinstance(item, (tuple, list)) and item else item
 
-                # 1) 模型 chunk：正文按 chunk 推送；推理按字符推送
+                # 1) 模型 chunk：正文按 chunk 推送；推理按统一接口提取
                 if isinstance(msg, AIMessageChunk):
                     # 正文增量
                     delta = msg.content or ""
                     if isinstance(delta, list):
                         delta = "".join(str(x) for x in delta)
                     if isinstance(delta, str) and delta:
-                        has_content_started = True
-                        # 不做逐字拆分：模型返回多长增量，就推多长
                         full_content += delta
                         content_event_count += 1
                         await emitter.aemit(
@@ -630,31 +631,28 @@ class AgentService:
                             {"delta": delta},
                         )
 
-                    # 推理增量（推理模型会写入 additional_kwargs.reasoning_content）
-                    rk = (
-                        (getattr(msg, "additional_kwargs", None) or {}).get("reasoning_content")
-                        or ""
-                    )
-                    if isinstance(rk, str) and rk:
-                        # 约定：reasoning_content 永远作为“思考”推送，避免 Markdown/关键词启发式误判导致混流
-                        full_reasoning += rk
-                        reasoning_char_count += len(rk)
+                    # 推理增量（通过多态接口提取，不依赖 additional_kwargs）
+                    reasoning_chunk = None
+                    if hasattr(model, "extract_reasoning"):
+                        reasoning_chunk = model.extract_reasoning(msg)
+                    
+                    if reasoning_chunk and reasoning_chunk.delta:
+                        full_reasoning += reasoning_chunk.delta
+                        reasoning_char_count += len(reasoning_chunk.delta)
                         reasoning_event_count += 1
                         await emitter.aemit(
                             StreamEventType.ASSISTANT_REASONING_DELTA.value,
-                            {"delta": rk},
+                            {"delta": reasoning_chunk.delta},
                         )
 
                 # 1.1) 部分模型/版本会在流末尾给出完整 AIMessage（非 chunk）
-                # 这种情况下 content 可能为空，但 reasoning_content 有值。
-                # 为避免“最终 content 为空”，这里在尚未收到任何增量时兜底吸收一次。
+                # 这种情况下 content 可能为空，需要兜底吸收。
                 elif isinstance(msg, AIMessage):
                     if content_event_count == 0:
                         delta = msg.content or ""
                         if isinstance(delta, list):
                             delta = "".join(str(x) for x in delta)
                         if isinstance(delta, str) and delta:
-                            has_content_started = True
                             full_content += delta
                             content_event_count += 1
                             await emitter.aemit(
@@ -662,21 +660,19 @@ class AgentService:
                                 {"delta": delta},
                             )
 
-                    if reasoning_event_count == 0:
-                        rk = (
-                            (getattr(msg, "additional_kwargs", None) or {}).get("reasoning_content")
-                            or ""
-                        )
-                        if isinstance(rk, str) and rk:
-                            full_reasoning += rk
-                            reasoning_char_count += len(rk)
+                    # 兜底：从完整 AIMessage 提取推理（如果之前没有收到任何推理增量）
+                    if reasoning_event_count == 0 and hasattr(model, "extract_reasoning"):
+                        reasoning_chunk = model.extract_reasoning(msg)
+                        if reasoning_chunk and reasoning_chunk.delta:
+                            full_reasoning += reasoning_chunk.delta
+                            reasoning_char_count += len(reasoning_chunk.delta)
                             reasoning_event_count += 1
                             await emitter.aemit(
                                 StreamEventType.ASSISTANT_REASONING_DELTA.value,
-                                {"delta": rk},
+                                {"delta": reasoning_chunk.delta},
                             )
 
-                # 2) 工具消息：解析 products（保持你现有协议）
+                # 2) 工具消息：解析 products
                 elif isinstance(msg, ToolMessage):
                     msg_id = getattr(msg, "id", None)
                     if isinstance(msg_id, str) and msg_id in seen_tool_message_ids:
@@ -707,7 +703,7 @@ class AgentService:
                         continue
 
             # 发送完成事件（final 用于 Orchestrator 聚合 + 落库对齐）
-            # 兜底：仅当“全程没有任何 content delta”时，才把 reasoning 兜底成 content（避免混流）
+            # 兜底：仅当"全程没有任何 content delta"时，才把 reasoning 兜底成 content（避免混流）
             if content_event_count == 0 and full_reasoning.strip():
                 logger.warning(
                     "检测到 content 全程为空，兜底将 reasoning 作为 content 输出",

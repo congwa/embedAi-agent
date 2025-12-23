@@ -1,52 +1,72 @@
-"""Chat Models 统一入口 - 基于 provider 和 profile 自动选择实现
+"""Chat Models 统一入口（多态架构）
 
-核心设计：
-- **简单直接**：根据 provider 和 profile.reasoning_output 直接选择实现
-- **无需注册**：不需要复杂的 matcher 和注册机制
-- **易于扩展**：新增提供商只需在 ModelRegistry.create 中添加判断
+============================================================
+核心设计
+============================================================
 
-选择逻辑：
-1. 检查 profile.reasoning_output 判断是否为推理模型
-2. 非推理模型 → StandardChatModel
-3. 推理模型：
-   - provider=siliconflow → ReasoningContentChatModel
-   - 其他 → OpenAIReasoningChatModel（OpenAI 标准）
+本模块采用**多态架构**，让不同平台在各自的子类中完成推理内容的提取与归一化，
+Agent 层只消费统一的 `ReasoningChunk` 结构。
 
-目录结构：
-- `base.py`：抽象基类和标准实现
-- `registry.py`：模型创建工厂和统一入口
-- `providers/`：各提供商特定实现
-  - `reasoning_content.py`：SiliconFlow 等使用 reasoning_content 字段
-  - `openai.py`：OpenAI 标准使用 reasoning 字段
+**关键约束**：
+- 不再使用 `additional_kwargs["reasoning_content"]`
+- Agent 层通过 `model.extract_reasoning(message)` 获取推理内容
+- 新增平台只需继承 `BaseReasoningChatModel` 并在 registry 注册
+
+============================================================
+目录结构
+============================================================
+
+- `base.py`：定义 ReasoningChunk 结构和 BaseReasoningChatModel 抽象基类
+- `registry.py`：模型创建工厂，根据 provider 选择实现
+- `providers/`：各平台具体实现
+  - `reasoning_content.py`：SiliconFlow 实现
+
+============================================================
+使用方式
+============================================================
+
+```python
+from app.core.chat_models import create_chat_model
+
+# 创建模型（自动选择实现）
+model = create_chat_model(
+    model="...",
+    base_url="...",
+    api_key="...",
+    provider="siliconflow",
+    profile={"reasoning_output": True},
+)
+
+# Agent 层获取推理内容
+reasoning = model.extract_reasoning(message, raw_chunk=chunk)
+if reasoning:
+    print(reasoning.delta)  # 推理增量文本
+```
 """
 
 from __future__ import annotations
 
-# 统一入口（最重要，外部只需使用这个）
+# 统一入口（外部只需使用这个）
 from app.core.chat_models.registry import create_chat_model
 
-# 基类（供扩展使用）
+# 基类和统一结构（供扩展使用）
 from app.core.chat_models.base import (
     BaseReasoningChatModel,
+    ReasoningChunk,
     StandardChatModel,
 )
 
-# 工厂类（供扩展使用）
-from app.core.chat_models.registry import ModelRegistry
-
-# 具体实现（供调试使用）
-from app.core.chat_models.providers.reasoning_content import ReasoningContentChatModel
-from app.core.chat_models.providers.openai import OpenAIReasoningChatModel
+# SiliconFlow 实现（供调试使用）
+from app.core.chat_models.providers.reasoning_content import SiliconFlowReasoningChatModel
 
 __all__ = [
-    # 统一入口（外部使用）
+    # 统一入口
     "create_chat_model",
-    # 工厂类
-    "ModelRegistry",
+    # 统一结构
+    "ReasoningChunk",
     # 基类
     "BaseReasoningChatModel",
     "StandardChatModel",
-    # 实现类（调试用）
-    "ReasoningContentChatModel",
-    "OpenAIReasoningChatModel",
+    # 实现类
+    "SiliconFlowReasoningChatModel",
 ]
