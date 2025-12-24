@@ -57,7 +57,7 @@ class FindSimilarProductsResponse(BaseModel):
 
 @tool
 async def find_similar_products(
-    product_id: Annotated[str, Field(description="商品编号，如：P0079")],
+    product_id: Annotated[str, Field(description="商品编号，必须是单一商品编号，如：P0079")],
     runtime: ToolRuntime,
     top_k: Annotated[int | None, Field(default=5, description="返回的相似商品数量")] = 5,
 ) -> str:
@@ -65,9 +65,14 @@ async def find_similar_products(
 
     基于向量语义相似度，查找与给定商品相似或可替代的商品。
     适用于用户想看更多类似商品或寻找替代选项时使用。
+    
+    重要提示：每次调用只能查询一个商品编号。如需查询多个商品的相似商品，请分多次调用本工具。
 
     Args:
-        product_id: 商品编号，例如"P0079"
+        product_id: 商品编号，必须是单一商品编号，例如：
+                   - "P0079"（正确）
+                   - "P0080"（正确）
+                   - "P0079, P0080, P0081"（错误，包含多个编号）
         top_k: 返回的相似商品数量，默认为5
 
     Returns:
@@ -96,6 +101,31 @@ async def find_similar_products(
     )
 
     try:
+        # 校验：检测是否包含多个商品编号（逗号、顿号等分隔符）
+        separators = [",", "，", "、", "\n", ";", "；", " "]
+        if any(sep in product_id for sep in separators):
+            error_msg = "商品编号只能是单一编号，不能同时查询多个商品。如需查询多个商品的相似商品，请分多次调用本工具。"
+            logger.warning(
+                "│ [校验失败] 检测到多商品编号查询",
+                product_id=product_id,
+                detected_separators=[sep for sep in separators if sep in product_id],
+            )
+            runtime.context.emitter.emit(
+                StreamEventType.TOOL_END.value,
+                {
+                    "tool_call_id": tool_call_id,
+                    "name": "find_similar_products",
+                    "status": "error",
+                    "count": 0,
+                    "message": error_msg,
+                },
+            )
+            logger.info("└── 工具: find_similar_products 结束 (参数校验失败) ──┘")
+            return json.dumps(
+                {"error": error_msg}, ensure_ascii=False
+            )
+        
+        # 校验通过，继续执行
         # 首先获取源商品信息
         retriever = get_retriever(k=10)
         source_docs = retriever.invoke(f"商品编号: {product_id}")

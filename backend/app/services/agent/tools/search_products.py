@@ -63,19 +63,22 @@ class SearchProductsResponse(BaseModel):
 
 @tool
 async def search_products(
-    query: Annotated[str, Field(description="用户的搜索需求描述")],
+    query: Annotated[str, Field(description="用户的搜索需求描述，必须是单一商品或品类，不能包含多个商品类型")],
     runtime: ToolRuntime,
 ) -> str:
     """根据用户需求搜索匹配的商品。
 
     使用增强检索策略（向量相似度 + 关键词过滤 + 相关性重排序）来找到最匹配的商品。
     默认返回最多 5 个最相关的商品。
+    
+    重要提示：每次调用只能搜索一个商品或品类。如需搜索多个不同商品，请分多次调用本工具。
 
     Args:
-        query: 用户的搜索需求描述，例如：
-              - "降噪耳机"
-              - "适合跑步的运动鞋"
-              - "2000元左右的笔记本电脑"
+        query: 用户的搜索需求描述，必须是单一商品或品类，例如：
+              - "降噪耳机"（正确）
+              - "适合跑步的运动鞋"（正确）
+              - "2000元左右的笔记本电脑"（正确）
+              - "玩具、小猫玩具、小狗玩具"（错误，包含多个品类）
 
     Returns:
         JSON 格式的商品列表字符串，包含商品的ID、名称、价格、摘要等信息。
@@ -107,6 +110,29 @@ async def search_products(
     )
 
     try:
+        # 校验：检测是否包含多个品类（逗号、顿号、换行等分隔符）
+        separators = [",", "，", "、", "\n", ";", "；"]
+        if any(sep in query for sep in separators):
+            error_msg = "搜索查询只能包含单一商品或品类，不能同时搜索多个。如需搜索多个商品，请分多次调用本工具。"
+            logger.warning(
+                "│ [校验失败] 检测到多品类查询",
+                query=query,
+                detected_separators=[sep for sep in separators if sep in query],
+            )
+            runtime.context.emitter.emit(
+                StreamEventType.TOOL_END.value,
+                {
+                    "tool_call_id": tool_call_id,
+                    "name": "search_products",
+                    "status": "error",
+                    "count": 0,
+                    "error": error_msg,
+                },
+            )
+            logger.info("└── 工具: search_products 结束 (参数校验失败) ──┘")
+            return json.dumps({"error": error_msg, "query": query}, ensure_ascii=False)
+        
+        # 校验通过，继续执行
         # 步骤 1 & 2: 使用增强检索或标准检索
         if USE_ENHANCED_RETRIEVAL:
             logger.debug("│ [1] 使用增强检索策略...")

@@ -7,14 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.9] - 2025-12-24
 
-### 2025-12-24 17:59 (UTC+08:00)
+### 2025-12-24 18:05 (UTC+08:00)
 
 #### Added
 
-- **分类导航工具集** (`backend/app/services/agent/tools/list_all_categories.py`, `get_category_overview.py`, `list_products_by_category.py`): 新增「列出所有分类」「获取分类概览」「按分类列出商品」三款工具，支持查询类目规模、价格区间、热门关键词与代表商品，回答“有哪些分类 / 某分类有啥”的问题更加精准。
+- **分类导航工具集** (`backend/app/services/agent/tools/list_all_categories.py`, `get_category_overview.py`, `list_products_by_category.py`): 新增「列出所有分类」「获取分类概览」「按分类列出商品」三款工具，支持查询类目规模、价格区间、热门关键词与代表商品，回答"有哪些分类 / 某分类有啥"的问题更加精准。
 - **语义推荐工具集** (`find_similar_products.py`, `list_featured_products.py`, `list_products_by_attribute.py`): 新增「查找相似商品」「列出精选商品」「按属性关键词筛选商品」三款工具，结合向量检索与价格/标签/描述信息，为用户提供替代商品、主题推荐与特性过滤能力。
 - **探索与链接工具** (`suggest_related_categories.py`, `get_product_purchase_links.py`): 新增「推荐相关分类」「获取商品购买链接」两款工具，可在无匹配结果时扩展联想、并直接返回可跳转的商品 URL。
-- **Agent 工具注册** (`backend/app/services/agent/tools/__init__.py`, `backend/app/services/agent/agent.py`): 将上述 8 个工具全部注册进 Agent，配合既有搜索/对比/引导能力，共 13 个职能单一的工具可被模型自由组合，形成“分类概览 → 商品筛选 → 相似/精选推荐 → 购买链接”完整链路。
+- **Agent 工具注册** (`backend/app/services/agent/tools/__init__.py`, `backend/app/services/agent/agent.py`): 将上述 8 个工具全部注册进 Agent，配合既有搜索/对比/引导能力，共 13 个职能单一的工具可被模型自由组合，形成"分类概览 → 商品筛选 → 相似/精选推荐 → 购买链接"完整链路。
+
+#### Changed
+
+- **工具参数单一性校验** (`search_products.py`, `list_products_by_category.py`, `get_category_overview.py`, `find_similar_products.py`, `list_products_by_attribute.py`, `suggest_related_categories.py`): 在 6 个工具中增加运行时参数校验，检测逗号、顿号、换行等分隔符，防止模型一次性传入多个品类/分类/关键词导致检索失败。当检测到多值参数时，工具立即返回结构化错误提示，引导模型拆分为多次调用，确保每次工具调用保持单一职责，提升检索准确率。
 
 ## [0.1.8] - 2025-12-23
 

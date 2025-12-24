@@ -55,7 +55,7 @@ class ListProductsByCategoryResponse(BaseModel):
 
 @tool
 async def list_products_by_category(
-    category_name: Annotated[str, Field(description="分类名称，如：服饰鞋包")],
+    category_name: Annotated[str, Field(description="分类名称，必须是单一分类，如：服饰鞋包")],
     runtime: ToolRuntime,
     limit: Annotated[int | None, Field(default=10, description="返回的商品数量上限")] = 10,
     offset: Annotated[int | None, Field(default=0, description="跳过的商品数量，用于分页")] = 0,
@@ -64,9 +64,14 @@ async def list_products_by_category(
 
     返回某个分类下的商品列表，支持分页查询。
     适用于用户想浏览某个分类的商品时使用。
+    
+    重要提示：每次调用只能查询一个分类。如需查询多个分类，请分多次调用本工具。
 
     Args:
-        category_name: 分类名称，例如"服饰鞋包"、"数码电器"等
+        category_name: 分类名称，必须是单一分类，例如：
+                      - "服饰鞋包"（正确）
+                      - "数码电器"（正确）
+                      - "玩具, 小猫玩具, 小狗玩具"（错误，包含多个分类）
         limit: 返回的商品数量上限，默认为10
         offset: 跳过的商品数量，用于分页，默认为0
 
@@ -104,6 +109,32 @@ async def list_products_by_category(
     )
 
     try:
+        # 校验：检测是否包含多个分类（逗号、顿号等分隔符）
+        separators = [",", "，", "、", "\n", ";", "；"]
+        if any(sep in category_name for sep in separators):
+            error_msg = "分类名称只能是单一分类，不能同时查询多个分类。如需查询多个分类，请分多次调用本工具。"
+            logger.warning(
+                "│ [校验失败] 检测到多分类查询",
+                category_name=category_name,
+                detected_separators=[sep for sep in separators if sep in category_name],
+            )
+            runtime.context.emitter.emit(
+                StreamEventType.TOOL_END.value,
+                {
+                    "tool_call_id": tool_call_id,
+                    "name": "list_products_by_category",
+                    "status": "error",
+                    "count": 0,
+                    "error": error_msg,
+                },
+            )
+            logger.info("└── 工具: list_products_by_category 结束 (参数校验失败) ──┘")
+            return json.dumps(
+                {"error": error_msg, "category_name": category_name},
+                ensure_ascii=False,
+            )
+        
+        # 校验通过，继续执行
         async with get_db_context() as session:
             # 查询该分类下的商品
             stmt = (
