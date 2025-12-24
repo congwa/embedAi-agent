@@ -1,19 +1,23 @@
-"""LangChain v1.1 Agent 服务"""
+"""LangChain v1.1 Agent 服务
+
+职责：
+    - Agent 生命周期管理（创建、缓存、销毁）
+    - Checkpointer 管理
+    - 聊天流程编排
+
+依赖模块：
+    - middleware/registry.py: 中间件注册表
+    - tools/registry.py: 工具注册表  
+    - streams/response_handler.py: 流响应处理器
+"""
 
 import asyncio
-import json
 import time
-from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
 import aiosqlite
 from langchain.agents import create_agent
-from langchain.agents.middleware.summarization import SummarizationMiddleware
-from langchain.agents.middleware.todo import TodoListMiddleware
-from langchain.agents.middleware.tool_call_limit import ToolCallLimitMiddleware
-from langchain.agents.middleware.tool_retry import ToolRetryMiddleware
-from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.state import CompiledStateGraph
 
@@ -22,66 +26,15 @@ from app.core.database import get_db_context
 from app.core.llm import get_chat_model
 from app.core.logging import get_logger
 from app.services.catalog_profile import CatalogProfileService
-from app.services.agent.tools import (
-    search_products,
-    get_product_details,
-    compare_products,
-    filter_by_price,
-    guide_user,
-    list_all_categories,
-    get_category_overview,
-    list_products_by_category,
-    find_similar_products,
-    list_featured_products,
-    list_products_by_attribute,
-    suggest_related_categories,
-    get_product_purchase_links,
-)
-from app.services.agent.middleware.logging import LoggingMiddleware
-from app.services.agent.middleware.response_sanitization import ResponseSanitizationMiddleware
-from app.services.agent.middleware.llm_call_sse import SSEMiddleware
-from app.services.agent.middleware.sequential_tools import SequentialToolExecutionMiddleware
-from app.services.agent.middleware.strict_mode import StrictModeMiddleware
-from app.services.agent.middleware.summarization_broadcast import SummarizationBroadcastMiddleware
-from app.services.agent.middleware.todo_broadcast import TodoBroadcastMiddleware
-from app.services.memory.middleware.orchestration import MemoryOrchestrationMiddleware
+from app.services.agent.middleware.registry import build_middlewares
+from app.services.agent.tools.registry import get_tools
+from app.services.agent.streams import StreamingResponseHandler
 from app.services.streaming.context import ChatContext
 from app.schemas.events import StreamEventType
 from app.schemas.recommendation import RecommendationResult
 
 logger = get_logger("agent")
 
-
-# ========== 中间件配置（声明式，顺序即执行顺序） ==========
-
-@dataclass
-class MiddlewareSpec:
-    """中间件规格定义
-    
-    Attributes:
-        name: 中间件名称（用于日志）
-        enabled: 是否启用（可以是 bool 或返回 bool 的 callable）
-        factory: 中间件工厂函数，返回中间件实例或 None
-        order: 执行顺序（数字越小越先执行）
-    """
-    name: str
-    enabled: bool | Callable[[], bool]
-    factory: Callable[[], Any | None]
-    order: int = 100
-
-    def is_enabled(self) -> bool:
-        """检查是否启用"""
-        if callable(self.enabled):
-            return self.enabled()
-        return self.enabled
-
-    def create(self) -> Any | None:
-        """创建中间件实例"""
-        try:
-            return self.factory()
-        except Exception as e:
-            logger.warning(f"{self.name} 初始化失败", error=str(e))
-            return None
 
 # ========== 聊天模式对应的 System Prompt ==========
 
@@ -146,31 +99,6 @@ STRICT_MODE_FALLBACK_MESSAGE = """**严格模式提示**
 
 # 兼容旧代码
 SYSTEM_PROMPT = NATURAL_SYSTEM_PROMPT
-
-
-def _normalize_products_payload(payload: Any) -> list[dict[str, Any]] | None:
-    if payload is None:
-        return None
-
-    candidate: Any = payload
-    if isinstance(candidate, dict) and "products" in candidate and isinstance(candidate.get("products"), list):
-        candidate = candidate.get("products")
-
-    if not isinstance(candidate, list):
-        return None
-
-    normalized: list[dict[str, Any]] = []
-    for item in candidate:
-        if not isinstance(item, dict):
-            continue
-        raw_id = item.get("id")
-        if raw_id is None:
-            continue
-        normalized_item = dict(item)
-        normalized_item["id"] = str(raw_id)
-        normalized.append(normalized_item)
-
-    return normalized or None
 
 
 class AgentService:
@@ -366,173 +294,11 @@ class AgentService:
             # 初始化 checkpointer
             checkpointer = await self._get_checkpointer()
 
-            # 准备工具列表
-            tools = [
-                search_products,
-                get_product_details,
-                compare_products,
-                filter_by_price,
-                guide_user,
-                list_all_categories,
-                get_category_overview,
-                list_products_by_category,
-                find_similar_products,
-                list_featured_products,
-                list_products_by_attribute,
-                suggest_related_categories,
-                get_product_purchase_links,
-            ]
+            # ★ 从工具注册表获取工具列表（见 tools/registry.py）
+            tools = get_tools(mode=mode)
 
-            # ========== 中间件链配置（声明式，顺序一目了然） ==========
-            # 
-            # 📋 中间件执行顺序（按 order 从小到大排列）:
-            # ┌─────┬──────────────────────────────────┬────────────────────────────┐
-            # │Order│ 中间件名称                        │ 说明                        │
-            # ├─────┼──────────────────────────────────┼────────────────────────────┤
-            # │  10 │ MemoryOrchestration              │ 记忆注入 + 异步写入          │
-            # │  20 │ ResponseSanitization             │ 响应内容安全过滤             │
-            # │  30 │ SSE                              │ LLM 调用事件推送             │
-            # │  40 │ TodoList + TodoBroadcast         │ 任务规划 + 广播              │
-            # │  50 │ SequentialToolExecution          │ 工具串行执行                 │
-            # │  60 │ Logging                          │ 日志记录                    │
-            # │  70 │ ToolRetry                        │ 工具重试                    │
-            # │  80 │ ToolCallLimit                    │ 工具调用限制                 │
-            # │  90 │ Summarization                    │ 上下文压缩                  │
-            # │ 100 │ StrictMode                       │ 严格模式检查                 │
-            # └─────┴──────────────────────────────────┴────────────────────────────┘
-
-            def _build_tool_limit_middleware():
-                """构建工具调用限制中间件"""
-                limit_kwargs = {"exit_behavior": settings.AGENT_TOOL_LIMIT_EXIT_BEHAVIOR}
-                if settings.AGENT_TOOL_LIMIT_THREAD is not None:
-                    limit_kwargs["thread_limit"] = settings.AGENT_TOOL_LIMIT_THREAD
-                if settings.AGENT_TOOL_LIMIT_RUN is not None:
-                    limit_kwargs["run_limit"] = settings.AGENT_TOOL_LIMIT_RUN
-                if "thread_limit" not in limit_kwargs and "run_limit" not in limit_kwargs:
-                    return None
-                return ToolCallLimitMiddleware(**limit_kwargs)
-
-            def _build_todo_middlewares():
-                """构建 TODO 中间件列表"""
-                todo_kwargs = {}
-                if settings.AGENT_TODO_SYSTEM_PROMPT:
-                    todo_kwargs["system_prompt"] = settings.AGENT_TODO_SYSTEM_PROMPT
-                if settings.AGENT_TODO_TOOL_DESCRIPTION:
-                    todo_kwargs["tool_description"] = settings.AGENT_TODO_TOOL_DESCRIPTION
-                return [TodoListMiddleware(**todo_kwargs), TodoBroadcastMiddleware()]
-
-            def _build_summarization_middleware():
-                """构建上下文压缩中间件"""
-                inner = SummarizationMiddleware(
-                    model=model,
-                    trigger=("messages", settings.AGENT_SUMMARIZATION_TRIGGER_MESSAGES),
-                    keep=("messages", settings.AGENT_SUMMARIZATION_KEEP_MESSAGES),
-                    trim_tokens_to_summarize=settings.AGENT_SUMMARIZATION_TRIM_TOKENS,
-                )
-                return SummarizationBroadcastMiddleware(inner)
-
-            def _build_strict_mode_middleware():
-                """构建严格模式中间件"""
-                from app.services.agent.policy import get_policy
-                return StrictModeMiddleware(policy=get_policy(mode))
-
-            # 中间件规格列表（按 order 排序后依次构建）
-            middleware_specs: list[MiddlewareSpec] = [
-                # Order 10: 记忆编排（最先执行，注入记忆上下文）
-                MiddlewareSpec(
-                    name="MemoryOrchestration",
-                    enabled=settings.MEMORY_ENABLED and settings.MEMORY_ORCHESTRATION_ENABLED,
-                    factory=MemoryOrchestrationMiddleware,
-                    order=10,
-                ),
-                # Order 20: 响应安全过滤
-                MiddlewareSpec(
-                    name="ResponseSanitization",
-                    enabled=True,
-                    factory=lambda: ResponseSanitizationMiddleware(
-                        enabled=settings.RESPONSE_SANITIZATION_ENABLED,
-                        custom_fallback_message=settings.RESPONSE_SANITIZATION_CUSTOM_MESSAGE,
-                    ),
-                    order=20,
-                ),
-                # Order 30: SSE 事件推送（llm.call.start/end）
-                MiddlewareSpec(
-                    name="SSE",
-                    enabled=True,
-                    factory=SSEMiddleware,
-                    order=30,
-                ),
-                # Order 40: TODO 任务规划 + 广播
-                MiddlewareSpec(
-                    name="TodoList",
-                    enabled=settings.AGENT_TODO_ENABLED,
-                    factory=_build_todo_middlewares,
-                    order=40,
-                ),
-                # Order 50: 工具串行执行
-                MiddlewareSpec(
-                    name="SequentialToolExecution",
-                    enabled=settings.AGENT_SERIALIZE_TOOLS,
-                    factory=SequentialToolExecutionMiddleware,
-                    order=50,
-                ),
-                # Order 60: 日志记录
-                MiddlewareSpec(
-                    name="Logging",
-                    enabled=True,
-                    factory=LoggingMiddleware,
-                    order=60,
-                ),
-                # Order 70: 工具重试
-                MiddlewareSpec(
-                    name="ToolRetry",
-                    enabled=settings.AGENT_TOOL_RETRY_ENABLED,
-                    factory=lambda: ToolRetryMiddleware(
-                        max_retries=settings.AGENT_TOOL_RETRY_MAX_RETRIES,
-                        backoff_factor=settings.AGENT_TOOL_RETRY_BACKOFF_FACTOR,
-                        initial_delay=settings.AGENT_TOOL_RETRY_INITIAL_DELAY,
-                        max_delay=settings.AGENT_TOOL_RETRY_MAX_DELAY,
-                    ),
-                    order=70,
-                ),
-                # Order 80: 工具调用限制
-                MiddlewareSpec(
-                    name="ToolCallLimit",
-                    enabled=settings.AGENT_TOOL_LIMIT_ENABLED,
-                    factory=_build_tool_limit_middleware,
-                    order=80,
-                ),
-                # Order 90: 上下文压缩
-                MiddlewareSpec(
-                    name="Summarization",
-                    enabled=settings.AGENT_SUMMARIZATION_ENABLED,
-                    factory=_build_summarization_middleware,
-                    order=90,
-                ),
-                # Order 100: 严格模式检查（最后执行）
-                MiddlewareSpec(
-                    name="StrictMode",
-                    enabled=mode == "strict",
-                    factory=_build_strict_mode_middleware,
-                    order=100,
-                ),
-            ]
-
-            # 按 order 排序并构建中间件列表
-            middlewares = []
-            for spec in sorted(middleware_specs, key=lambda s: s.order):
-                if not spec.is_enabled():
-                    continue
-                result = spec.create()
-                if result is None:
-                    continue
-                # 支持返回列表（如 TodoList 返回 [TodoListMiddleware, TodoBroadcastMiddleware]）
-                if isinstance(result, list):
-                    middlewares.extend(result)
-                    logger.debug(f"启用 {spec.name} 中间件", count=len(result))
-                else:
-                    middlewares.append(result)
-                    logger.debug(f"启用 {spec.name} 中间件")
+            # ★ 从中间件注册表构建中间件链（见 middleware/registry.py）
+            middlewares = build_middlewares(mode=mode, model=model)
 
             # 获取对应模式的 system prompt
             base_prompt = self._get_system_prompt(mode)
@@ -584,7 +350,7 @@ class AgentService:
         *,
         message: str,
         conversation_id: str,
-        user_id: str,
+        user_id: str,  # noqa: ARG002
         context: ChatContext,
     ) -> None:
         """将聊天流事件写入 context.emitter（不绕过 Orchestrator）。
@@ -593,10 +359,7 @@ class AgentService:
         - 这里不直接返回/写 SSE，只发 domain events（type + payload）
         - Orchestrator 作为唯一对外 SSE 出口
         
-        推理内容提取（多态架构）：
-        - 通过 model.extract_reasoning(msg) 获取统一的 ReasoningChunk
-        - 不同平台在各自的实现中完成推理字段提取
-        - 新增平台无需修改本文件
+        流处理逻辑已抽离到 streams/response_handler.py
         """
         mode = getattr(context, "mode", "natural")
         agent = await self.get_agent(mode=mode)
@@ -608,19 +371,16 @@ class AgentService:
         if emitter is None or not hasattr(emitter, "aemit"):
             raise RuntimeError("chat_emit 需要 context.emitter.aemit()（用于高频不丢事件）")
 
-        full_content = ""
-        full_reasoning = ""
-        products_data: Any | None = None
-        seen_tool_message_ids: set[str] = set()
+        # ★ 使用流响应处理器（见 streams/response_handler.py）
+        handler = StreamingResponseHandler(
+            emitter=emitter,
+            model=model,
+            conversation_id=conversation_id,
+        )
 
         # 准备 Agent 输入
         agent_input = {"messages": [HumanMessage(content=message)]}
         agent_config: dict[str, Any] = {"configurable": {"thread_id": conversation_id}}
-
-        # 统计/观测：用于 debug 数据流（不影响业务）
-        reasoning_char_count = 0
-        reasoning_event_count = 0
-        content_event_count = 0
 
         try:
             # 关键：使用 LangGraph 的 messages 模式拿到 AIMessageChunk（而不是 state values）
@@ -632,122 +392,10 @@ class AgentService:
             ):
                 # 兼容不同版本：可能返回 msg 或 (msg, meta)
                 msg = item[0] if isinstance(item, (tuple, list)) and item else item
+                await handler.handle_message(msg)
 
-                # 1) 模型 chunk：正文按 chunk 推送；推理按统一接口提取
-                if isinstance(msg, AIMessageChunk):
-                    # 正文增量
-                    delta = msg.content or ""
-                    if isinstance(delta, list):
-                        delta = "".join(str(x) for x in delta)
-                    if isinstance(delta, str) and delta:
-                        full_content += delta
-                        content_event_count += 1
-                        await emitter.aemit(
-                            StreamEventType.ASSISTANT_DELTA.value,
-                            {"delta": delta},
-                        )
-
-                    # 推理增量（通过多态接口提取，不依赖 additional_kwargs）
-                    reasoning_chunk = None
-                    if hasattr(model, "extract_reasoning"):
-                        reasoning_chunk = model.extract_reasoning(msg)
-                    
-                    if reasoning_chunk and reasoning_chunk.delta:
-                        full_reasoning += reasoning_chunk.delta
-                        reasoning_char_count += len(reasoning_chunk.delta)
-                        reasoning_event_count += 1
-                        await emitter.aemit(
-                            StreamEventType.ASSISTANT_REASONING_DELTA.value,
-                            {"delta": reasoning_chunk.delta},
-                        )
-
-                # 1.1) 部分模型/版本会在流末尾给出完整 AIMessage（非 chunk）
-                # 这种情况下 content 可能为空，需要兜底吸收。
-                elif isinstance(msg, AIMessage):
-                    if content_event_count == 0:
-                        delta = msg.content or ""
-                        if isinstance(delta, list):
-                            delta = "".join(str(x) for x in delta)
-                        if isinstance(delta, str) and delta:
-                            full_content += delta
-                            content_event_count += 1
-                            await emitter.aemit(
-                                StreamEventType.ASSISTANT_DELTA.value,
-                                {"delta": delta},
-                            )
-
-                    # 兜底：从完整 AIMessage 提取推理（如果之前没有收到任何推理增量）
-                    if reasoning_event_count == 0 and hasattr(model, "extract_reasoning"):
-                        reasoning_chunk = model.extract_reasoning(msg)
-                        if reasoning_chunk and reasoning_chunk.delta:
-                            full_reasoning += reasoning_chunk.delta
-                            reasoning_char_count += len(reasoning_chunk.delta)
-                            reasoning_event_count += 1
-                            await emitter.aemit(
-                                StreamEventType.ASSISTANT_REASONING_DELTA.value,
-                                {"delta": reasoning_chunk.delta},
-                            )
-
-                # 2) 工具消息：解析 products
-                elif isinstance(msg, ToolMessage):
-                    msg_id = getattr(msg, "id", None)
-                    if isinstance(msg_id, str) and msg_id in seen_tool_message_ids:
-                        continue
-                    if isinstance(msg_id, str):
-                        seen_tool_message_ids.add(msg_id)
-
-                    content = msg.content
-                    try:
-                        parsed_products_data: Any
-                        if isinstance(content, str):
-                            parsed_products_data = json.loads(content)
-                        elif isinstance(content, (list, dict)):
-                            parsed_products_data = content
-                        else:
-                            continue
-
-                        normalized_products = _normalize_products_payload(parsed_products_data)
-                        if normalized_products is None:
-                            continue
-
-                        products_data = normalized_products
-                        await emitter.aemit(
-                            StreamEventType.ASSISTANT_PRODUCTS.value,
-                            {"items": normalized_products},
-                        )
-                    except Exception:
-                        continue
-
-            # 发送完成事件（final 用于 Orchestrator 聚合 + 落库对齐）
-            # 兜底：仅当"全程没有任何 content delta"时，才把 reasoning 兜底成 content（避免混流）
-            if content_event_count == 0 and full_reasoning.strip():
-                logger.warning(
-                    "检测到 content 全程为空，兜底将 reasoning 作为 content 输出",
-                    conversation_id=conversation_id,
-                    content_len=len(full_content),
-                    reasoning_len=len(full_reasoning),
-                )
-                full_content = full_reasoning
-                full_reasoning = ""
-
-            await emitter.aemit(
-                StreamEventType.ASSISTANT_FINAL.value,
-                {
-                    "content": full_content,
-                    "reasoning": full_reasoning if full_reasoning else None,
-                    "products": products_data
-                    if isinstance(products_data, list) or products_data is None
-                    else [products_data],
-                },
-            )
-
-            logger.info(
-                "✅ chat_emit 完成",
-                conversation_id=conversation_id,
-                content_events=content_event_count,
-                reasoning_events=reasoning_event_count,
-                reasoning_chars=reasoning_char_count,
-            )
+            # 发送最终事件
+            await handler.finalize()
 
             # 发送最终的 todos（确保前端能接收到 todo 列表更新）
             try:
