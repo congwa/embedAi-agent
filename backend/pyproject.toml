@@ -44,5 +44,7 @@ target-version = "py313"
 select = ["E", "F", "I", "W"]
 
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "webtest: tests that需要访问真实站点/浏览器的用例",
+]

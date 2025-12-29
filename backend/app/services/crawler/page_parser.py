@@ -115,12 +115,23 @@ class PageParser:
             fields = config.fields
 
             if not fields:
+                logger.warning("选择器模式未配置字段，跳过页面")
                 return False, None, "未配置字段选择器"
+
+            logger.debug(
+                "开始使用选择器解析页面",
+                indicator_selector=config.product_page_indicator,
+                field_selectors=fields.model_dump(exclude_none=True),
+            )
 
             # 检查是否为商品页
             if config.product_page_indicator:
                 indicator = soup.select_one(config.product_page_indicator)
                 if not indicator:
+                    logger.debug(
+                        "未命中商品页指示器，判定非商品页",
+                        indicator_selector=config.product_page_indicator,
+                    )
                     return False, None, None
 
             # 提取字段
@@ -177,8 +188,18 @@ class PageParser:
 
             # 检查是否有必要字段
             if not data.get("name"):
+                logger.debug(
+                    "未提取到必需字段 name，判定为非商品页",
+                    name_selector=fields.name,
+                    extracted_fields=list(data.keys()),
+                )
                 return False, None, None
 
+            logger.debug(
+                "选择器解析成功",
+                extracted_fields=list(data.keys()),
+                has_price="price" in data,
+            )
             return True, ParsedProductData(**data), None
 
         except Exception as e:

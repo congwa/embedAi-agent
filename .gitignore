@@ -94,3 +94,6 @@ RESPONSE_*.md
 
 backend/docs
 frontend/docs
+
+# test_page_parser
+backend/tests/test_page_parser.py
