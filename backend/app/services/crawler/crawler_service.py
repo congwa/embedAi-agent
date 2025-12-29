@@ -69,12 +69,20 @@ class CrawlerService:
     async def close(self):
         """关闭浏览器实例"""
         if self._browser:
-            await self._browser.close()
-            self._browser = None
+            try:
+                await self._browser.close()
+            except Exception as e:
+                logger.warning("关闭浏览器失败，忽略", error=str(e))
+            finally:
+                self._browser = None
         if self._playwright:
-            await self._playwright.stop()
-            self._playwright = None
-            logger.info("浏览器实例已关闭")
+            try:
+                await self._playwright.stop()
+            except Exception as e:
+                logger.warning("停止 Playwright 失败，忽略", error=str(e))
+            finally:
+                self._playwright = None
+        logger.info("浏览器实例已关闭")
 
     async def crawl_site(self, site_id: str) -> int:
         """执行站点爬取任务
