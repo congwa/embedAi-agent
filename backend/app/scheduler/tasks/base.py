@@ -26,12 +26,14 @@ class TaskSchedule:
         cron_expression: cron 表达式，如 "0 2 * * *"（每天凌晨2点）
         interval_seconds: 间隔秒数
         allow_concurrent: 是否允许并发执行（同一任务重叠运行）
+        run_on_start: 调度器启动时是否立即执行一次
     """
 
     schedule_type: ScheduleType
     cron_expression: str | None = None
     interval_seconds: int | None = None
     allow_concurrent: bool = False
+    run_on_start: bool = False
 
     def __post_init__(self):
         if self.schedule_type == ScheduleType.CRON and not self.cron_expression:

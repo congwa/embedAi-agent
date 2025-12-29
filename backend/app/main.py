@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import init_db
+from app.core.database import get_db_context, init_db
 from app.core.logging import logger
 from app.core.models_dev import get_model_profile
 from app.routers import chat, conversations, crawler, users
@@ -15,6 +15,7 @@ from app.scheduler import task_registry, task_scheduler
 from app.scheduler.routers import router as scheduler_router
 from app.scheduler.tasks import CrawlSiteTask
 from app.services.agent.agent import agent_service
+from app.services.crawler.site_initializer import init_config_sites
 
 
 def _init_model_profiles() -> None:
@@ -77,10 +78,30 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await init_db()
 
-    # 初始化任务调度器
+    # 初始化爬虫配置站点
     if settings.CRAWLER_ENABLED:
-        # 注册爬虫任务
-        task_registry.register(CrawlSiteTask())
+        async with get_db_context() as session:
+            imported_site_ids = await init_config_sites(session)
+            
+            # 为每个配置站点注册调度任务
+            if imported_site_ids:
+                from app.repositories.crawler import CrawlSiteRepository
+                site_repo = CrawlSiteRepository(session)
+                
+                for site_id in imported_site_ids:
+                    site = await site_repo.get_by_id(site_id)
+                    if site and site.cron_expression:
+                        # 创建并注册该站点的定时任务
+                        task = CrawlSiteTask(
+                            site_id=site_id,
+                            cron_expression=site.cron_expression,
+                            run_on_start=settings.CRAWLER_RUN_ON_START,
+                        )
+                        task_registry.register(task)
+                        logger.info("注册配置站点任务", site_id=site_id, cron=site.cron_expression)
+            else:
+                # 如果没有配置站点，注册默认任务（兼容旧逻辑）
+                task_registry.register(CrawlSiteTask())
     
     # 启动调度器（即使没有任务也启动，方便后续动态注册）
     await task_scheduler.start()

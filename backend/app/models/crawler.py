@@ -66,8 +66,14 @@ class CrawlSite(Base):
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False, comment="站点名称")
     start_url: Mapped[str] = mapped_column(String(500), nullable=False, comment="起始 URL")
+    domain: Mapped[str] = mapped_column(
+        String(255), nullable=False, unique=True, index=True, comment="站点域名（规范化后，用于去重）"
+    )
     status: Mapped[str] = mapped_column(
         String(20), default=CrawlSiteStatus.ACTIVE.value, comment="站点状态"
+    )
+    is_system_site: Mapped[bool] = mapped_column(
+        Boolean, default=False, comment="是否为系统配置站点（不可通过 API 删除）"
     )
 
     # 爬取规则

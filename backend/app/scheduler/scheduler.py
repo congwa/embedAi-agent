@@ -69,6 +69,7 @@ class TaskScheduler:
         # 为每个任务创建调度 job
         for task in self.registry.list_all():
             await self._add_task_job(task)
+            await self._run_task_on_start(task)
 
     async def stop(self) -> None:
         """停止调度器"""
@@ -160,6 +161,17 @@ class TaskScheduler:
         job = self._scheduler.get_job(self._job_ids.get(task_name, ""))
         if job and job.next_run_time:
             self.runner.update_next_run(task_name, job.next_run_time.replace(tzinfo=None))
+
+    async def _run_task_on_start(self, task: BaseTask) -> None:
+        """调度器启动时根据配置触发一次任务"""
+        if not task.schedule.run_on_start:
+            return
+        if not task.enabled:
+            logger.debug("任务已禁用，跳过启动执行", task_name=task.name)
+            return
+
+        logger.info("调度器启动立即执行任务", task_name=task.name)
+        asyncio.create_task(self.runner.execute(task))
 
     async def trigger(self, task_name: str) -> bool:
         """手动触发任务

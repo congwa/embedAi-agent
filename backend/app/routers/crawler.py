@@ -29,6 +29,7 @@ from app.schemas.crawler import (
     ExtractionConfig,
 )
 from app.services.crawler import CrawlerService
+from app.services.crawler.utils import generate_site_id, normalize_domain
 
 logger = get_logger("router.crawler")
 router = APIRouter(prefix="/crawler", tags=["crawler"])
@@ -56,12 +57,28 @@ async def create_site(
 
     repo = CrawlSiteRepository(session)
 
-    # 检查是否已存在
-    existing = await repo.get_by_id(site_data.id)
+    # 规范化域名
+    domain = normalize_domain(site_data.start_url)
+    
+    # 如果未提供 ID，根据域名自动生成
+    site_id = site_data.id
+    if not site_id:
+        site_id = generate_site_id(domain)
+    
+    # 检查 ID 是否已存在
+    existing = await repo.get_by_id(site_id)
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"站点 ID 已存在: {site_data.id}",
+            detail=f"站点 ID 已存在: {site_id}",
+        )
+    
+    # 检查域名是否已存在
+    existing_by_domain = await repo.get_by_domain(domain)
+    if existing_by_domain:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"该域名已存在站点配置: {existing_by_domain.name} (ID: {existing_by_domain.id}, 域名: {domain})",
         )
 
     # 序列化提取配置
@@ -71,10 +88,12 @@ async def create_site(
 
     # 创建站点
     site = CrawlSite(
-        id=site_data.id,
+        id=site_id,
         name=site_data.name,
         start_url=site_data.start_url,
+        domain=domain,
         status=site_data.status.value,
+        is_system_site=False,  # API 创建的站点不是系统站点
         link_pattern=site_data.link_pattern,
         max_depth=site_data.max_depth,
         max_pages=site_data.max_pages,
@@ -87,7 +106,7 @@ async def create_site(
     )
     site = await repo.create(site)
 
-    logger.info("创建站点配置", site_id=site.id, name=site.name)
+    logger.info("创建站点配置", site_id=site.id, name=site.name, domain=domain)
     return _site_to_response(site)
 
 
@@ -184,6 +203,13 @@ async def delete_site(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"站点不存在: {site_id}",
+        )
+    
+    # 防止删除系统配置站点
+    if site.is_system_site:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"无法删除系统配置站点: {site_id}，请修改配置文件",
         )
 
     await repo.delete(site)

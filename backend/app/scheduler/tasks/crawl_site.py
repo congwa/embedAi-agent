@@ -34,6 +34,7 @@ class CrawlSiteTask(BaseTask):
         self,
         site_id: str | None = None,
         cron_expression: str = "0 2 * * *",  # 默认每天凌晨2点
+        run_on_start: bool | None = None,
     ):
         """初始化爬取任务
 
@@ -42,10 +43,15 @@ class CrawlSiteTask(BaseTask):
             cron_expression: cron 表达式
         """
         self.site_id = site_id
+        schedule_run_on_start = (
+            run_on_start if run_on_start is not None else settings.CRAWLER_RUN_ON_START
+        )
+
         self.schedule = TaskSchedule(
             schedule_type=ScheduleType.CRON,
             cron_expression=cron_expression,
             allow_concurrent=False,  # 不允许并发爬取
+            run_on_start=schedule_run_on_start,
         )
         self.enabled = settings.CRAWLER_ENABLED
 

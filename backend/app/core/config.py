@@ -185,6 +185,24 @@ class Settings(BaseSettings):
 
     # 调度配置
     CRAWLER_SCHEDULE_CHECK_INTERVAL: int = 5  # 调度检查间隔（分钟）
+    CRAWLER_RUN_ON_START: bool = False  # 调度器启动时是否立即执行一次
+
+    # 站点配置（JSON 数组格式）
+    CRAWLER_SITES_JSON: str = ""  # 预置站点配置，格式：[{"id":"site_id","name":"站点名","start_url":"https://...","cron_expression":"0 2 * * *",...}]
+
+    @property
+    def crawler_sites(self) -> list[dict[str, Any]]:
+        """解析爬虫站点配置"""
+        raw = (self.CRAWLER_SITES_JSON or "").strip()
+        if not raw:
+            return []
+        try:
+            parsed = json.loads(raw)
+            if not isinstance(parsed, list):
+                return []
+            return parsed
+        except Exception:
+            return []
 
     @property
     def database_url(self) -> str:

@@ -25,6 +25,13 @@ class CrawlSiteRepository(BaseRepository[CrawlSite]):
     def __init__(self, session: AsyncSession):
         super().__init__(session)
 
+    async def get_by_domain(self, domain: str) -> CrawlSite | None:
+        """根据域名获取站点"""
+        result = await self.session.execute(
+            select(CrawlSite).where(CrawlSite.domain == domain)
+        )
+        return result.scalar_one_or_none()
+
     async def get_active_sites(self) -> list[CrawlSite]:
         """获取所有活跃站点"""
         result = await self.session.execute(
