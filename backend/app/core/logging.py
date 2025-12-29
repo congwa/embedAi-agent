@@ -18,15 +18,14 @@ import asyncio
 import traceback
 from enum import Enum
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
-
 import structlog
 from loguru import logger as loguru_logger
 from rich.console import Console
 from rich.traceback import install as install_rich_traceback
-
 from app.core.config import settings
+from app.core.paths import get_project_root
+from pathlib import Path
 
 
 class LogLevel(str, Enum):
@@ -134,12 +133,9 @@ def format_detailed(record: dict) -> str:
     # 使用相对路径而不是只显示文件名，方便区分同名文件
     file_obj = record.get("file")
     try:
-        from pathlib import Path
-
         file_path_str = getattr(file_obj, "path", str(file_obj or ""))
-        # 尝试获取相对于项目根目录的路径
-        project_root = Path(__file__).parent.parent.parent  # 回到项目根目录
-        file = str(Path(file_path_str).relative_to(project_root))
+        project_root = get_project_root()
+        file = str(Path(file_path_str).resolve().relative_to(project_root))
     except (ValueError, AttributeError, Exception):
         # 如果获取失败，回退到文件名
         file = getattr(file_obj, "name", str(file_obj or ""))
@@ -201,12 +197,10 @@ def format_json(record: dict) -> str:
     # 尝试获取相对路径
     file_path = None
     try:
-        from pathlib import Path
-
         file_path_str = getattr(file_obj, "path", None)
         if file_path_str:
-            project_root = Path(__file__).parent.parent.parent
-            file_path = str(Path(file_path_str).relative_to(project_root))
+            project_root = get_project_root()
+            file_path = str(Path(file_path_str).resolve().relative_to(project_root))
     except (ValueError, AttributeError, Exception):
         file_path = getattr(file_obj, "name", None)
 

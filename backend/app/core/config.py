@@ -7,6 +7,8 @@ from typing import Any
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.paths import get_project_root
+
 
 class Settings(BaseSettings):
     """应用配置"""
@@ -302,12 +304,8 @@ class Settings(BaseSettings):
             
         env_dir = Path(self.ENV_JSON_DIR)
         if not env_dir.is_absolute():
-            backend_root = Path(__file__).resolve().parents[2]
-            project_root = backend_root.parent
-            if env_dir.parts and env_dir.parts[0] == backend_root.name:
-                env_dir = (project_root / env_dir).resolve()
-            else:
-                env_dir = (backend_root / env_dir).resolve()
+            project_root = get_project_root()
+            env_dir = (project_root / env_dir).resolve()
         json_file = env_dir / f"{var_name}.json"
         if not json_file.exists():
             return None
