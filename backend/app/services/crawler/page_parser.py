@@ -337,11 +337,11 @@ class PageParser:
         for a in soup.find_all("a", href=True):
             href = a["href"]
 
-            logger.debug(f"检查链接: {href}")
+            # logger.debug(f"检查链接: {href}")
 
             # 跳过锚点和 JavaScript
             if href.startswith("#") or href.startswith("javascript:"):
-                logger.debug("跳过锚点或 JavaScript")
+                # logger.debug("跳过锚点或 JavaScript")
                 continue
 
             # 处理相对路径
@@ -350,24 +350,24 @@ class PageParser:
             # 只保留同域名的链接
             parsed = urlparse(full_url)
             if parsed.netloc != base_domain:
-                logger.debug(f"跳过不同域名的链接: {parsed.netloc} != {base_domain}")
+                # logger.debug(f"跳过不同域名的链接: {parsed.netloc} != {base_domain}")
                 continue
 
             # 移除锚点
             full_url = full_url.split("#")[0]
 
-            logger.debug(f"处理后的链接: {full_url}")
+            # logger.debug(f"处理后的链接: {full_url}")
 
             # 应用链接过滤
             if link_pattern:
                 if not self._match_pattern(parsed.path, full_url, link_pattern):
-                    logger.debug(
-                        f"跳过不匹配的链接: {parsed.path} | {full_url} not match {link_pattern}"
-                    )
+                    # logger.debug(
+                    #     f"跳过不匹配的链接: {parsed.path} | {full_url} not match {link_pattern}"
+                    # )
                     continue
 
             links.add(full_url)
-            logger.debug(f"添加链接到列表: {full_url}")
+            # logger.debug(f"添加链接到列表: {full_url}")
 
         return list(links)
 

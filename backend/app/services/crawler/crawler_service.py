@@ -147,7 +147,9 @@ class CrawlerService:
 
             # 初始化爬取队列
             visited_urls: set[str] = set()
+            enqueued_urls: set[str] = set()  # 已入队但未处理的 URL
             queue: list[tuple[str, int]] = [(site.start_url, 0)]  # (url, depth)
+            enqueued_urls.add(site.start_url)  # 起始 URL 标记为已入队
 
             pages_crawled = 0
             max_pages = site.max_pages
@@ -167,6 +169,10 @@ class CrawlerService:
 
             while queue and pages_crawled < max_pages:
                 url, depth = queue.pop(0)
+                
+                # 从已入队集合中移除（即将处理）
+                enqueued_urls.discard(url)
+                
                 logger.info(
                     "开始处理页面",
                     url=url,
@@ -241,10 +247,15 @@ class CrawlerService:
                             html_content, url, site.link_pattern
                         )
                         new_links = 0
+                        duplicate_links = 0
                         for link in links:
-                            if link not in visited_urls:
+                            if link not in visited_urls and link not in enqueued_urls:
                                 queue.append((link, depth + 1))
+                                enqueued_urls.add(link)
                                 new_links += 1
+                            else:
+                                duplicate_links += 1
+                                logger.debug("跳过已入队/已处理链接", link=link)
                         logger.info(
                             "提取链接完成",
                             url=url,
@@ -252,8 +263,8 @@ class CrawlerService:
                             next_depth=depth + 1,
                             links_found=len(links),
                             links_enqueued=new_links,
+                            duplicate_links=duplicate_links,
                             queue_size=len(queue),
-                            links=links,
                         )
                     else:
                         logger.info(
