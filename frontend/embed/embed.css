@@ -236,6 +236,123 @@
   border-bottom-left-radius: 4px;
 }
 
+/* 人工客服消息 */
+.embed-message-human_agent {
+  justify-content: flex-start;
+}
+
+.embed-message-human_agent .embed-message-content {
+  background: #22c55e;
+  color: #ffffff;
+  border-bottom-left-radius: 4px;
+}
+
+.embed-message-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #22c55e;
+  margin-bottom: 4px;
+}
+
+/* 系统消息 */
+.embed-message-system {
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  color: #71717a;
+  padding: 8px 12px;
+  background: #f4f4f5;
+  border-radius: 8px;
+}
+
+/* 状态栏 */
+.embed-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px;
+  background: #fafafa;
+  border-bottom: 1px solid #e4e4e7;
+  font-size: 11px;
+}
+
+.embed-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.embed-status-ai {
+  color: #f97316;
+}
+
+.embed-status-human {
+  color: #22c55e;
+}
+
+.embed-status-connected {
+  color: #22c55e;
+}
+
+.embed-status-dot {
+  width: 6px;
+  height: 6px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: embed-pulse 2s infinite;
+}
+
+@keyframes embed-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* 输入指示器 */
+.embed-typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 14px;
+  background: #22c55e;
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+}
+
+.embed-typing-indicator span {
+  width: 6px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  animation: embed-typing-bounce 1.4s infinite ease-in-out;
+}
+
+.embed-typing-indicator span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.embed-typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.embed-typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes embed-typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-4px);
+  }
+}
+
 /* 输入区域 */
 .embed-input-area {
   padding: 12px;

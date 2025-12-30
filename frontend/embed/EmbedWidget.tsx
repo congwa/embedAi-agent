@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
-import { MessageCircle, X, Trash2, Minus, AlertCircle, ArrowUp, Square } from "lucide-react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { MessageCircle, X, Trash2, Minus, AlertCircle, ArrowUp, Square, Headphones, Bot } from "lucide-react";
 import "./embed.css";
+import { useUserWebSocket, type SupportMessage, type ConversationState } from "./useUserWebSocket";
 
 interface EmbedConfig {
   apiBaseUrl?: string;
+  wsBaseUrl?: string;
   position?: "bottom-right" | "bottom-left";
   primaryColor?: string;
   title?: string;
@@ -18,8 +20,9 @@ interface EmbedWidgetProps {
 
 interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "human_agent" | "system";
   content: string;
+  operator?: string;
 }
 
 // 简化版 API 调用
@@ -95,6 +98,7 @@ async function* streamChat(
 
 export function EmbedWidget({ config }: EmbedWidgetProps) {
   const apiBaseUrl = config.apiBaseUrl || "";
+  const wsBaseUrl = config.wsBaseUrl || config.apiBaseUrl?.replace(/^http/, "ws") || "";
   const position = config.position || "bottom-right";
   const title = config.title || "商品推荐助手";
   const placeholder = config.placeholder || "输入消息...";
@@ -108,6 +112,46 @@ export function EmbedWidget({ config }: EmbedWidgetProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // WebSocket 消息回调
+  const handleWsMessage = useCallback((msg: SupportMessage) => {
+    setMessages((prev) => {
+      // 去重
+      if (prev.some((m) => m.id === msg.id)) return prev;
+      return [...prev, {
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        operator: msg.operator,
+      }];
+    });
+  }, []);
+
+  // WebSocket 状态变更回调
+  const handleStateChange = useCallback((state: ConversationState) => {
+    console.log("[EmbedWidget] State changed:", state.handoff_state);
+  }, []);
+
+  // WebSocket 连接
+  const {
+    isConnected: wsConnected,
+    conversationState,
+    agentTyping,
+    sendMessage: wsSendMessage,
+    setTyping: wsSetTyping,
+    requestHandoff,
+  } = useUserWebSocket({
+    conversationId,
+    userId,
+    wsBaseUrl,
+    onMessage: handleWsMessage,
+    onStateChange: handleStateChange,
+    enabled: isOpen && !!conversationId,
+  });
+
+  // 是否处于人工模式
+  const isHumanMode = conversationState.handoff_state === "human";
 
   // 初始化用户
   useEffect(() => {
@@ -135,22 +179,17 @@ export function EmbedWidget({ config }: EmbedWidgetProps) {
     initUser();
   }, [apiBaseUrl]);
 
+  // 滚动到底部
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, agentTyping]);
+
   // 发送消息
   const sendMessage = useCallback(
     async (content: string) => {
       if (!userId || !content.trim() || isStreaming) return;
 
       setError(null);
-      setIsStreaming(true);
-
-      // 添加用户消息
-      const userMsg: Message = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content: content.trim(),
-      };
-      setMessages((prev) => [...prev, userMsg]);
-      setInput("");
 
       // 确保有会话
       let convId = conversationId;
@@ -161,10 +200,27 @@ export function EmbedWidget({ config }: EmbedWidgetProps) {
           setConversationId(convId);
         } catch (err) {
           setError("创建会话失败");
-          setIsStreaming(false);
           return;
         }
       }
+
+      // 添加用户消息
+      const userMsg: Message = {
+        id: crypto.randomUUID(),
+        role: "user",
+        content: content.trim(),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+      setInput("");
+
+      // 人工模式：通过 WebSocket 发送
+      if (isHumanMode && wsConnected) {
+        wsSendMessage(content.trim());
+        return;
+      }
+
+      // AI 模式：流式请求
+      setIsStreaming(true);
 
       // 创建 assistant 消息占位
       const assistantMsg: Message = {
@@ -206,7 +262,7 @@ export function EmbedWidget({ config }: EmbedWidgetProps) {
         setAbortController(null);
       }
     },
-    [userId, conversationId, apiBaseUrl, isStreaming]
+    [userId, conversationId, apiBaseUrl, isStreaming, isHumanMode, wsConnected, wsSendMessage]
   );
 
   // 中断流
@@ -285,6 +341,29 @@ export function EmbedWidget({ config }: EmbedWidgetProps) {
             </div>
           </div>
 
+          {/* 状态栏 */}
+          {conversationId && (
+            <div className="embed-status-bar">
+              {isHumanMode ? (
+                <div className="embed-status embed-status-human">
+                  <Headphones size={12} />
+                  <span>人工客服{conversationState.operator ? ` · ${conversationState.operator}` : ""}</span>
+                </div>
+              ) : (
+                <div className="embed-status embed-status-ai">
+                  <Bot size={12} />
+                  <span>AI 助手</span>
+                </div>
+              )}
+              {wsConnected && (
+                <div className="embed-status embed-status-connected">
+                  <span className="embed-status-dot" />
+                  <span>已连接</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 消息区域 */}
           <div className="embed-messages">
             {isLoading ? (
@@ -311,14 +390,38 @@ export function EmbedWidget({ config }: EmbedWidgetProps) {
                 </div>
               </div>
             ) : (
-              messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`embed-message embed-message-${msg.role}`}
-                >
-                  <div className="embed-message-content">{msg.content}</div>
-                </div>
-              ))
+              <>
+                {messages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`embed-message embed-message-${msg.role}`}
+                  >
+                    {msg.role === "human_agent" && (
+                      <div className="embed-message-badge">
+                        <Headphones size={10} />
+                        <span>客服</span>
+                      </div>
+                    )}
+                    {msg.role === "system" && (
+                      <div className="embed-message-system">{msg.content}</div>
+                    )}
+                    {msg.role !== "system" && (
+                      <div className="embed-message-content">{msg.content}</div>
+                    )}
+                  </div>
+                ))}
+                {/* 客服正在输入 */}
+                {agentTyping && (
+                  <div className="embed-message embed-message-human_agent">
+                    <div className="embed-typing-indicator">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </>
             )}
           </div>
 
