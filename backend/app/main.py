@@ -10,12 +10,13 @@ from app.core.config import settings
 from app.core.database import get_db_context, init_db
 from app.core.logging import logger
 from app.core.models_dev import get_model_profile
-from app.routers import chat, conversations, crawler, users
+from app.routers import chat, conversations, crawler, support, users, ws
 from app.scheduler import task_registry, task_scheduler
 from app.scheduler.routers import router as scheduler_router
 from app.scheduler.tasks import CrawlSiteTask
 from app.services.agent.agent import agent_service
 from app.services.crawler.site_initializer import init_config_sites
+from app.services.websocket.heartbeat import heartbeat_manager
 
 
 def _init_model_profiles() -> None:
@@ -107,13 +108,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await task_scheduler.start()
     logger.info("任务调度器已启动", module="app", task_count=len(task_registry))
 
+    # 启动 WebSocket 心跳检测
+    await heartbeat_manager.start()
+
     logger.info("应用启动完成", module="app", host=settings.API_HOST, port=settings.API_PORT)
 
     yield
 
     logger.info("正在关闭应用...", module="app")
 
-    # 0. 关闭任务调度器
+    # 0. 关闭 WebSocket 心跳检测
+    await heartbeat_manager.stop()
+    logger.debug("WebSocket 心跳检测已关闭", module="app")
+
+    # 1. 关闭任务调度器
     await task_scheduler.stop()
     logger.debug("任务调度器已关闭", module="app")
     
@@ -194,7 +202,9 @@ app.add_middleware(
 app.include_router(chat.router)
 app.include_router(conversations.router)
 app.include_router(crawler.router)
+app.include_router(support.router)
 app.include_router(users.router)
+app.include_router(ws.router)
 app.include_router(scheduler_router)
 
 

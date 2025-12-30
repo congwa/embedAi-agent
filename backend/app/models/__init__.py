@@ -2,7 +2,7 @@
 
 from app.models.app_metadata import AppMetadata
 from app.models.base import Base
-from app.models.conversation import Conversation
+from app.models.conversation import Conversation, HandoffState
 from app.models.crawler import CrawlPage, CrawlSite, CrawlTask
 from app.models.message import Message
 from app.models.product import Product
@@ -15,6 +15,7 @@ __all__ = [
     "CrawlPage",
     "CrawlSite",
     "CrawlTask",
+    "HandoffState",
     "Message",
     "Product",
     "User",

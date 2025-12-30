@@ -204,6 +204,21 @@ class Settings(BaseSettings):
     # 运行机制：应用启动时解析此字段 -> 批量创建/更新站点 -> 按 cron 注册任务。
     CRAWLER_SITES_JSON: str = ""  # 示例：[{"id":"site_id","name":"站点名","start_url":"https://...","cron_expression":"0 2 * * *",...}]
 
+    # ========== 客服支持配置 ==========
+    # 企业微信通知配置
+    WEWORK_CORP_ID: str = ""  # 企业 ID
+    WEWORK_AGENT_ID: str = ""  # 应用 ID
+    WEWORK_AGENT_SECRET: str = ""  # 应用 Secret
+    WEWORK_NOTIFY_USERS: str = "@all"  # 接收通知的用户（逗号分隔或 @all）
+
+    # 通用 Webhook 通知配置
+    NOTIFY_WEBHOOK_URL: str = ""  # Webhook URL
+    NOTIFY_WEBHOOK_SECRET: str = ""  # 可选的签名密钥
+
+    # 客服控制台配置
+    SUPPORT_CONSOLE_URL: str = ""  # 客服控制台 URL（用于通知中的链接）
+    SUPPORT_SLA_SECONDS: int = 120  # SLA 等待时间（秒），超过后发送提醒
+
     @property
     def crawler_sites(self) -> list[dict[str, Any]]:
         """

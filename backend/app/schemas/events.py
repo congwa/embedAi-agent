@@ -40,6 +40,13 @@ class StreamEventType(StrEnum):
 
     CONTEXT_SUMMARIZED = "context.summarized" # 上下文压缩完成
 
+    # ========== 客服支持事件 ==========
+    SUPPORT_HANDOFF_STARTED = "support.handoff_started"  # 客服介入开始
+    SUPPORT_HANDOFF_ENDED = "support.handoff_ended"  # 客服介入结束
+    SUPPORT_HUMAN_MESSAGE = "support.human_message"  # 人工客服消息
+    SUPPORT_CONNECTED = "support.connected"  # 客服连接建立
+    SUPPORT_PING = "support.ping"  # 心跳
+
     ERROR = "error"
 
 

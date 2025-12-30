@@ -27,7 +27,7 @@ class Message(Base):
     role: Mapped[str] = mapped_column(
         String(20),
         nullable=False,
-    )  # user / assistant
+    )  # user / assistant / human_agent / system
     content: Mapped[str] = mapped_column(Text, nullable=False)
     products: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: 推荐的商品
     created_at: Mapped[datetime] = mapped_column(
