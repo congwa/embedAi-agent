@@ -194,10 +194,25 @@ class ConnectionManager:
     ) -> int:
         """发送消息到会话中指定角色的所有连接"""
         conns = self.get_connections_by_conversation(conversation_id, role=role)
+        logger.info(
+            "WS 广播准备发送",
+            conversation_id=conversation_id,
+            role=role.value if isinstance(role, WSRole) else role,
+            target_count=len(conns),
+            message_type=message.get("action"),
+        )
         
         sent_count = 0
         for conn in conns:
-            if await conn.send(message):
+            success = await conn.send(message)
+            logger.info(
+                "WS 广播发送结果",
+                conversation_id=conversation_id,
+                role=role.value if isinstance(role, WSRole) else role,
+                conn_id=conn.id,
+                success=success,
+            )
+            if success:
                 sent_count += 1
         
         return sent_count

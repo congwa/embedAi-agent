@@ -148,11 +148,18 @@ class SupportGateway:
         event: dict[str, Any],
     ) -> int:
         """发送消息到用户端"""
-        return await self.broadcast_to_conversation(
+        sent = await self.broadcast_to_conversation(
             conversation_id,
             event,
             exclude_role="agent",
         )
+        logger.info(
+            "客服事件推送给用户",
+            conversation_id=conversation_id,
+            event_type=event.get("type"),
+            sent_count=sent,
+        )
+        return sent
 
     async def send_to_agents(
         self,
@@ -160,11 +167,18 @@ class SupportGateway:
         event: dict[str, Any],
     ) -> int:
         """发送消息到客服端"""
-        return await self.broadcast_to_conversation(
+        sent = await self.broadcast_to_conversation(
             conversation_id,
             event,
             exclude_role="user",
         )
+        logger.info(
+            "客服事件推送给客服端",
+            conversation_id=conversation_id,
+            event_type=event.get("type"),
+            sent_count=sent,
+        )
+        return sent
 
     async def subscribe_user(
         self,

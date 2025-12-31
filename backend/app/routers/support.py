@@ -29,6 +29,9 @@ from app.schemas.support import (
 )
 from app.services.support.gateway import support_gateway
 from app.services.support.handoff import HandoffService
+from app.services.websocket.manager import ws_manager
+from app.services.websocket.handlers.base import build_server_message
+from app.schemas.websocket import WSAction, WSRole
 
 router = APIRouter(prefix="/api/v1/support", tags=["support"])
 logger = get_logger("router.support")
@@ -52,7 +55,20 @@ async def start_handoff(
     )
 
     if result.get("success"):
-        await support_gateway.send_to_user(
+        # 通过 WebSocket 推送给用户
+        ws_msg = build_server_message(
+            action=WSAction.SERVER_HANDOFF_STARTED,
+            payload={
+                "operator": request.operator,
+                "reason": request.reason,
+                "message": "客服已上线，正在为您服务",
+            },
+            conversation_id=conversation_id,
+        )
+        ws_sent = await ws_manager.send_to_role(conversation_id, WSRole.USER, ws_msg)
+        
+        # 同时尝试 SSE 推送（兼容旧客户端）
+        sse_sent = await support_gateway.send_to_user(
             conversation_id,
             {
                 "type": "support.handoff_started",
@@ -61,6 +77,14 @@ async def start_handoff(
                     "message": "客服已上线，正在为您服务",
                 },
             },
+        )
+        
+        logger.info(
+            "客服介入通知已发送",
+            conversation_id=conversation_id,
+            operator=request.operator,
+            ws_sent=ws_sent,
+            sse_sent=sse_sent,
         )
 
     return HandoffResponse(**result)
@@ -84,7 +108,20 @@ async def end_handoff(
     )
 
     if result.get("success"):
-        await support_gateway.send_to_user(
+        # 通过 WebSocket 推送给用户
+        ws_msg = build_server_message(
+            action=WSAction.SERVER_HANDOFF_ENDED,
+            payload={
+                "operator": request.operator,
+                "summary": request.summary,
+                "message": "人工客服已结束服务，您可以继续与智能助手对话",
+            },
+            conversation_id=conversation_id,
+        )
+        ws_sent = await ws_manager.send_to_role(conversation_id, WSRole.USER, ws_msg)
+        
+        # 同时尝试 SSE 推送（兼容旧客户端）
+        sse_sent = await support_gateway.send_to_user(
             conversation_id,
             {
                 "type": "support.handoff_ended",
@@ -92,6 +129,14 @@ async def end_handoff(
                     "message": "人工客服已结束服务，您可以继续与智能助手对话",
                 },
             },
+        )
+        
+        logger.info(
+            "客服结束通知已发送",
+            conversation_id=conversation_id,
+            operator=request.operator,
+            ws_sent=ws_sent,
+            sse_sent=sse_sent,
         )
 
     return HandoffResponse(**result)

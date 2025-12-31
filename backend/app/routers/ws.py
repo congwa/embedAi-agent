@@ -85,6 +85,13 @@ async def ws_user_endpoint(
     
     # 2. 接受连接
     await websocket.accept()
+    logger.info(
+        "用户 WebSocket 握手成功，等待注册",
+        conversation_id=conversation_id,
+        user_id=user_id,
+        client=str(websocket.client),
+        headers=dict(websocket.headers),
+    )
     
     # 3. 注册连接
     conn = await ws_manager.connect(

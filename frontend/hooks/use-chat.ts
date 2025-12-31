@@ -16,7 +16,8 @@ import {
   endTurn,
   historyToTimeline,
 } from "./use-timeline-reducer";
-import { useSupportSubscription, type SupportMessage } from "./use-support-subscription";
+import { useUserWebSocket } from "./use-user-websocket";
+import type { SupportMessage, ConversationState } from "@/types/websocket";
 
 export type {
   TimelineItem,
@@ -57,20 +58,47 @@ export function useChat(
   const streamControllerRef = useRef<StreamChatController | null>(null);
   const isStreamingRef = useRef(false);
 
-  // 处理客服订阅消息
-  const handleSupportMessage = useCallback((message: SupportMessage) => {
-    console.log("[chat] 收到客服消息:", message.type);
+  // 处理 WebSocket 消息（客服消息）
+  const handleWsMessage = useCallback((message: SupportMessage) => {
+    console.log("[chat] 收到 WebSocket 消息:", message.role, message.content?.slice(0, 50));
     
-    // 将订阅消息转换为 timeline item
+    // 只处理人工客服消息
+    if (message.role === "human_agent") {
+      const item: SupportEventItem = {
+        type: "support.event",
+        id: `support:${message.id || crypto.randomUUID()}`,
+        turnId: `support-turn-${Date.now()}`,
+        eventType: "human_message",
+        content: message.content,
+        operator: message.operator,
+        messageId: message.id,
+        ts: Date.now(),
+      };
+
+      setTimelineState((prev) => ({
+        ...prev,
+        timeline: [...prev.timeline, item],
+        indexById: { ...prev.indexById, [item.id]: prev.timeline.length },
+      }));
+    }
+  }, []);
+
+  // 处理状态变更（客服上线/下线）
+  const handleStateChange = useCallback((state: ConversationState) => {
+    console.log("[chat] 会话状态变更:", state.handoff_state);
+    setIsHumanMode(state.handoff_state === "human");
+    
+    // 添加状态变更事件到时间线
+    const eventType = state.handoff_state === "human" ? "handoff_started" : "handoff_ended";
     const item: SupportEventItem = {
       type: "support.event",
-      id: `support:${message.payload.message_id || crypto.randomUUID()}`,
+      id: `support:${eventType}-${Date.now()}`,
       turnId: `support-turn-${Date.now()}`,
-      eventType: message.type.replace("support.", "") as SupportEventItem["eventType"],
-      message: message.payload.message,
-      content: message.payload.content,
-      operator: message.payload.operator,
-      messageId: message.payload.message_id,
+      eventType,
+      operator: state.operator,
+      message: state.handoff_state === "human" 
+        ? "客服已上线，正在为您服务" 
+        : "人工客服已结束服务，您可以继续与智能助手对话",
       ts: Date.now(),
     };
 
@@ -81,15 +109,18 @@ export function useChat(
     }));
   }, []);
 
-  // 客服消息订阅（仅在人工模式下启用）
-  const { isConnected: isSupportConnected } = useSupportSubscription(
-    userId,
+  // 用户端 WebSocket 连接（始终启用，用于接收客服事件）
+  const { 
+    isConnected: isWsConnected,
+    conversationState,
+    agentTyping,
+  } = useUserWebSocket({
     conversationId,
-    {
-      enabled: isHumanMode,
-      onMessage: handleSupportMessage,
-    }
-  );
+    userId,
+    onMessage: handleWsMessage,
+    onStateChange: handleStateChange,
+    enabled: !!conversationId && !!userId,
+  });
 
   // 加载会话消息
   const loadMessages = useCallback(async () => {
@@ -116,10 +147,10 @@ export function useChat(
       }));
       setTimelineState(historyToTimeline(messages));
       
-      // 检测会话是否处于人工模式
+      // 检测会话是否处于人工模式（WebSocket 会自动同步状态，这里只作初始化）
       const isHuman = conversation.handoff_state === "human";
       setIsHumanMode(isHuman);
-      console.log("[chat] 加载了", messages.length, "条消息, 人工模式:", isHuman);
+      console.log("[chat] 加载了", messages.length, "条消息, 人工模式:", isHuman, ", WS连接:", isWsConnected);
     } catch (err) {
       console.error("[chat] 加载消息失败:", err);
       setError("加载消息失败");
@@ -238,7 +269,9 @@ export function useChat(
     isLoading,
     error,
     isHumanMode,
-    isSupportConnected,
+    isWsConnected,
+    agentTyping,
+    conversationState,
     sendMessage,
     clearMessages,
     refreshMessages: loadMessages,

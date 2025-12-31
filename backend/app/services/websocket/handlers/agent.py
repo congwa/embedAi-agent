@@ -165,11 +165,23 @@ async def handle_agent_start_handoff(
             reason=reason,
         )
         
-        if result.get("success"):
+        success = result.get("success")
+        error = result.get("error")
+        # 幂等处理：如果会话已处于人工模式，则视为成功
+        if not success and error == "会话已在人工模式":
+            success = True
+            logger.info(
+                "客服重复介入请求，忽略",
+                conn_id=conn.id,
+                conversation_id=conn.conversation_id,
+                operator=conn.identity,
+            )
+        if success:
+            operator = conn.identity
             # 通知用户端
             server_msg = build_server_message(
                 action=WSAction.SERVER_HANDOFF_STARTED,
-                payload={"operator": conn.identity, "reason": reason},
+                payload={"operator": operator, "reason": reason},
                 conversation_id=conn.conversation_id,
             )
             await ws_manager.send_to_role(conn.conversation_id, WSRole.USER, server_msg)
@@ -177,7 +189,7 @@ async def handle_agent_start_handoff(
             # 通知其他客服端
             state_msg = build_server_message(
                 action=WSAction.SERVER_CONVERSATION_STATE,
-                payload={"handoff_state": "human", "operator": conn.identity},
+                payload={"handoff_state": "human", "operator": operator},
                 conversation_id=conn.conversation_id,
             )
             await ws_manager.broadcast_to_conversation(
@@ -190,14 +202,14 @@ async def handle_agent_start_handoff(
                 "客服介入成功",
                 conn_id=conn.id,
                 conversation_id=conn.conversation_id,
-                operator=conn.identity,
+                operator=operator,
             )
         else:
             logger.warning(
                 "客服介入失败",
                 conn_id=conn.id,
                 conversation_id=conn.conversation_id,
-                error=result.get("error"),
+                error=error,
             )
 
 
@@ -218,7 +230,18 @@ async def handle_agent_end_handoff(
             summary=summary,
         )
         
-        if result.get("success"):
+        success = result.get("success")
+        error = result.get("error")
+        # 幂等处理：如果会话已是 AI 模式，则视为成功
+        if not success and error == "会话未在人工模式":
+            success = True
+            logger.info(
+                "客服重复结束请求，忽略",
+                conn_id=conn.id,
+                conversation_id=conn.conversation_id,
+                operator=conn.identity,
+            )
+        if success:
             # 通知用户端
             server_msg = build_server_message(
                 action=WSAction.SERVER_HANDOFF_ENDED,
@@ -250,7 +273,7 @@ async def handle_agent_end_handoff(
                 "结束介入失败",
                 conn_id=conn.id,
                 conversation_id=conn.conversation_id,
-                error=result.get("error"),
+                error=error,
             )
 
 

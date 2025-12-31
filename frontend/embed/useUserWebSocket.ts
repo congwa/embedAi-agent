@@ -96,11 +96,14 @@ export function useUserWebSocket({
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isConnected, setIsConnected] = useState(false);
-  const [conversationState, setConversationState] = useState<ConversationState>({
+  const conversationStateRef = useRef<ConversationState>({
     handoff_state: "ai",
     user_online: true,
     agent_online: false,
   });
+  const [conversationState, setConversationState] = useState<ConversationState>(
+    conversationStateRef.current
+  );
   const [agentTyping, setAgentTyping] = useState(false);
 
   // 发送消息
@@ -115,6 +118,7 @@ export function useUserWebSocket({
     (event: MessageEvent) => {
       try {
         const msg: WSMessage = JSON.parse(event.data);
+        const currentState = conversationStateRef.current;
 
         switch (msg.action) {
           case "system.connected": {
@@ -259,7 +263,7 @@ export function useUserWebSocket({
     if (!conversationId || !userId || !enabled) return;
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-    let wsUrl = wsBaseUrl;
+    let wsUrl = wsBaseUrl || process.env.NEXT_PUBLIC_WS_URL;
     if (!wsUrl) {
       if (typeof window !== "undefined") {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
