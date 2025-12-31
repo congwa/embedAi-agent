@@ -151,10 +151,8 @@ export default function SupportChatPage() {
     try {
       const result = await startHandoff(conversationId, agentId, "客服主动接入");
       if (result.success) {
-        // 使用 API 返回的最新状态（保底机制）
+        // 使用 API 返回的最新状态（保底机制），等待服务器广播
         setLocalHandoffState(result.handoff_state || "human");
-        // 同时通过 WebSocket 通知（服务端会广播给其他客户端）
-        wsStartHandoff("客服主动接入");
       } else if (result.error) {
         setError(result.error);
       }
@@ -168,10 +166,8 @@ export default function SupportChatPage() {
     try {
       const result = await endHandoff(conversationId, agentId, "客服结束服务");
       if (result.success) {
-        // 使用 API 返回的最新状态（保底机制）
+        // 使用 API 返回的最新状态（保底机制），等待服务器广播
         setLocalHandoffState(result.handoff_state || "ai");
-        // 同时通过 WebSocket 通知
-        wsEndHandoff("客服结束服务");
       } else if (result.error) {
         setError(result.error);
       }
