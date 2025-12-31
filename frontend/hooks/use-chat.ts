@@ -7,6 +7,7 @@ import type { ChatEvent } from "@/types/chat";
 import {
   type TimelineState,
   type TimelineItem,
+  type SupportEventItem,
   createInitialState,
   addUserMessage,
   startAssistantTurn,
@@ -15,6 +16,7 @@ import {
   endTurn,
   historyToTimeline,
 } from "./use-timeline-reducer";
+import { useSupportSubscription, type SupportMessage } from "./use-support-subscription";
 
 export type {
   TimelineItem,
@@ -50,17 +52,55 @@ export function useChat(
   const [timelineState, setTimelineState] = useState<TimelineState>(createInitialState);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isHumanMode, setIsHumanMode] = useState(false);
 
   const streamControllerRef = useRef<StreamChatController | null>(null);
+  const isStreamingRef = useRef(false);
+
+  // 处理客服订阅消息
+  const handleSupportMessage = useCallback((message: SupportMessage) => {
+    console.log("[chat] 收到客服消息:", message.type);
+    
+    // 将订阅消息转换为 timeline item
+    const item: SupportEventItem = {
+      type: "support.event",
+      id: `support:${message.payload.message_id || crypto.randomUUID()}`,
+      turnId: `support-turn-${Date.now()}`,
+      eventType: message.type.replace("support.", "") as SupportEventItem["eventType"],
+      message: message.payload.message,
+      content: message.payload.content,
+      operator: message.payload.operator,
+      messageId: message.payload.message_id,
+      ts: Date.now(),
+    };
+
+    setTimelineState((prev) => ({
+      ...prev,
+      timeline: [...prev.timeline, item],
+      indexById: { ...prev.indexById, [item.id]: prev.timeline.length },
+    }));
+  }, []);
+
+  // 客服消息订阅（仅在人工模式下启用）
+  const { isConnected: isSupportConnected } = useSupportSubscription(
+    userId,
+    conversationId,
+    {
+      enabled: isHumanMode,
+      onMessage: handleSupportMessage,
+    }
+  );
 
   // 加载会话消息
   const loadMessages = useCallback(async () => {
     if (!conversationId) {
       setTimelineState(createInitialState());
+      setIsHumanMode(false);
       return;
     }
 
-    if (timelineState.activeTurn.isStreaming) {
+    // 使用 ref 检查流状态，避免依赖状态导致不必要的重新调用
+    if (isStreamingRef.current) {
       console.log("[chat] 正在流式传输，跳过加载");
       return;
     }
@@ -75,14 +115,18 @@ export function useChat(
         products: msg.products ? JSON.parse(msg.products) : undefined,
       }));
       setTimelineState(historyToTimeline(messages));
-      console.log("[chat] 加载了", messages.length, "条消息");
+      
+      // 检测会话是否处于人工模式
+      const isHuman = conversation.handoff_state === "human";
+      setIsHumanMode(isHuman);
+      console.log("[chat] 加载了", messages.length, "条消息, 人工模式:", isHuman);
     } catch (err) {
       console.error("[chat] 加载消息失败:", err);
       setError("加载消息失败");
     } finally {
       setIsLoading(false);
     }
-  }, [conversationId, timelineState.activeTurn.isStreaming]);
+  }, [conversationId]);
 
   // 中断当前对话
   const abortStream = useCallback(() => {
@@ -121,6 +165,7 @@ export function useChat(
       try {
         const controller: StreamChatController = { abort: () => { } };
         streamControllerRef.current = controller;
+        isStreamingRef.current = true;
         let loggedDeltaOnce = false;
         for await (const event of streamChat(
           {
@@ -141,6 +186,16 @@ export function useChat(
             console.log("[SSE Event]", event.type, "(delta streaming)");
             loggedDeltaOnce = true;
           }
+          
+          // 检测人工模式
+          if (event.type === "meta.start") {
+            const payload = event.payload as { mode?: string };
+            if (payload.mode === "human") {
+              console.log("[chat] 进入人工模式，启用订阅");
+              setIsHumanMode(true);
+            }
+          }
+          
           setTimelineState((prev) => timelineReducer(prev, event));
         }
 
@@ -160,6 +215,7 @@ export function useChat(
         }
       } finally {
         streamControllerRef.current = null;
+        isStreamingRef.current = false;
       }
     },
     [userId, conversationId, timelineState.timeline.length, onTitleUpdate]
@@ -181,6 +237,8 @@ export function useChat(
     isStreaming: timelineState.activeTurn.isStreaming,
     isLoading,
     error,
+    isHumanMode,
+    isSupportConnected,
     sendMessage,
     clearMessages,
     refreshMessages: loadMessages,

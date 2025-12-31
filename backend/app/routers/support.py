@@ -258,3 +258,35 @@ async def agent_stream(
 async def get_connections(conversation_id: str):
     """获取会话的连接数统计"""
     return support_gateway.get_connection_count(conversation_id)
+
+
+@router.get("/user-stream/{conversation_id}")
+async def user_stream(
+    conversation_id: str,
+    user_id: str,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """用户端 SSE 连接 - 接收客服消息
+    
+    用户订阅会话消息流，接收客服消息和系统事件。
+    此连接应在进入人工模式时建立，独立于发送消息的请求。
+    """
+    service = HandoffService(db)
+    conversation = await service.get_conversation(conversation_id)
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    async def event_generator() -> AsyncGenerator[str, None]:
+        async for event in support_gateway.subscribe_user(conversation_id, user_id):
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

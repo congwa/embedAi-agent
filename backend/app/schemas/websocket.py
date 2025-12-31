@@ -137,6 +137,9 @@ class ConnectedPayload(BaseModel):
     role: str = Field(..., description="连接角色")
     conversation_id: str = Field(..., description="会话 ID")
     handoff_state: str = Field(..., description="当前客服介入状态")
+    peer_online: bool = Field(False, description="对方是否在线")
+    peer_last_online_at: str | None = Field(None, description="对方最后在线时间")
+    unread_count: int = Field(0, description="未读消息数")
 
 
 class ErrorPayload(BaseModel):
@@ -199,6 +202,10 @@ class ServerMessagePayload(BaseModel):
     content: str
     created_at: str  # ISO 格式时间
     operator: str | None = None  # 客服标识（human_agent 时存在）
+    is_delivered: bool = False  # 是否已送达
+    delivered_at: str | None = None  # 送达时间
+    read_at: str | None = None  # 已读时间
+    read_by: str | None = None  # 阅读者
 
 
 class ServerTypingPayload(BaseModel):
@@ -211,6 +218,8 @@ class ServerReadReceiptPayload(BaseModel):
     """已读回执推送"""
     role: str
     message_ids: list[str]
+    read_at: str  # ISO 格式时间
+    read_by: str  # 阅读者 ID
 
 
 class HandoffStartedPayload(BaseModel):
@@ -229,11 +238,15 @@ class UserPresencePayload(BaseModel):
     """用户在线状态"""
     user_id: str
     conversation_id: str
+    online: bool = True  # 是否在线
+    last_online_at: str | None = None  # 最后在线时间
 
 
 class AgentPresencePayload(BaseModel):
     """客服在线状态"""
     operator: str
+    online: bool = True  # 是否在线
+    last_online_at: str | None = None  # 最后在线时间
 
 
 class ConversationStatePayload(BaseModel):

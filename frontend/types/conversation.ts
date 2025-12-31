@@ -6,6 +6,7 @@ export interface Conversation {
   title: string;
   created_at: string;
   updated_at: string;
+  handoff_state?: "ai" | "pending" | "human";
 }
 
 export interface Message {

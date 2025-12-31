@@ -77,6 +77,9 @@ export interface ConnectedPayload {
   role: WSRole;
   conversation_id: string;
   handoff_state: string;
+  peer_online: boolean;
+  peer_last_online_at: string | null;
+  unread_count: number;
 }
 
 export interface ServerMessagePayload {
@@ -85,6 +88,10 @@ export interface ServerMessagePayload {
   content: string;
   created_at: string;
   operator?: string;
+  is_delivered?: boolean;
+  delivered_at?: string;
+  read_at?: string;
+  read_by?: string;
 }
 
 export interface TypingPayload {
@@ -105,10 +112,21 @@ export interface HandoffEndedPayload {
 export interface UserPresencePayload {
   user_id: string;
   conversation_id: string;
+  online: boolean;
+  last_online_at?: string;
 }
 
 export interface AgentPresencePayload {
   operator: string;
+  online: boolean;
+  last_online_at?: string;
+}
+
+export interface ReadReceiptPayload {
+  role: string;
+  message_ids: string[];
+  read_at: string;
+  read_by: string;
 }
 
 export interface ConversationStatePayload {
@@ -134,6 +152,10 @@ export interface SupportMessage {
   content: string;
   created_at: string;
   operator?: string;
+  is_delivered?: boolean;
+  delivered_at?: string;
+  read_at?: string;
+  read_by?: string;
 }
 
 // 会话状态
@@ -142,4 +164,6 @@ export interface ConversationState {
   operator?: string;
   user_online: boolean;
   agent_online: boolean;
+  peer_last_online_at?: string;
+  unread_count?: number;
 }

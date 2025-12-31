@@ -36,6 +36,7 @@ export interface HandoffResponse {
   handoff_at?: string;
   ended_by?: string;
   current_operator?: string;
+  handoff_state?: "ai" | "pending" | "human";  // 保底机制：返回最新状态
 }
 
 export interface MessageResponse {

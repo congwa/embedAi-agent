@@ -143,6 +143,7 @@ export type SupportEventType =
   | "support.handoff_started"
   | "support.handoff_ended"
   | "support.human_message"
+  | "support.human_mode"
   | "support.connected"
   | "support.ping";
 
@@ -264,6 +265,10 @@ export interface SupportEventPayload {
   session_id?: string;
   agent_id?: string;
   message?: string;
+  content?: string;      // 客服消息内容
+  operator?: string;     // 客服 ID
+  message_id?: string;   // 消息 ID
+  created_at?: string;   // 创建时间
 }
 
 export type ChatEventPayload =
@@ -304,6 +309,7 @@ export type ChatEvent =
   | (ChatEventBase & { type: "support.handoff_started"; payload: SupportEventPayload })
   | (ChatEventBase & { type: "support.handoff_ended"; payload: SupportEventPayload })
   | (ChatEventBase & { type: "support.human_message"; payload: SupportEventPayload })
+  | (ChatEventBase & { type: "support.human_mode"; payload: SupportEventPayload })
   | (ChatEventBase & { type: "support.connected"; payload: SupportEventPayload })
   | (ChatEventBase & { type: "support.ping"; payload: SupportEventPayload })
   | (ChatEventBase & { type: "error"; payload: ErrorPayload })

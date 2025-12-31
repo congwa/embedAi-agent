@@ -57,9 +57,14 @@ export default function SupportChatPage() {
     });
   }, []);
 
+  // 本地状态（覆盖 WebSocket 的状态，用于保底）
+  const [localHandoffState, setLocalHandoffState] = useState<"ai" | "pending" | "human" | null>(null);
+
   // WebSocket 状态变更回调
   const handleStateChange = useCallback((state: ConversationState) => {
     console.log("State changed:", state);
+    // 同步到本地状态
+    setLocalHandoffState(state.handoff_state);
   }, []);
 
   // WebSocket 连接
@@ -77,6 +82,9 @@ export default function SupportChatPage() {
     onStateChange: handleStateChange,
   });
 
+  // 有效的 handoff 状态（优先使用本地状态，其次使用 WebSocket 状态）
+  const effectiveHandoffState = localHandoffState ?? conversationState.handoff_state;
+
   // 加载会话详情和历史消息
   useEffect(() => {
     async function loadConversation() {
@@ -84,6 +92,11 @@ export default function SupportChatPage() {
         setIsLoading(true);
         const data = await getConversationDetail(conversationId);
         setConversation(data);
+        
+        // 初始化本地状态（从后端获取最新状态）
+        if (data.handoff_state) {
+          setLocalHandoffState(data.handoff_state as "ai" | "pending" | "human");
+        }
         
         // 转换历史消息格式
         const historyMessages: SupportMessage[] = data.messages.map((m) => ({
@@ -114,7 +127,7 @@ export default function SupportChatPage() {
   const handleSend = useCallback(() => {
     if (!inputValue.trim()) return;
     
-    if (conversationState.handoff_state !== "human") {
+    if (effectiveHandoffState !== "human") {
       setError("请先点击「接入」开始客服介入");
       return;
     }
@@ -131,13 +144,20 @@ export default function SupportChatPage() {
     };
     setMessages((prev) => [...prev, localMessage]);
     setInputValue("");
-  }, [inputValue, conversationState.handoff_state, sendMessage, agentId]);
+  }, [inputValue, effectiveHandoffState, sendMessage, agentId]);
 
   // 开始介入
   const handleStartHandoff = useCallback(async () => {
     try {
-      await startHandoff(conversationId, agentId, "客服主动接入");
-      wsStartHandoff("客服主动接入");
+      const result = await startHandoff(conversationId, agentId, "客服主动接入");
+      if (result.success) {
+        // 使用 API 返回的最新状态（保底机制）
+        setLocalHandoffState(result.handoff_state || "human");
+        // 同时通过 WebSocket 通知（服务端会广播给其他客户端）
+        wsStartHandoff("客服主动接入");
+      } else if (result.error) {
+        setError(result.error);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "接入失败");
     }
@@ -146,8 +166,15 @@ export default function SupportChatPage() {
   // 结束介入
   const handleEndHandoff = useCallback(async () => {
     try {
-      await endHandoff(conversationId, agentId, "客服结束服务");
-      wsEndHandoff("客服结束服务");
+      const result = await endHandoff(conversationId, agentId, "客服结束服务");
+      if (result.success) {
+        // 使用 API 返回的最新状态（保底机制）
+        setLocalHandoffState(result.handoff_state || "ai");
+        // 同时通过 WebSocket 通知
+        wsEndHandoff("客服结束服务");
+      } else if (result.error) {
+        setError(result.error);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "结束失败");
     }
@@ -294,16 +321,16 @@ export default function SupportChatPage() {
           <div
             className={cn(
               "text-xs px-2 py-1 rounded-full",
-              conversationState.handoff_state === "human"
+              effectiveHandoffState === "human"
                 ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                 : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
             )}
           >
-            {conversationState.handoff_state === "human" ? "人工模式" : "AI 模式"}
+            {effectiveHandoffState === "human" ? "人工模式" : "AI 模式"}
           </div>
 
           {/* 介入按钮 */}
-          {conversationState.handoff_state !== "human" ? (
+          {effectiveHandoffState !== "human" ? (
             <Button
               size="sm"
               onClick={handleStartHandoff}
@@ -379,11 +406,11 @@ export default function SupportChatPage() {
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                conversationState.handoff_state === "human"
+                effectiveHandoffState === "human"
                   ? "输入消息..."
                   : "请先点击「接入」开始客服介入"
               }
-              disabled={conversationState.handoff_state !== "human"}
+              disabled={effectiveHandoffState !== "human"}
               className={cn(
                 "flex-1 resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm",
                 "focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500",
@@ -395,7 +422,7 @@ export default function SupportChatPage() {
             <Button
               size="icon"
               onClick={handleSend}
-              disabled={!inputValue.trim() || conversationState.handoff_state !== "human"}
+              disabled={!inputValue.trim() || effectiveHandoffState !== "human"}
               className="h-11 w-11 rounded-xl bg-green-500 hover:bg-green-600"
             >
               <ArrowUp className="h-5 w-5" />

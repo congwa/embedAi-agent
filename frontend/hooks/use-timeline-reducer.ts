@@ -185,8 +185,11 @@ export interface SupportEventItem {
   type: "support.event";
   id: string;
   turnId: string;
-  eventType: "handoff_started" | "handoff_ended" | "human_message" | "connected";
+  eventType: "handoff_started" | "handoff_ended" | "human_message" | "connected" | "human_mode";
   message?: string;
+  content?: string;  // 客服消息内容
+  operator?: string; // 客服 ID
+  messageId?: string; // 消息 ID
   ts: number;
 }
 
@@ -555,15 +558,24 @@ export function timelineReducer(
     case "support.handoff_started":
     case "support.handoff_ended":
     case "support.human_message":
+    case "support.human_mode":
     case "support.connected": {
       const eventType = event.type.replace("support.", "") as SupportEventItem["eventType"];
-      const payload = event.payload as { message?: string };
+      const payload = event.payload as { 
+        message?: string; 
+        content?: string; 
+        operator?: string;
+        message_id?: string;
+      };
       const item: SupportEventItem = {
         type: "support.event",
-        id: `support:${event.seq}`,
+        id: `support:${event.seq || crypto.randomUUID()}`,
         turnId,
         eventType,
         message: payload?.message,
+        content: payload?.content,
+        operator: payload?.operator,
+        messageId: payload?.message_id,
         ts: now,
       };
       return insertItem(state, item);

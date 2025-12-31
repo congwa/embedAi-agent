@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -70,6 +70,30 @@ class Conversation(Base):
         DateTime,
         nullable=True,
     )
+
+    # ========== 在线状态追踪 ==========
+    user_online: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )  # 用户是否在线
+    user_last_online_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )  # 用户最后在线时间
+    agent_online: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )  # 客服是否在线
+    agent_last_online_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )  # 客服最后在线时间
+    current_agent_id: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )  # 当前在线的客服 ID
 
     # 关联
     user: Mapped["User"] = relationship("User", back_populates="conversations")

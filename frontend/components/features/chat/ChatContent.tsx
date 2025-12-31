@@ -22,6 +22,7 @@ import {
   TimelineUserMessageItem,
   TimelineErrorItem,
   TimelineToolCallItem,
+  TimelineSupportEventItem,
 } from "./timeline";
 
 interface ChatContentProps {  
@@ -111,8 +112,14 @@ export function ChatContent({
         return null;
 
       case "support.event":
-        // 客服事件暂不渲染（可后续扩展）
-        return null;
+        return (
+          <Message
+            key={item.id}
+            className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-6 items-start"
+          >
+            <TimelineSupportEventItem item={item} />
+          </Message>
+        );
 
       default:
         return null;

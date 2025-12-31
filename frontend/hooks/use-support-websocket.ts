@@ -13,6 +13,7 @@ import type {
   HandoffEndedPayload,
   UserPresencePayload,
   ConversationStatePayload,
+  ReadReceiptPayload,
 } from "@/types/websocket";
 import { WS_PROTOCOL_VERSION } from "@/types/websocket";
 
@@ -21,6 +22,7 @@ interface UseSupportWebSocketOptions {
   agentId: string;
   onMessage?: (message: SupportMessage) => void;
   onStateChange?: (state: ConversationState) => void;
+  onReadReceipt?: (payload: ReadReceiptPayload) => void;
 }
 
 interface UseSupportWebSocketReturn {
@@ -59,6 +61,7 @@ export function useSupportWebSocket({
   agentId,
   onMessage,
   onStateChange,
+  onReadReceipt,
 }: UseSupportWebSocketOptions): UseSupportWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -101,6 +104,9 @@ export function useSupportWebSocket({
             ...prev,
             handoff_state: payload.handoff_state as "ai" | "pending" | "human",
             agent_online: true,
+            user_online: payload.peer_online,
+            peer_last_online_at: payload.peer_last_online_at ?? undefined,
+            unread_count: payload.unread_count,
           }));
           break;
         }
@@ -121,7 +127,17 @@ export function useSupportWebSocket({
             content: payload.content,
             created_at: payload.created_at,
             operator: payload.operator,
+            is_delivered: payload.is_delivered,
+            delivered_at: payload.delivered_at,
+            read_at: payload.read_at,
+            read_by: payload.read_by,
           });
+          break;
+        }
+
+        case "server.read_receipt": {
+          const payload = msg.payload as unknown as ReadReceiptPayload;
+          onReadReceipt?.(payload);
           break;
         }
 
@@ -157,12 +173,22 @@ export function useSupportWebSocket({
         }
 
         case "server.user_online": {
-          setConversationState((prev) => ({ ...prev, user_online: true }));
+          const payload = msg.payload as unknown as UserPresencePayload;
+          setConversationState((prev) => ({
+            ...prev,
+            user_online: true,
+            peer_last_online_at: payload.last_online_at,
+          }));
           break;
         }
 
         case "server.user_offline": {
-          setConversationState((prev) => ({ ...prev, user_online: false }));
+          const payload = msg.payload as unknown as UserPresencePayload;
+          setConversationState((prev) => ({
+            ...prev,
+            user_online: false,
+            peer_last_online_at: payload.last_online_at,
+          }));
           setUserTyping(false);
           break;
         }

@@ -30,6 +30,7 @@ class HandoffResponse(BaseModel):
     handoff_at: str | None = None
     ended_by: str | None = None
     current_operator: str | None = None
+    handoff_state: str | None = None  # 保底机制：返回最新状态让前端同步
 
 
 class HumanMessageRequest(BaseModel):

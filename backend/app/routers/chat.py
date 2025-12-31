@@ -76,7 +76,27 @@ async def chat(
     )
 
     # 如果是人工模式，转发消息给客服端，不走 RAG
+    # 架构：发送消息立即返回，用户通过独立的 SSE 订阅接收客服消息
     if is_human_mode:
+        # 通过 WebSocket 转发给客服（如果客服在线）
+        from app.services.websocket.manager import ws_manager
+        from app.services.websocket.handlers.base import build_server_message
+        from app.schemas.websocket import WSAction, WSRole
+        
+        server_msg = build_server_message(
+            action=WSAction.SERVER_MESSAGE,
+            payload={
+                "message_id": user_message.id,
+                "role": "user",
+                "content": request_data.message,
+                "user_id": request_data.user_id,
+                "created_at": user_message.created_at.isoformat(),
+            },
+            conversation_id=request_data.conversation_id,
+        )
+        await ws_manager.send_to_role(request_data.conversation_id, WSRole.AGENT, server_msg)
+        
+        # 同时通过 support_gateway 发送（兼容 SSE 模式）
         await support_gateway.send_to_agents(
             request_data.conversation_id,
             {
@@ -91,6 +111,7 @@ async def chat(
         )
 
         async def human_mode_response() -> AsyncGenerator[str, None]:
+            """人工模式响应 - 立即返回确认，不保持连接"""
             yield encode_sse({
                 "type": "meta.start",
                 "payload": {
@@ -102,7 +123,15 @@ async def chat(
             yield encode_sse({
                 "type": "support.human_mode",
                 "payload": {
-                    "message": "您的消息已发送给客服，请等待回复",
+                    "message": "您的消息已发送给客服",
+                },
+            })
+            # 立即结束流，用户通过独立订阅接收客服消息
+            yield encode_sse({
+                "type": "assistant.final",
+                "payload": {
+                    "content": "",
+                    "mode": "human",
                 },
             })
 

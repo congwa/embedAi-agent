@@ -20,6 +20,10 @@ export interface SupportMessage {
   content: string;
   created_at: string;
   operator?: string;
+  is_delivered?: boolean;
+  delivered_at?: string;
+  read_at?: string;
+  read_by?: string;
 }
 
 export interface ConversationState {
@@ -27,6 +31,15 @@ export interface ConversationState {
   operator?: string;
   user_online: boolean;
   agent_online: boolean;
+  peer_last_online_at?: string;
+  unread_count?: number;
+}
+
+export interface ReadReceiptPayload {
+  role: string;
+  message_ids: string[];
+  read_at: string;
+  read_by: string;
 }
 
 interface UseUserWebSocketOptions {
@@ -35,6 +48,7 @@ interface UseUserWebSocketOptions {
   wsBaseUrl?: string;
   onMessage?: (message: SupportMessage) => void;
   onStateChange?: (state: ConversationState) => void;
+  onReadReceipt?: (payload: ReadReceiptPayload) => void;
   enabled?: boolean;
 }
 
@@ -74,6 +88,7 @@ export function useUserWebSocket({
   wsBaseUrl,
   onMessage,
   onStateChange,
+  onReadReceipt,
   enabled = true,
 }: UseUserWebSocketOptions): UseUserWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
@@ -106,11 +121,17 @@ export function useUserWebSocket({
             const payload = msg.payload as {
               connection_id: string;
               handoff_state: string;
+              peer_online: boolean;
+              peer_last_online_at: string | null;
+              unread_count: number;
             };
             setConversationState((prev) => ({
               ...prev,
               handoff_state: payload.handoff_state as "ai" | "pending" | "human",
               user_online: true,
+              agent_online: payload.peer_online,
+              peer_last_online_at: payload.peer_last_online_at ?? undefined,
+              unread_count: payload.unread_count,
             }));
             break;
           }
@@ -130,6 +151,10 @@ export function useUserWebSocket({
               content: string;
               created_at: string;
               operator?: string;
+              is_delivered?: boolean;
+              delivered_at?: string;
+              read_at?: string;
+              read_by?: string;
             };
             onMessage?.({
               id: payload.message_id,
@@ -137,7 +162,17 @@ export function useUserWebSocket({
               content: payload.content,
               created_at: payload.created_at,
               operator: payload.operator,
+              is_delivered: payload.is_delivered,
+              delivered_at: payload.delivered_at,
+              read_at: payload.read_at,
+              read_by: payload.read_by,
             });
+            break;
+          }
+
+          case "server.read_receipt": {
+            const payload = msg.payload as unknown as ReadReceiptPayload;
+            onReadReceipt?.(payload);
             break;
           }
 
@@ -176,22 +211,26 @@ export function useUserWebSocket({
           }
 
           case "server.agent_online": {
-            const payload = msg.payload as { operator: string };
+            const payload = msg.payload as { operator: string; online: boolean; last_online_at?: string };
             setConversationState((prev) => ({
               ...prev,
               agent_online: true,
               operator: payload.operator,
+              peer_last_online_at: payload.last_online_at,
             }));
             break;
           }
 
-          case "server.agent_offline":
+          case "server.agent_offline": {
+            const payload = msg.payload as { operator: string; online: boolean; last_online_at?: string };
             setConversationState((prev) => ({
               ...prev,
               agent_online: false,
+              peer_last_online_at: payload.last_online_at,
             }));
             setAgentTyping(false);
             break;
+          }
 
           case "server.conversation_state": {
             const payload = msg.payload as {

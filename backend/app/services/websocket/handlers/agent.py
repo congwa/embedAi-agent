@@ -20,10 +20,16 @@ async def handle_agent_send_message(
     payload: dict[str, Any],
 ) -> None:
     """处理客服发送消息"""
+    from datetime import datetime
+    from app.repositories.message import MessageRepository
+    from app.repositories.conversation import ConversationRepository
+    from app.services.support.gateway import support_gateway
+    
     content = payload["content"]
     
     async with get_db_context() as session:
         handoff_service = HandoffService(session)
+        msg_repo = MessageRepository(session)
         
         # 添加人工消息
         message = await handoff_service.add_human_message(
@@ -33,7 +39,21 @@ async def handle_agent_send_message(
         )
         
         if message:
-            # 推送给用户端
+            # 通过 support_gateway 发送给用户（SSE 订阅者）
+            sse_sent = await support_gateway.send_to_user(
+                conn.conversation_id,
+                {
+                    "type": "support.human_message",
+                    "payload": {
+                        "message_id": message.id,
+                        "content": content,
+                        "operator": conn.identity,
+                        "created_at": message.created_at.isoformat(),
+                    },
+                },
+            )
+            
+            # 同时通过 WebSocket 发送给用户（如果有 WebSocket 连接）
             server_msg = build_server_message(
                 action=WSAction.SERVER_MESSAGE,
                 payload={
@@ -42,17 +62,32 @@ async def handle_agent_send_message(
                     "content": content,
                     "created_at": message.created_at.isoformat(),
                     "operator": conn.identity,
+                    "is_delivered": True,
+                    "delivered_at": datetime.now().isoformat(),
                 },
                 conversation_id=conn.conversation_id,
             )
-            await ws_manager.send_to_role(conn.conversation_id, WSRole.USER, server_msg)
+            ws_sent = await ws_manager.send_to_role(conn.conversation_id, WSRole.USER, server_msg)
             
-            logger.info(
-                "客服消息已发送",
-                conn_id=conn.id,
-                conversation_id=conn.conversation_id,
-                message_id=message.id,
-            )
+            # 如果任一渠道成功送达，更新消息状态
+            if sse_sent > 0 or ws_sent > 0:
+                await msg_repo.mark_as_delivered([message.id])
+                logger.info(
+                    "客服消息已送达用户",
+                    conn_id=conn.id,
+                    conversation_id=conn.conversation_id,
+                    message_id=message.id,
+                    sse_sent=sse_sent,
+                    ws_sent=ws_sent,
+                )
+            else:
+                # 消息未送达（用户离线），等用户上线时推送
+                logger.info(
+                    "客服消息已保存（用户离线，等待送达）",
+                    conn_id=conn.id,
+                    conversation_id=conn.conversation_id,
+                    message_id=message.id,
+                )
         else:
             logger.warning(
                 "客服消息发送失败：会话不在人工模式",
@@ -83,12 +118,34 @@ async def handle_agent_read(
     payload: dict[str, Any],
 ) -> None:
     """处理客服已读回执"""
+    from app.repositories.message import MessageRepository
+    
+    message_ids = payload["message_ids"]
+    
+    # 更新数据库已读状态
+    async with get_db_context() as session:
+        msg_repo = MessageRepository(session)
+        count, read_at = await msg_repo.mark_as_read(message_ids, conn.identity)
+    
+    # 推送已读回执给用户端（包含已读时间）
     server_msg = build_server_message(
         action=WSAction.SERVER_READ_RECEIPT,
-        payload={"role": "agent", "message_ids": payload["message_ids"]},
+        payload={
+            "role": "agent",
+            "message_ids": message_ids,
+            "read_at": read_at.isoformat(),
+            "read_by": conn.identity,
+        },
         conversation_id=conn.conversation_id,
     )
     await ws_manager.send_to_role(conn.conversation_id, WSRole.USER, server_msg)
+    
+    logger.info(
+        "客服已读回执",
+        conn_id=conn.id,
+        conversation_id=conn.conversation_id,
+        message_count=count,
+    )
 
 
 @ws_router.handler(WSAction.CLIENT_AGENT_START_HANDOFF)

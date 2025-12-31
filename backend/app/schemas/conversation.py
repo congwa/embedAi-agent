@@ -19,6 +19,7 @@ class ConversationResponse(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
+    handoff_state: str | None = None
 
     model_config = {"from_attributes": True}
 

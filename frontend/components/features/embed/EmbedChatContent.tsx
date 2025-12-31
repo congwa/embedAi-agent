@@ -21,6 +21,7 @@ import {
   TimelineUserMessageItem,
   TimelineErrorItem,
   TimelineToolCallItem,
+  TimelineSupportEventItem,
 } from "../chat/timeline";
 
 interface EmbedChatContentProps {
@@ -95,8 +96,17 @@ export function EmbedChatContent({
 
       case "final":
       case "memory.event":
-      case "support.event":
         return null;
+
+      case "support.event":
+        return (
+          <Message
+            key={item.id}
+            className="flex w-full flex-col gap-1 items-start px-3"
+          >
+            <TimelineSupportEventItem item={item} />
+          </Message>
+        );
 
       default:
         return null;

@@ -104,6 +104,7 @@ class HandoffService:
             "conversation_id": conversation_id,
             "operator": operator,
             "handoff_at": now.isoformat(),
+            "handoff_state": HandoffState.HUMAN.value,  # 保底：返回最新状态
         }
 
     async def end_handoff(
@@ -168,6 +169,7 @@ class HandoffService:
             "success": True,
             "conversation_id": conversation_id,
             "ended_by": operator,
+            "handoff_state": HandoffState.AI.value,  # 保底：返回最新状态
         }
 
     async def update_notification_time(self, conversation_id: str) -> None:
