@@ -10,10 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import get_db_session
 from app.core.logging import get_logger
+from app.models.conversation import HandoffState
 from app.schemas.chat import ChatRequest
 from app.services.chat_stream import ChatStreamOrchestrator
 from app.services.agent.agent import agent_service
 from app.services.conversation import ConversationService
+from app.services.support.handoff import HandoffService
+from app.services.support.gateway import support_gateway
 from app.services.streaming.sse import encode_sse
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
@@ -39,9 +42,16 @@ async def chat(
     - assistant.delta: 文本增量 {"type": "assistant.delta", "payload": {"delta": "..."}}
     - assistant.products: 商品数据 {"type": "assistant.products", "payload": {"items": [...]}}
     - assistant.final: 完成 {"type": "assistant.final", "payload": {"content": "...", "products": [...], "reasoning": "..."}}
+    - support.handoff_started: 客服介入 {"type": "support.handoff_started", "payload": {...}}
+    - support.human_message: 人工消息 {"type": "support.human_message", "payload": {...}}
     - error: 错误 {"type": "error", "payload": {"message": "..."}}
     """
     conversation_service = ConversationService(db)
+    handoff_service = HandoffService(db)
+
+    # 检查会话的 handoff 状态
+    handoff_state = await handoff_service.get_handoff_state(request_data.conversation_id)
+    is_human_mode = handoff_state == HandoffState.HUMAN.value
 
     # 保存用户消息
     user_message = await conversation_service.add_message(
@@ -53,7 +63,87 @@ async def chat(
         "保存用户消息",
         message_id=user_message.id,
         conversation_id=request_data.conversation_id,
+        is_human_mode=is_human_mode,
     )
+
+    # 发送新消息通知（无论是否人工模式都发送）
+    asyncio.create_task(
+        handoff_service.notify_new_message(
+            conversation_id=request_data.conversation_id,
+            user_id=request_data.user_id,
+            message_preview=request_data.message[:200],
+        )
+    )
+
+    # 如果是人工模式，转发消息给客服端，不走 RAG
+    # 架构：发送消息立即返回，用户通过独立的 SSE 订阅接收客服消息
+    if is_human_mode:
+        # 通过 WebSocket 转发给客服（如果客服在线）
+        from app.services.websocket.manager import ws_manager
+        from app.services.websocket.handlers.base import build_server_message
+        from app.schemas.websocket import WSAction, WSRole
+        
+        server_msg = build_server_message(
+            action=WSAction.SERVER_MESSAGE,
+            payload={
+                "message_id": user_message.id,
+                "role": "user",
+                "content": request_data.message,
+                "user_id": request_data.user_id,
+                "created_at": user_message.created_at.isoformat(),
+            },
+            conversation_id=request_data.conversation_id,
+        )
+        await ws_manager.send_to_role(request_data.conversation_id, WSRole.AGENT, server_msg)
+        
+        # 同时通过 support_gateway 发送（兼容 SSE 模式）
+        await support_gateway.send_to_agents(
+            request_data.conversation_id,
+            {
+                "type": "support.user_message",
+                "payload": {
+                    "message_id": user_message.id,
+                    "content": request_data.message,
+                    "user_id": request_data.user_id,
+                    "created_at": user_message.created_at.isoformat(),
+                },
+            },
+        )
+
+        async def human_mode_response() -> AsyncGenerator[str, None]:
+            """人工模式响应 - 立即返回确认，不保持连接"""
+            yield encode_sse({
+                "type": "meta.start",
+                "payload": {
+                    "user_message_id": user_message.id,
+                    "assistant_message_id": None,
+                    "mode": "human",
+                },
+            })
+            yield encode_sse({
+                "type": "support.human_mode",
+                "payload": {
+                    "message": "您的消息已发送给客服",
+                },
+            })
+            # 立即结束流，用户通过独立订阅接收客服消息
+            yield encode_sse({
+                "type": "assistant.final",
+                "payload": {
+                    "content": "",
+                    "mode": "human",
+                },
+            })
+
+        return StreamingResponse(
+            human_mode_response(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
 
     async def event_generator() -> AsyncGenerator[str, None]:
         """生成 SSE 事件流，支持中断检测"""

@@ -41,9 +41,14 @@ def make_event(
     )
 
 
-def encode_sse(event: StreamEvent) -> str:
-    """将 StreamEvent 编码为 SSE 数据帧（只使用 data: 行）。"""
-
+def encode_sse(event: StreamEvent | dict[str, Any]) -> str:
+    """将 StreamEvent 编码为 SSE 数据帧（只使用 data: 行）。
+    
+    支持传入 StreamEvent 模型或普通字典。
+    """
     # FastAPI/Starlette 会按字符串直接写出，这里保证每条事件以空行分隔
-    data = event.model_dump()
+    if isinstance(event, dict):
+        data = event
+    else:
+        data = event.model_dump()
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"

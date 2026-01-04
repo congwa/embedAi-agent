@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import settings
@@ -14,6 +15,7 @@ logger = get_logger("database")
 # 创建异步引擎
 engine = create_async_engine(
     settings.database_url,
+    connect_args={"timeout": 30, "check_same_thread": False},
     echo=False,
     future=True,
 )
@@ -77,5 +79,8 @@ async def init_db() -> None:
 
     settings.ensure_data_dir()
     async with engine.begin() as conn:
+        # 先切到 WAL，允许并发读写
+        await conn.execute(text("PRAGMA journal_mode=WAL"))
+        # 再创建表
         await conn.run_sync(Base.metadata.create_all)
     logger.info("数据库表初始化完成", path=settings.DATABASE_PATH)

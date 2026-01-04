@@ -1,4 +1,4 @@
-export { TimelineLlmCallItem } from "./TimelineLlmCallItem";
+export { LLMCallCluster } from "./LLMCallCluster";
 export { TimelineToolCallItem } from "./TimelineToolCallItem";
 export { TimelineReasoningItem } from "./TimelineReasoningItem";
 export { TimelineContentItem } from "./TimelineContentItem";
@@ -7,3 +7,4 @@ export { TimelineTodosItem } from "./TimelineTodosItem";
 export { TimelineContextSummarizedItem } from "./TimelineContextSummarizedItem";
 export { TimelineUserMessageItem } from "./TimelineUserMessageItem";
 export { TimelineErrorItem } from "./TimelineErrorItem";
+export { TimelineSupportEventItem } from "./TimelineSupportEventItem";

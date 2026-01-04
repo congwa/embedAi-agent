@@ -96,19 +96,92 @@ export interface ChatRequest {
   message: string;
 }
 
+// ==================== 事件类型分类 ====================
+
+/**
+ * 流级别事件：贯穿整个 SSE 流的生命周期
+ */
+export type StreamLevelEventType = "meta.start" | "assistant.final" | "error";
+
+/**
+ * LLM 调用边界事件：标记单次 LLM 调用的开始和结束
+ */
+export type LLMCallBoundaryEventType = "llm.call.start" | "llm.call.end";
+
+/**
+ * LLM 调用内部事件：仅在 llm.call.start → llm.call.end 之间触发
+ */
+export type LLMCallInternalEventType = "assistant.reasoning.delta" | "assistant.delta";
+
+/**
+ * 工具调用事件：在 llm.call.end 之后触发，独立于 LLM 调用
+ * 
+ * 真实事件流：
+ * llm.call.start → [reasoning.delta, delta...] → llm.call.end
+ * → tool.start → [中间推送] → tool.end
+ * → llm.call.start → [...] → llm.call.end (下一轮)
+ */
+export type ToolCallEventType = "tool.start" | "tool.end";
+
+/**
+ * 数据事件：可能在 LLM 调用内部或工具执行时产生
+ */
+export type DataEventType = "assistant.products" | "assistant.todos" | "context.summarized";
+
+/**
+ * 后处理事件：流末尾的后处理操作
+ */
+export type PostProcessEventType =
+  | "memory.extraction.start"
+  | "memory.extraction.complete"
+  | "memory.profile.updated";
+
+/**
+ * 客服支持事件
+ */
+export type SupportEventType =
+  | "support.handoff_started"
+  | "support.handoff_ended"
+  | "support.human_message"
+  | "support.human_mode"
+  | "support.connected"
+  | "support.ping";
+
+/** 所有事件类型 */
 export type ChatEventType =
-  | "meta.start"
-  | "assistant.delta"
-  | "assistant.reasoning.delta"
-  | "assistant.products"
-  | "assistant.todos"
-  | "assistant.final"
-  | "tool.start"
-  | "tool.end"
-  | "llm.call.start"
-  | "llm.call.end"
-  | "context.summarized"
-  | "error";
+  | StreamLevelEventType
+  | LLMCallBoundaryEventType
+  | LLMCallInternalEventType
+  | ToolCallEventType
+  | DataEventType
+  | PostProcessEventType
+  | SupportEventType;
+
+// ==================== 事件类型判断函数 ====================
+
+/** 判断是否为 LLM 调用内部事件（仅 reasoning.delta 和 delta） */
+export function isLLMCallInternalEvent(type: string): type is LLMCallInternalEventType {
+  return ["assistant.reasoning.delta", "assistant.delta"].includes(type);
+}
+
+/** 判断是否为工具调用事件 */
+export function isToolCallEvent(type: string): type is ToolCallEventType {
+  return ["tool.start", "tool.end"].includes(type);
+}
+
+/** 判断是否为数据事件 */
+export function isDataEvent(type: string): type is DataEventType {
+  return ["assistant.products", "assistant.todos", "context.summarized"].includes(type);
+}
+
+// ==================== 兼容旧代码的类型别名 ====================
+
+/** @deprecated 使用更细粒度的事件类型 */
+export type NonLLMCallEventType =
+  | StreamLevelEventType
+  | LLMCallBoundaryEventType
+  | PostProcessEventType
+  | SupportEventType;
 
 export interface MetaStartPayload {
   user_message_id: string;
@@ -178,6 +251,26 @@ export interface ContextSummarizedPayload {
   tokens_after?: number;
 }
 
+export interface MemoryExtractionPayload {
+  extraction_id?: string;
+  status?: string;
+}
+
+export interface MemoryProfilePayload {
+  profile_id?: string;
+  updated_fields?: string[];
+}
+
+export interface SupportEventPayload {
+  session_id?: string;
+  agent_id?: string;
+  message?: string;
+  content?: string;      // 客服消息内容
+  operator?: string;     // 客服 ID
+  message_id?: string;   // 消息 ID
+  created_at?: string;   // 创建时间
+}
+
 export type ChatEventPayload =
   | MetaStartPayload
   | TextDeltaPayload
@@ -190,6 +283,9 @@ export type ChatEventPayload =
   | LlmCallEndPayload
   | ErrorPayload
   | ContextSummarizedPayload
+  | MemoryExtractionPayload
+  | MemoryProfilePayload
+  | SupportEventPayload
   | Record<string, unknown>;
 
 export interface ChatEventBase {
@@ -202,16 +298,28 @@ export interface ChatEventBase {
 }
 
 export type ChatEvent =
+  // ========== 非 LLM 调用内部事件 ==========
   | (ChatEventBase & { type: "meta.start"; payload: MetaStartPayload })
-  | (ChatEventBase & { type: "assistant.delta"; payload: TextDeltaPayload })
-  | (ChatEventBase & { type: "assistant.reasoning.delta"; payload: TextDeltaPayload })
-  | (ChatEventBase & { type: "assistant.products"; payload: ProductsPayload })
-  | (ChatEventBase & { type: "assistant.todos"; payload: TodosPayload })
   | (ChatEventBase & { type: "assistant.final"; payload: FinalPayload })
-  | (ChatEventBase & { type: "tool.start"; payload: ToolStartPayload })
-  | (ChatEventBase & { type: "tool.end"; payload: ToolEndPayload })
   | (ChatEventBase & { type: "llm.call.start"; payload: LlmCallStartPayload })
   | (ChatEventBase & { type: "llm.call.end"; payload: LlmCallEndPayload })
-  | (ChatEventBase & { type: "context.summarized"; payload: ContextSummarizedPayload })
+  | (ChatEventBase & { type: "memory.extraction.start"; payload: MemoryExtractionPayload })
+  | (ChatEventBase & { type: "memory.extraction.complete"; payload: MemoryExtractionPayload })
+  | (ChatEventBase & { type: "memory.profile.updated"; payload: MemoryProfilePayload })
+  | (ChatEventBase & { type: "support.handoff_started"; payload: SupportEventPayload })
+  | (ChatEventBase & { type: "support.handoff_ended"; payload: SupportEventPayload })
+  | (ChatEventBase & { type: "support.human_message"; payload: SupportEventPayload })
+  | (ChatEventBase & { type: "support.human_mode"; payload: SupportEventPayload })
+  | (ChatEventBase & { type: "support.connected"; payload: SupportEventPayload })
+  | (ChatEventBase & { type: "support.ping"; payload: SupportEventPayload })
   | (ChatEventBase & { type: "error"; payload: ErrorPayload })
+  // ========== LLM 调用内部事件 ==========
+  | (ChatEventBase & { type: "assistant.reasoning.delta"; payload: TextDeltaPayload })
+  | (ChatEventBase & { type: "assistant.delta"; payload: TextDeltaPayload })
+  | (ChatEventBase & { type: "assistant.products"; payload: ProductsPayload })
+  | (ChatEventBase & { type: "tool.start"; payload: ToolStartPayload })
+  | (ChatEventBase & { type: "tool.end"; payload: ToolEndPayload })
+  | (ChatEventBase & { type: "context.summarized"; payload: ContextSummarizedPayload })
+  | (ChatEventBase & { type: "assistant.todos"; payload: TodosPayload })
+  // ========== 兜底 ==========
   | (ChatEventBase & { type: ChatEventType; payload: Record<string, unknown> });

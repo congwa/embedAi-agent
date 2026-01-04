@@ -1,5 +1,7 @@
 """会话 Repository"""
 
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -55,3 +57,60 @@ class ConversationRepository(BaseRepository[Conversation]):
             conversation.title = title[:200]  # 截断标题
             await self.update(conversation)
         return conversation
+
+    async def set_user_online(
+        self,
+        conversation_id: str,
+        online: bool,
+    ) -> Conversation | None:
+        """设置用户在线状态"""
+        conversation = await self.get_by_id(conversation_id)
+        if conversation:
+            conversation.user_online = online
+            if online:
+                conversation.user_last_online_at = datetime.now()
+            else:
+                conversation.user_last_online_at = datetime.now()
+            await self.update(conversation)
+        return conversation
+
+    async def set_agent_online(
+        self,
+        conversation_id: str,
+        online: bool,
+        agent_id: str | None = None,
+    ) -> Conversation | None:
+        """设置客服在线状态"""
+        conversation = await self.get_by_id(conversation_id)
+        if conversation:
+            conversation.agent_online = online
+            if online:
+                conversation.agent_last_online_at = datetime.now()
+                conversation.current_agent_id = agent_id
+            else:
+                conversation.agent_last_online_at = datetime.now()
+                conversation.current_agent_id = None
+            await self.update(conversation)
+        return conversation
+
+    async def get_online_status(
+        self,
+        conversation_id: str,
+    ) -> dict:
+        """获取会话的在线状态"""
+        conversation = await self.get_by_id(conversation_id)
+        if not conversation:
+            return {
+                "user_online": False,
+                "user_last_online_at": None,
+                "agent_online": False,
+                "agent_last_online_at": None,
+                "current_agent_id": None,
+            }
+        return {
+            "user_online": conversation.user_online,
+            "user_last_online_at": conversation.user_last_online_at,
+            "agent_online": conversation.agent_online,
+            "agent_last_online_at": conversation.agent_last_online_at,
+            "current_agent_id": conversation.current_agent_id,
+        }

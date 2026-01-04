@@ -119,7 +119,15 @@ def format_simple(record: dict) -> str:
     }
     color = color_map.get(level, "white")
 
-    return f"<{color}>[{module}]</{color}> {message}\n"
+    # 转义消息中的特殊字符，避免 colorizer 将其误认为格式指令
+    safe_message = (
+        message.replace("<", "\\<")
+        .replace(">", "\\>")
+        .replace("{", "{{")
+        .replace("}", "}}")
+    )
+
+    return f"<{color}>[{module}]</{color}> {safe_message}\n"
 
 
 def format_detailed(record: dict) -> str:
@@ -170,8 +178,13 @@ def format_detailed(record: dict) -> str:
             ctx_parts.append(f"{k}={value_repr}")
         context = f" <dim>| {', '.join(ctx_parts)}</dim>"
 
-    # 转义消息内容中的特殊字符
-    safe_message = message.replace("<", "\\<").replace(">", "\\>")
+    # 转义消息内容中的特殊字符，避免 loguru Colorizer 递归解析
+    safe_message = (
+        message.replace("<", "\\<")
+        .replace(">", "\\>")
+        .replace("{", "{{")
+        .replace("}", "}}")
+    )
     
     result = f"{header} {module_tag} {location}{context}\n    → {safe_message}\n"
 
