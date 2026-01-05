@@ -17,6 +17,7 @@ from app.routers.agents import router as agents_router
 from app.scheduler import task_registry, task_scheduler
 from app.scheduler.routers import router as scheduler_router
 from app.scheduler.tasks import CrawlSiteTask
+from app.services.agent.bootstrap import bootstrap_default_agents
 from app.services.agent.core.service import agent_service
 from app.services.crawler.site_initializer import init_config_sites
 from app.services.websocket.heartbeat import heartbeat_manager
@@ -81,6 +82,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     _init_model_profiles()
 
     await init_db()
+
+    # 初始化默认 Agent（从配置文件写入数据库）
+    try:
+        bootstrap_ids = await bootstrap_default_agents()
+        if bootstrap_ids:
+            logger.info(
+                "默认 Agent 初始化完成",
+                module="app",
+                count=len(bootstrap_ids),
+                agent_ids=bootstrap_ids,
+            )
+    except Exception as e:
+        logger.warning("默认 Agent 初始化失败", module="app", error=str(e))
 
     # 初始化爬虫配置站点
     if settings.CRAWLER_ENABLED:

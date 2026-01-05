@@ -205,6 +205,23 @@ class Settings(BaseSettings):
     # 运行机制：应用启动时解析此字段 -> 批量创建/更新站点 -> 按 cron 注册任务。
     CRAWLER_SITES_JSON: str = ""  # 示例：[{"id":"site_id","name":"站点名","start_url":"https://...","cron_expression":"0 2 * * *",...}]
 
+    # ========== 默认 Agent 配置 ==========
+    # 通过配置文件定义默认 Agent，启动时自动写入数据库（幂等）
+    # 格式：JSON 数组，每个元素定义一个 Agent 及其知识库配置
+    # 支持的字段：id, name, description, type, system_prompt, mode_default,
+    #            middleware_flags, tool_policy, tool_categories, is_default,
+    #            knowledge_config (嵌套对象)
+    # 优先级：接口修改 > 配置注入 > 代码默认
+    DEFAULT_AGENTS_JSON: str = ""
+
+    # 是否在启动时自动初始化默认 Agent（设为 false 可手动运行脚本）
+    DEFAULT_AGENTS_BOOTSTRAP_ENABLED: bool = True
+
+    # 配置覆盖策略：
+    # - "skip": 若 Agent 已存在则跳过（保留人工修改）
+    # - "update": 若 Agent 已存在则更新（配置优先）
+    DEFAULT_AGENTS_OVERRIDE_POLICY: str = "skip"
+
     # ========== 客服支持配置 ==========
     # 企业微信通知配置
     WEWORK_CORP_ID: str = ""  # 企业 ID
@@ -447,6 +464,23 @@ class Settings(BaseSettings):
                 continue
             out[k.strip().lower()] = v
         return out
+
+    @property
+    def default_agents(self) -> list[dict[str, Any]]:
+        """解析默认 Agent 配置
+
+        支持两种加载方式：
+        1. 从 .env 的 DEFAULT_AGENTS_JSON 环境变量加载（单行 JSON）
+        2. 从 ENV_JSON_DIR/DEFAULT_AGENTS_JSON.json 文件加载（多行格式化 JSON）
+
+        优先级：环境变量 > 文件
+        """
+        parsed = self._load_json_from_env_or_file("DEFAULT_AGENTS_JSON", self.DEFAULT_AGENTS_JSON)
+        if parsed is None:
+            return []
+        if not isinstance(parsed, list):
+            return []
+        return parsed
 
     @property
     def effective_crawler_model(self) -> str:

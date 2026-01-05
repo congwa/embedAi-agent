@@ -1,0 +1,82 @@
+[
+  {
+    "id": "agent-product-default",
+    "name": "商品推荐助手",
+    "description": "智能商品推荐，帮助用户发现和选择合适的商品",
+    "type": "product",
+    "mode_default": "natural",
+    "is_default": true,
+    "middleware_flags": {
+      "todo_enabled": true,
+      "memory_enabled": true,
+      "summarization_enabled": true,
+      "tool_retry_enabled": true,
+      "tool_limit_enabled": true
+    },
+    "tool_policy": {
+      "min_tool_calls": 0,
+      "allow_direct_answer": true
+    },
+    "tool_categories": [
+      "search",
+      "query",
+      "compare",
+      "filter",
+      "category",
+      "featured",
+      "purchase",
+      "guide"
+    ]
+  },
+  {
+    "id": "agent-faq-support",
+    "name": "客服问答助手",
+    "description": "基于 FAQ 知识库回答用户常见问题",
+    "type": "faq",
+    "mode_default": "natural",
+    "is_default": false,
+    "middleware_flags": {
+      "todo_enabled": false,
+      "memory_enabled": true
+    },
+    "tool_policy": {
+      "min_tool_calls": 0,
+      "allow_direct_answer": true,
+      "fallback_tool": "faq_search"
+    },
+    "knowledge_config": {
+      "id": "kb-faq-default",
+      "name": "FAQ 知识库",
+      "type": "faq",
+      "collection_name": "faq_entries",
+      "top_k": 5,
+      "rerank_enabled": false
+    }
+  },
+  {
+    "id": "agent-kb-internal",
+    "name": "内部知识库助手",
+    "description": "基于内部文档知识库回答问题",
+    "type": "kb",
+    "mode_default": "strict",
+    "is_default": false,
+    "middleware_flags": {
+      "memory_enabled": true,
+      "strict_mode_enabled": true
+    },
+    "tool_policy": {
+      "min_tool_calls": 1,
+      "allow_direct_answer": false,
+      "fallback_tool": "kb_search"
+    },
+    "knowledge_config": {
+      "id": "kb-internal-docs",
+      "name": "内部文档库",
+      "type": "vector",
+      "collection_name": "internal_docs",
+      "top_k": 10,
+      "rerank_enabled": true,
+      "similarity_threshold": 0.7
+    }
+  }
+]
