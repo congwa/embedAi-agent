@@ -247,6 +247,8 @@ class ChatStreamOrchestrator:
                     for tc in tool_calls_data
                 ]
 
+            latency_ms = chat_context.response_latency_ms
+
             await self._conversation_service.add_message(
                 conversation_id=self._conversation_id,
                 role="assistant",
@@ -255,6 +257,7 @@ class ChatStreamOrchestrator:
                 message_id=self._assistant_message_id,
                 extra_metadata=extra_metadata if extra_metadata else None,
                 tool_calls_data=tool_calls_data,
+                latency_ms=latency_ms,
             )
             logger.debug(
                 "已保存完整 assistant message",

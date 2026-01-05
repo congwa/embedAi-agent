@@ -48,6 +48,7 @@ class MessageRepository(BaseRepository[Message]):
         message_type: str = "text",
         extra_metadata: dict[str, Any] | None = None,
         token_count: int | None = None,
+        latency_ms: int | None = None,
     ) -> Message:
         """创建消息
         
@@ -73,6 +74,7 @@ class MessageRepository(BaseRepository[Message]):
             message_type=message_type,
             extra_metadata=extra_metadata,
             token_count=token_count,
+            latency_ms=latency_ms,
         )
         return await self.create(message)
 

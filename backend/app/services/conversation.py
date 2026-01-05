@@ -67,6 +67,7 @@ class ConversationService:
         extra_metadata: dict[str, Any] | None = None,
         token_count: int | None = None,
         tool_calls_data: list[dict[str, Any]] | None = None,
+        latency_ms: int | None = None,
     ) -> Message:
         """添加消息到会话
         
@@ -80,6 +81,7 @@ class ConversationService:
             extra_metadata: 完整消息元数据（含 usage_metadata 等）
             token_count: Token 计数
             tool_calls_data: 工具调用数据列表
+            latency_ms: 响应耗时（毫秒）
         """
         message_id = message_id or str(uuid.uuid4())
         message = await self.message_repo.create_message(
@@ -91,6 +93,7 @@ class ConversationService:
             message_type=message_type,
             extra_metadata=extra_metadata,
             token_count=token_count,
+            latency_ms=latency_ms,
         )
 
         # 保存工具调用记录

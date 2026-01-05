@@ -35,8 +35,8 @@ class ChatContext(BaseModel):
     assistant_message_id: str
     mode: str = "natural"  # 聊天模式：natural / free / strict
     emitter: Any = Field(exclude=True, repr=False)  # 排除序列化，避免把 emitter/loop/queue 带进日志
+    response_latency_ms: int | None = None  # LLM 调用耗时（由 LoggingMiddleware 写入）
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,  # 允许任意类型（用于 emitter）
-        frozen=True,  # 保持不可变性，类似原来的 frozen=True
     )

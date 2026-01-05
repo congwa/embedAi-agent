@@ -310,6 +310,10 @@ class LoggingMiddleware(AgentMiddleware):
         try:
             response = await handler(request)
             elapsed_ms = int((time.time() - start_time) * 1000)
+            runtime = getattr(request, "runtime", None)
+            chat_context = getattr(runtime, "context", None) if runtime is not None else None
+            if chat_context is not None and hasattr(chat_context, "response_latency_ms"):
+                chat_context.response_latency_ms = elapsed_ms
 
             # 序列化输出
             response_data = {

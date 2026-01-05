@@ -71,6 +71,10 @@ class Message(Base):
         Integer,
         nullable=True,
     )  # Token 计数（可选）
+    latency_ms: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )  # 响应耗时（毫秒）
 
     # 关联
     conversation: Mapped["Conversation"] = relationship(
