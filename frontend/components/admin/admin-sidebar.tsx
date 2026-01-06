@@ -24,9 +24,10 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
-    title: "设置中心",
-    href: "/admin/settings",
-    icon: Settings,
+    title: "Agent 中心",
+    href: "/admin/agents",
+    icon: Bot,
+    badge: "核心",
   },
   {
     title: "FAQ 管理",
@@ -39,21 +40,6 @@ const navItems = [
     icon: Database,
   },
   {
-    title: "商品管理",
-    href: "/admin/products",
-    icon: Package,
-  },
-  {
-    title: "会话管理",
-    href: "/admin/conversations",
-    icon: MessageSquare,
-  },
-  {
-    title: "用户管理",
-    href: "/admin/users",
-    icon: Users,
-  },
-  {
     title: "爬虫管理",
     href: "/admin/crawler",
     icon: Globe,
@@ -62,6 +48,26 @@ const navItems = [
       { title: "任务列表", href: "/admin/crawler/tasks" },
       { title: "页面数据", href: "/admin/crawler/pages" },
     ],
+  },
+  {
+    title: "会话管理",
+    href: "/admin/conversations",
+    icon: MessageSquare,
+  },
+  {
+    title: "商品管理",
+    href: "/admin/products",
+    icon: Package,
+  },
+  {
+    title: "用户管理",
+    href: "/admin/users",
+    icon: Users,
+  },
+  {
+    title: "设置中心",
+    href: "/admin/settings",
+    icon: Settings,
   },
 ];
 
@@ -109,7 +115,12 @@ export function AdminSidebar() {
                     )}
                   >
                     <item.icon className="h-4 w-4" />
-                    {item.title}
+                    <span className="flex-1">{item.title}</span>
+                    {item.badge && (
+                      <span className="rounded bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                   {item.children && isActive && (
                     <ul className="ml-7 mt-1 space-y-1">

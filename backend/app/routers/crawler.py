@@ -35,7 +35,7 @@ from app.services.crawler import CrawlerService
 from app.services.crawler.utils import generate_site_id, normalize_domain
 
 logger = get_logger("router.crawler")
-router = APIRouter(prefix="/crawler", tags=["crawler"])
+router = APIRouter(prefix="/api/v1/crawler", tags=["crawler"])
 
 
 def check_crawler_enabled():

@@ -52,7 +52,7 @@ export default function CrawlerSitesPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const result = await apiRequest<CrawlSite[]>("/crawler/sites");
+      const result = await apiRequest<CrawlSite[]>("/api/v1/crawler/sites");
       setSites(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");

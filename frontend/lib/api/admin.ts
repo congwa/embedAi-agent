@@ -86,7 +86,7 @@ export interface CrawlPageListItem {
 
 // 获取仪表盘统计
 export async function getDashboardStats(): Promise<DashboardStats> {
-  return apiRequest<DashboardStats>("/admin/stats");
+  return apiRequest<DashboardStats>("/api/v1/admin/stats");
 }
 
 // 获取商品列表
@@ -104,7 +104,7 @@ export async function getProducts(params: {
   if (params.brand) searchParams.set("brand", params.brand);
   if (params.search) searchParams.set("search", params.search);
   return apiRequest<PaginatedResponse<ProductListItem>>(
-    `/admin/products?${searchParams.toString()}`
+    `/api/v1/admin/products?${searchParams.toString()}`
   );
 }
 
@@ -121,7 +121,7 @@ export async function getConversations(params: {
   if (params.handoff_state) searchParams.set("handoff_state", params.handoff_state);
   if (params.user_id) searchParams.set("user_id", params.user_id);
   return apiRequest<PaginatedResponse<ConversationListItem>>(
-    `/admin/conversations?${searchParams.toString()}`
+    `/api/v1/admin/conversations?${searchParams.toString()}`
   );
 }
 
@@ -134,7 +134,7 @@ export async function getUsers(params: {
   if (params.page) searchParams.set("page", String(params.page));
   if (params.page_size) searchParams.set("page_size", String(params.page_size));
   return apiRequest<PaginatedResponse<UserListItem>>(
-    `/admin/users?${searchParams.toString()}`
+    `/api/v1/admin/users?${searchParams.toString()}`
   );
 }
 
@@ -151,7 +151,7 @@ export async function getCrawlTasks(params: {
   if (params.site_id) searchParams.set("site_id", params.site_id);
   if (params.status) searchParams.set("status", params.status);
   return apiRequest<PaginatedResponse<CrawlTaskListItem>>(
-    `/admin/crawl-tasks?${searchParams.toString()}`
+    `/api/v1/admin/crawl-tasks?${searchParams.toString()}`
   );
 }
 
@@ -170,16 +170,16 @@ export async function getCrawlPages(params: {
   if (params.task_id) searchParams.set("task_id", String(params.task_id));
   if (params.status) searchParams.set("status", params.status);
   return apiRequest<PaginatedResponse<CrawlPageListItem>>(
-    `/admin/crawl-pages?${searchParams.toString()}`
+    `/api/v1/admin/crawl-pages?${searchParams.toString()}`
   );
 }
 
 // 获取分类列表
 export async function getCategories(): Promise<string[]> {
-  return apiRequest<string[]>("/admin/categories");
+  return apiRequest<string[]>("/api/v1/admin/categories");
 }
 
 // 获取品牌列表
 export async function getBrands(): Promise<string[]> {
-  return apiRequest<string[]>("/admin/brands");
+  return apiRequest<string[]>("/api/v1/admin/brands");
 }

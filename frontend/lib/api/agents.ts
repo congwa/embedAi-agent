@@ -262,13 +262,13 @@ export async function rebuildFAQIndex(agentId?: string): Promise<void> {
 // ========== Settings API ==========
 
 export async function getSettingsOverview(): Promise<SettingsOverview> {
-  return apiRequest<SettingsOverview>("/admin/settings/overview");
+  return apiRequest<SettingsOverview>("/api/v1/admin/settings/overview");
 }
 
 export async function getMiddlewareDefaults(): Promise<MiddlewareDefaults> {
-  return apiRequest<MiddlewareDefaults>("/admin/settings/middleware-defaults");
+  return apiRequest<MiddlewareDefaults>("/api/v1/admin/settings/middleware-defaults");
 }
 
 export async function getRawConfig(): Promise<Record<string, unknown>> {
-  return apiRequest<Record<string, unknown>>("/admin/settings/raw-config");
+  return apiRequest<Record<string, unknown>>("/api/v1/admin/settings/raw-config");
 }

@@ -28,7 +28,7 @@ from app.schemas.admin import (
 )
 
 logger = get_logger("router.admin")
-router = APIRouter(prefix="/admin", tags=["admin"])
+router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 
 # ========== Settings API ==========

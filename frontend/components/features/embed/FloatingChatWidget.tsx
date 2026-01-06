@@ -39,9 +39,10 @@ type DockEdge = "left" | "right" | "top" | "bottom" | null;
 export function FloatingChatWidget({ className }: FloatingChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const [position, setPosition] = useState(getInitialPosition);
+  const [position, setPosition] = useState({ x: EDGE_MARGIN, y: EDGE_MARGIN });
   const [dockEdge, setDockEdge] = useState<DockEdge>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
   const { userId, isLoading: isUserLoading } = useUser();
 
@@ -116,12 +117,12 @@ export function FloatingChatWidget({ className }: FloatingChatWidgetProps) {
 
   // 挂载后设置初始位置到右下角（避免 SSR 初始 0 尺寸）
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!isMounted || typeof window === "undefined") return;
     setPosition({
       x: window.innerWidth - BUBBLE_SIZE - EDGE_MARGIN,
       y: window.innerHeight - BUBBLE_SIZE - EDGE_MARGIN,
     });
-  }, []);
+  }, [isMounted]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -384,36 +385,38 @@ export function FloatingChatWidget({ className }: FloatingChatWidgetProps) {
       )}
 
       {/* 悬浮气泡 */}
-      <Button
-        ref={buttonRef}
-        onClick={toggleOpen}
-        onPointerDown={handleDragPointerDown}
-        className={cn(
-          "fixed z-50 shadow-lg transition-all",
-          "flex items-center justify-center",
-          isDocked ? "rounded-lg" : "rounded-full",
-          isOpen
-            ? "bg-zinc-600 hover:bg-zinc-700 text-white"
-            : "bg-orange-500 hover:bg-orange-600 text-white"
-        )}
-        style={{
-          left: position.x,
-          top: position.y,
-          width: bubbleWidth,
-          height: bubbleHeight,
-          cursor: isDragging ? "grabbing" : "grab",
-          transform: isDragging ? "scale(1.05)" : "scale(1)",
-          transition: isDragging
-            ? "none"
-            : "left 120ms ease, top 120ms ease, transform 120ms ease, width 120ms ease, height 120ms ease",
-        }}
-      >
-        {isOpen ? (
-          <X className="h-5 w-5" />
-        ) : (
-          <MessageCircle className="h-5 w-5" />
-        )}
-      </Button>
+      {isMounted && (
+        <Button
+          ref={buttonRef}
+          onClick={toggleOpen}
+          onPointerDown={handleDragPointerDown}
+          className={cn(
+            "fixed z-50 shadow-lg transition-all",
+            "flex items-center justify-center",
+            isDocked ? "rounded-lg" : "rounded-full",
+            isOpen
+              ? "bg-zinc-600 hover:bg-zinc-700 text-white"
+              : "bg-orange-500 hover:bg-orange-600 text-white"
+          )}
+          style={{
+            left: position.x,
+            top: position.y,
+            width: bubbleWidth,
+            height: bubbleHeight,
+            cursor: isDragging ? "grabbing" : "grab",
+            transform: isDragging ? "scale(1.05)" : "scale(1)",
+            transition: isDragging
+              ? "none"
+              : "left 120ms ease, top 120ms ease, transform 120ms ease, width 120ms ease, height 120ms ease",
+          }}
+        >
+          {isOpen ? (
+            <X className="h-5 w-5" />
+          ) : (
+            <MessageCircle className="h-5 w-5" />
+          )}
+        </Button>
+      )}
     </>
   );
 }
