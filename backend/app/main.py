@@ -3,10 +3,12 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
+from app.core.errors import AppError, create_error_response
 from app.core.crawler_database import get_crawler_db, init_crawler_db
 from app.core.database import init_db
 from app.core.logging import logger
@@ -227,6 +229,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# 统一异常处理
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    """处理自定义 AppError 异常"""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=create_error_response(
+            code=exc.code,
+            message=exc.error_message,
+            data=exc.data,
+        ),
+    )
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    """处理标准 HTTPException，转换为统一格式"""
+    # 根据状态码生成 code
+    code_map = {
+        400: "bad_request",
+        401: "unauthorized",
+        403: "forbidden",
+        404: "not_found",
+        405: "method_not_allowed",
+        422: "validation_error",
+        500: "internal_error",
+        503: "service_unavailable",
+    }
+    code = code_map.get(exc.status_code, f"http_{exc.status_code}")
+    message = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+
+    return JSONResponse(
+        status_code=exc.status_code,
+        content=create_error_response(
+            code=code,
+            message=message,
+        ),
+    )
+
 
 # 注册路由
 app.include_router(admin.router)

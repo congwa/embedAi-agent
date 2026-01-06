@@ -31,6 +31,7 @@ from app.schemas.crawler import (
     ExtractionConfig,
     RetryMode,
 )
+from app.core.errors import raise_service_unavailable
 from app.services.crawler import CrawlerService
 from app.services.crawler.utils import generate_site_id, normalize_domain
 
@@ -41,9 +42,9 @@ router = APIRouter(prefix="/api/v1/crawler", tags=["crawler"])
 def check_crawler_enabled():
     """检查爬取模块是否启用"""
     if not settings.CRAWLER_ENABLED:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="爬取模块未启用，请在 .env 中设置 CRAWLER_ENABLED=true",
+        raise_service_unavailable(
+            service="crawler",
+            message="爬取模块未启用，请在 .env 中设置 CRAWLER_ENABLED=true",
         )
 
 

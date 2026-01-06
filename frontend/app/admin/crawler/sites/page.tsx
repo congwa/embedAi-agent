@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, ExternalLink } from "lucide-react";
-import { PageHeader, DataTablePagination } from "@/components/admin";
+import { PageHeader, ErrorState } from "@/components/admin";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/api/client";
-import { cn } from "@/lib/utils";
 
 interface CrawlSite {
   id: string;
@@ -46,7 +45,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 export default function CrawlerSitesPage() {
   const [sites, setSites] = useState<CrawlSite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<unknown>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -55,7 +54,7 @@ export default function CrawlerSitesPage() {
       const result = await apiRequest<CrawlSite[]>("/api/v1/crawler/sites");
       setSites(result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "加载失败");
+      setError(e);
     } finally {
       setIsLoading(false);
     }
@@ -83,9 +82,7 @@ export default function CrawlerSitesPage() {
 
       {/* 错误提示 */}
       {error && (
-        <div className="rounded-lg bg-red-50 p-4 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
-          {error}
-        </div>
+        <ErrorState error={error} onRetry={loadData} />
       )}
 
       {/* 表格 */}

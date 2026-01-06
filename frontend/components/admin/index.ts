@@ -12,3 +12,7 @@ export { ConfirmDialog } from "./confirm-dialog";
 export { CapabilityBadge, CapabilityBadges } from "./capability-badge";
 export type { Capability } from "./capability-badge";
 export { Timeline } from "./timeline";
+
+// 统一错误处理组件
+export { ErrorState } from "./error-state";
+export { FormError } from "./form-error";
