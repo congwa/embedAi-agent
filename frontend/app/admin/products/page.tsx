@@ -36,8 +36,8 @@ export default function ProductsPage() {
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<string>("");
-  const [brand, setBrand] = useState<string>("");
+  const [category, setCategory] = useState<string>("all");
+  const [brand, setBrand] = useState<string>("all");
 
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
@@ -64,9 +64,9 @@ export default function ProductsPage() {
       const result = await getProducts({
         page,
         page_size: 20,
-        category: category || undefined,
-        brand: brand || undefined,
         search: search || undefined,
+        category: category === "all" ? undefined : category,
+        brand: brand === "all" ? undefined : brand,
       });
       setData(result);
     } catch (e) {
@@ -115,7 +115,8 @@ export default function ProductsPage() {
             <SelectValue placeholder="全部分类" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">全部分类</SelectItem>
+            {/* SelectItem 不能使用空字符串作为 value，因为 Radix UI 使用空字符串来清空选择 */}
+            <SelectItem value="all">全部分类</SelectItem>
             {categories.map((cat) => (
               <SelectItem key={cat} value={cat}>
                 {cat}
@@ -129,7 +130,8 @@ export default function ProductsPage() {
             <SelectValue placeholder="全部品牌" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">全部品牌</SelectItem>
+            {/* SelectItem 不能使用空字符串作为 value，因为 Radix UI 使用空字符串来清空选择 */}
+            <SelectItem value="all">全部品牌</SelectItem>
             {brands.map((b) => (
               <SelectItem key={b} value={b}>
                 {b}

@@ -379,6 +379,7 @@ export default function KnowledgePage() {
                 <SelectValue placeholder="选择类型" />
               </SelectTrigger>
               <SelectContent>
+                {/* SelectItem 不能使用空字符串作为 value，因为 Radix UI 使用空字符串来清空选择 */}
                 <SelectItem value="all">全部类型</SelectItem>
                 {KNOWLEDGE_TYPES.map((t) => (
                   <SelectItem key={t.value} value={t.value}>

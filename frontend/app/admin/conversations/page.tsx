@@ -41,7 +41,7 @@ export default function ConversationsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
-  const [handoffState, setHandoffState] = useState<string>("");
+  const [handoffState, setHandoffState] = useState<string>("all");
 
   const loadData = useCallback(async () => {
     try {
@@ -50,7 +50,7 @@ export default function ConversationsPage() {
       const result = await getConversations({
         page,
         page_size: 20,
-        handoff_state: handoffState || undefined,
+        handoff_state: handoffState === "all" ? undefined : handoffState,
       });
       setData(result);
     } catch (e) {
@@ -87,7 +87,8 @@ export default function ConversationsPage() {
             <SelectValue placeholder="全部状态" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">全部状态</SelectItem>
+            {/* SelectItem 不能使用空字符串作为 value，因为 Radix UI 使用空字符串来清空选择 */}
+            <SelectItem value="all">全部状态</SelectItem>
             <SelectItem value="ai">AI 模式</SelectItem>
             <SelectItem value="pending">等待接入</SelectItem>
             <SelectItem value="human">人工服务</SelectItem>

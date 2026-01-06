@@ -49,7 +49,7 @@ export default function CrawlerPagesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState<string>("all");
 
   const loadData = useCallback(async () => {
     // 只有在爬虫启用时才加载数据
@@ -64,7 +64,7 @@ export default function CrawlerPagesPage() {
       const result = await getCrawlPages({
         page,
         page_size: 20,
-        status: status || undefined,
+        status: status === "all" ? undefined : status,
       });
       setData(result);
     } catch (e) {
@@ -109,7 +109,8 @@ export default function CrawlerPagesPage() {
             <SelectValue placeholder="全部状态" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">全部状态</SelectItem>
+            {/* SelectItem 不能使用空字符串作为 value，因为 Radix UI 使用空字符串来清空选择 */}
+            <SelectItem value="all">全部状态</SelectItem>
             <SelectItem value="pending">待解析</SelectItem>
             <SelectItem value="parsed">已解析</SelectItem>
             <SelectItem value="failed">解析失败</SelectItem>

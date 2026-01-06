@@ -395,6 +395,7 @@ export default function FAQPage() {
                 <SelectValue placeholder="选择 Agent" />
               </SelectTrigger>
               <SelectContent>
+                {/* SelectItem 不能使用空字符串作为 value，因为 Radix UI 使用空字符串来清空选择 */}
                 <SelectItem value="all">全部 Agent</SelectItem>
                 {agents.map((agent) => (
                   <SelectItem key={agent.id} value={agent.id}>
@@ -408,6 +409,7 @@ export default function FAQPage() {
                 <SelectValue placeholder="选择分类" />
               </SelectTrigger>
               <SelectContent>
+                {/* SelectItem 不能使用空字符串作为 value，因为 Radix UI 使用空字符串来清空选择 */}
                 <SelectItem value="all">全部分类</SelectItem>
                 {categories.map((cat) => (
                   <SelectItem key={cat} value={cat}>
