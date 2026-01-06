@@ -8,10 +8,11 @@ import {
   MessageSquare,
   Users,
   Globe,
-  ListTodo,
-  FileText,
   Settings,
   ChevronLeft,
+  HelpCircle,
+  Database,
+  Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,21 @@ const navItems = [
     title: "仪表盘",
     href: "/admin",
     icon: LayoutDashboard,
+  },
+  {
+    title: "设置中心",
+    href: "/admin/settings",
+    icon: Settings,
+  },
+  {
+    title: "FAQ 管理",
+    href: "/admin/faq",
+    icon: HelpCircle,
+  },
+  {
+    title: "知识库管理",
+    href: "/admin/knowledge",
+    icon: Database,
   },
   {
     title: "商品管理",

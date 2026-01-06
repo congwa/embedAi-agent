@@ -1,9 +1,10 @@
 """管理后台 API 路由"""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +29,168 @@ from app.schemas.admin import (
 
 logger = get_logger("router.admin")
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+# ========== Settings API ==========
+
+
+class SettingsOverview(BaseModel):
+    """系统设置概览"""
+
+    # LLM 配置
+    llm_provider: str
+    llm_model: str
+    llm_base_url: str
+    llm_api_key_masked: str
+
+    # Embedding 配置
+    embedding_provider: str
+    embedding_model: str
+    embedding_dimension: int
+    embedding_base_url: str | None
+
+    # Rerank 配置
+    rerank_enabled: bool
+    rerank_provider: str | None
+    rerank_model: str | None
+
+    # Memory 配置
+    memory_enabled: bool
+    memory_store_enabled: bool
+    memory_fact_enabled: bool
+    memory_graph_enabled: bool
+
+    # Agent 中间件配置
+    agent_todo_enabled: bool
+    agent_tool_limit_enabled: bool
+    agent_tool_retry_enabled: bool
+    agent_summarization_enabled: bool
+
+    # Crawler 配置
+    crawler_enabled: bool
+
+    # 数据库路径
+    database_path: str
+    checkpoint_db_path: str
+
+    # Qdrant 配置
+    qdrant_host: str
+    qdrant_port: int
+    qdrant_collection: str
+
+
+class MiddlewareDefaultsResponse(BaseModel):
+    """全局中间件默认值"""
+
+    todo_enabled: bool
+    tool_limit_enabled: bool
+    tool_limit_run: int | None
+    tool_limit_thread: int | None
+    tool_retry_enabled: bool
+    tool_retry_max_retries: int
+    summarization_enabled: bool
+    summarization_trigger_messages: int
+    summarization_keep_messages: int
+
+
+@router.get("/settings/overview", response_model=SettingsOverview)
+async def get_settings_overview():
+    """获取系统设置概览"""
+
+    def mask_api_key(key: str) -> str:
+        if not key or len(key) < 8:
+            return "***"
+        return f"{key[:4]}...{key[-4:]}"
+
+    return SettingsOverview(
+        llm_provider=settings.LLM_PROVIDER,
+        llm_model=settings.LLM_CHAT_MODEL,
+        llm_base_url=settings.LLM_BASE_URL,
+        llm_api_key_masked=mask_api_key(settings.LLM_API_KEY),
+        embedding_provider=settings.EMBEDDING_PROVIDER,
+        embedding_model=settings.EMBEDDING_MODEL,
+        embedding_dimension=settings.EMBEDDING_DIMENSION,
+        embedding_base_url=settings.effective_embedding_base_url,
+        rerank_enabled=settings.RERANK_ENABLED,
+        rerank_provider=settings.effective_rerank_provider if settings.RERANK_ENABLED else None,
+        rerank_model=settings.RERANK_MODEL,
+        memory_enabled=settings.MEMORY_ENABLED,
+        memory_store_enabled=settings.MEMORY_STORE_ENABLED,
+        memory_fact_enabled=settings.MEMORY_FACT_ENABLED,
+        memory_graph_enabled=settings.MEMORY_GRAPH_ENABLED,
+        agent_todo_enabled=settings.AGENT_TODO_ENABLED,
+        agent_tool_limit_enabled=settings.AGENT_TOOL_LIMIT_ENABLED,
+        agent_tool_retry_enabled=settings.AGENT_TOOL_RETRY_ENABLED,
+        agent_summarization_enabled=settings.AGENT_SUMMARIZATION_ENABLED,
+        crawler_enabled=settings.CRAWLER_ENABLED,
+        database_path=settings.DATABASE_PATH,
+        checkpoint_db_path=settings.CHECKPOINT_DB_PATH,
+        qdrant_host=settings.QDRANT_HOST,
+        qdrant_port=settings.QDRANT_PORT,
+        qdrant_collection=settings.QDRANT_COLLECTION,
+    )
+
+
+@router.get("/settings/middleware-defaults", response_model=MiddlewareDefaultsResponse)
+async def get_middleware_defaults():
+    """获取全局中间件默认配置"""
+    return MiddlewareDefaultsResponse(
+        todo_enabled=settings.AGENT_TODO_ENABLED,
+        tool_limit_enabled=settings.AGENT_TOOL_LIMIT_ENABLED,
+        tool_limit_run=settings.AGENT_TOOL_LIMIT_RUN,
+        tool_limit_thread=settings.AGENT_TOOL_LIMIT_THREAD,
+        tool_retry_enabled=settings.AGENT_TOOL_RETRY_ENABLED,
+        tool_retry_max_retries=settings.AGENT_TOOL_RETRY_MAX_RETRIES,
+        summarization_enabled=settings.AGENT_SUMMARIZATION_ENABLED,
+        summarization_trigger_messages=settings.AGENT_SUMMARIZATION_TRIGGER_MESSAGES,
+        summarization_keep_messages=settings.AGENT_SUMMARIZATION_KEEP_MESSAGES,
+    )
+
+
+@router.get("/settings/raw-config")
+async def get_raw_config() -> dict[str, Any]:
+    """获取原始配置（只读，用于排查）"""
+    return {
+        "llm": {
+            "provider": settings.LLM_PROVIDER,
+            "model": settings.LLM_CHAT_MODEL,
+            "base_url": settings.LLM_BASE_URL,
+        },
+        "embedding": {
+            "provider": settings.EMBEDDING_PROVIDER,
+            "model": settings.EMBEDDING_MODEL,
+            "dimension": settings.EMBEDDING_DIMENSION,
+        },
+        "rerank": {
+            "enabled": settings.RERANK_ENABLED,
+            "provider": settings.effective_rerank_provider,
+            "model": settings.RERANK_MODEL,
+            "top_n": settings.RERANK_TOP_N,
+        },
+        "memory": {
+            "enabled": settings.MEMORY_ENABLED,
+            "store_enabled": settings.MEMORY_STORE_ENABLED,
+            "fact_enabled": settings.MEMORY_FACT_ENABLED,
+            "graph_enabled": settings.MEMORY_GRAPH_ENABLED,
+        },
+        "agent_middleware": {
+            "todo_enabled": settings.AGENT_TODO_ENABLED,
+            "tool_limit_enabled": settings.AGENT_TOOL_LIMIT_ENABLED,
+            "tool_limit_run": settings.AGENT_TOOL_LIMIT_RUN,
+            "tool_retry_enabled": settings.AGENT_TOOL_RETRY_ENABLED,
+            "tool_retry_max_retries": settings.AGENT_TOOL_RETRY_MAX_RETRIES,
+            "summarization_enabled": settings.AGENT_SUMMARIZATION_ENABLED,
+            "summarization_trigger_messages": settings.AGENT_SUMMARIZATION_TRIGGER_MESSAGES,
+        },
+        "qdrant": {
+            "host": settings.QDRANT_HOST,
+            "port": settings.QDRANT_PORT,
+            "collection": settings.QDRANT_COLLECTION,
+        },
+        "crawler": {
+            "enabled": settings.CRAWLER_ENABLED,
+        },
+    }
 
 
 @router.get("/stats", response_model=DashboardStats)
