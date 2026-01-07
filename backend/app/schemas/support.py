@@ -68,8 +68,11 @@ class ConversationListItem(BaseModel):
     title: str
     handoff_state: str
     handoff_operator: str | None = None
+    user_online: bool = False
     updated_at: datetime
     created_at: datetime
+    heat_score: int = 0  # 热度得分
+    unread_count: int = 0  # 未读消息数
 
 
 class ConversationListResponse(BaseModel):
@@ -79,3 +82,12 @@ class ConversationListResponse(BaseModel):
     total: int
     offset: int
     limit: int
+
+
+class SupportStatsResponse(BaseModel):
+    """客服统计数据（用于红点提醒）"""
+
+    pending_count: int = 0  # 等待接入数
+    human_count: int = 0  # 人工服务中数
+    total_unread: int = 0  # 总未读消息数
+    high_heat_count: int = 0  # 高热会话数(得分>60)

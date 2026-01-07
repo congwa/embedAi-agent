@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AgentSwitcher } from "./agent-switcher";
 import { useAgentContext } from "@/contexts/agent-context";
+import { useSupportStats } from "@/hooks/use-support-stats";
 
 // 基础菜单（始终显示）
 const baseNavItems = [
@@ -168,6 +169,7 @@ function NavItem({
 export function AdminSidebar() {
   const pathname = usePathname();
   const { activeAgent, isLoading } = useAgentContext();
+  const { stats: supportStats, hasNotification } = useSupportStats();
 
   // 根据当前激活 Agent 生成控制台菜单
   const agentConsoleItems = activeAgent
@@ -252,10 +254,27 @@ export function AdminSidebar() {
         <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
           <Link
             href="/support"
-            className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+            className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
           >
-            <MessageSquare className="h-4 w-4" />
-            客服工作台
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <MessageSquare className="h-4 w-4" />
+                {/* 红点提醒 */}
+                {hasNotification && (
+                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500" />
+                )}
+              </div>
+              客服工作台
+            </div>
+            {/* 待处理数量 */}
+            {supportStats.pending_count > 0 && (
+              <Badge
+                variant="secondary"
+                className="bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+              >
+                {supportStats.pending_count > 99 ? "99+" : supportStats.pending_count}
+              </Badge>
+            )}
           </Link>
         </div>
       </div>

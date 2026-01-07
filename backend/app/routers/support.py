@@ -25,10 +25,12 @@ from app.schemas.support import (
     HandoffStartRequest,
     HumanMessageRequest,
     HumanMessageResponse,
+    SupportStatsResponse,
 )
 from app.schemas.websocket import WSAction, WSRole
 from app.services.support.gateway import support_gateway
 from app.services.support.handoff import HandoffService
+from app.services.support.heat_score import get_conversations_with_heat, get_support_stats
 from app.services.websocket.handlers.base import build_server_message
 from app.services.websocket.manager import ws_manager
 
@@ -214,58 +216,65 @@ async def send_human_message(
 @router.get("/conversations")
 async def list_conversations(
     state: str | None = None,
+    sort_by: str = "heat",  # heat | time
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db_session),
 ):
-    """获取会话列表
+    """获取会话列表（支持热度排序）
     
     Args:
         state: 筛选状态（ai/pending/human），留空返回全部
+        sort_by: 排序方式 - heat(热度优先) 或 time(时间优先)
         limit: 分页大小
         offset: 分页偏移
     """
-    service = HandoffService(db)
-
-    if state:
-        conversations = await service.get_conversations_by_state(
-            state,
-            limit=limit,
-            offset=offset,
-        )
-    else:
-        from sqlalchemy import select
-
-        from app.models.conversation import Conversation
-
-        stmt = (
-            select(Conversation)
-            .order_by(Conversation.updated_at.desc())
-            .offset(offset)
-            .limit(limit)
-        )
-        result = await db.execute(stmt)
-        conversations = list(result.scalars().all())
+    items_data, total = await get_conversations_with_heat(
+        db,
+        state=state,
+        sort_by=sort_by,
+        limit=limit,
+        offset=offset,
+    )
 
     items = [
         ConversationListItem(
-            id=c.id,
-            user_id=c.user_id,
-            title=c.title,
-            handoff_state=c.handoff_state,
-            handoff_operator=c.handoff_operator,
-            updated_at=c.updated_at,
-            created_at=c.created_at,
+            id=c["id"],
+            user_id=c["user_id"],
+            title=c["title"],
+            handoff_state=c["handoff_state"],
+            handoff_operator=c["handoff_operator"],
+            user_online=c["user_online"],
+            updated_at=c["updated_at"],
+            created_at=c["created_at"],
+            heat_score=c["heat_score"],
+            unread_count=c["unread_count"],
         )
-        for c in conversations
+        for c in items_data
     ]
 
     return ConversationListResponse(
         items=items,
-        total=len(items),
+        total=total,
         offset=offset,
         limit=limit,
     )
+
+
+@router.get("/stats", response_model=SupportStatsResponse)
+async def get_stats(
+    db: AsyncSession = Depends(get_db_session),
+):
+    """获取客服统计数据（用于红点提醒）
+    
+    Returns:
+        pending_count: 等待接入数
+        human_count: 人工服务中数
+        total_unread: 总未读消息数
+        high_heat_count: 高热会话数
+    """
+    stats = await get_support_stats(db)
+    return SupportStatsResponse(**stats)
 
 
 @router.get("/stream/{conversation_id}")

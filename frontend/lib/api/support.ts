@@ -8,8 +8,18 @@ export interface SupportConversation {
   title: string;
   handoff_state: string;
   handoff_operator: string | null;
+  user_online: boolean;
   updated_at: string;
   created_at: string;
+  heat_score: number;  // 热度得分
+  unread_count: number;  // 未读消息数
+}
+
+export interface SupportStats {
+  pending_count: number;  // 等待接入数
+  human_count: number;  // 人工服务中数
+  total_unread: number;  // 总未读消息数
+  high_heat_count: number;  // 高热会话数
 }
 
 export interface SupportConversationListResponse {
@@ -61,17 +71,24 @@ export interface ConversationDetailResponse {
 // 获取会话列表
 export async function getSupportConversations(
   state?: string,
+  sortBy: "heat" | "time" = "heat",
   limit = 50,
   offset = 0
 ): Promise<SupportConversationListResponse> {
   const params = new URLSearchParams();
   if (state) params.set("state", state);
+  params.set("sort_by", sortBy);
   params.set("limit", String(limit));
   params.set("offset", String(offset));
   
   return apiRequest<SupportConversationListResponse>(
     `/api/v1/support/conversations?${params.toString()}`
   );
+}
+
+// 获取客服统计数据（用于红点提醒）
+export async function getSupportStats(): Promise<SupportStats> {
+  return apiRequest<SupportStats>("/api/v1/support/stats");
 }
 
 // 获取会话状态
