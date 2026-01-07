@@ -195,7 +195,7 @@ export default function AgentFAQPage() {
       };
 
       const url = isCreating
-        ? "/api/v1/admin/faq"
+        ? "/api/v1/admin/faq?auto_merge=true"
         : `/api/v1/admin/faq/${editingEntry?.id}`;
       const method = isCreating ? "POST" : "PATCH";
 
@@ -206,6 +206,16 @@ export default function AgentFAQPage() {
       });
 
       if (!response.ok) throw new Error("保存失败");
+
+      // 处理创建时的合并结果
+      if (isCreating) {
+        const result = await response.json();
+        if (result.merged) {
+          alert(`已自动合并到 FAQ #${result.target_id?.slice(0, 8)}...`);
+        } else {
+          alert("新建 FAQ 成功");
+        }
+      }
 
       setIsSheetOpen(false);
       loadData();

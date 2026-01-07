@@ -88,6 +88,12 @@ export interface FAQImportResponse {
   errors: string[];
 }
 
+export interface FAQUpsertResponse extends FAQEntry {
+  merged: boolean;
+  target_id: string | null;
+  similarity_score: number | null;
+}
+
 export interface SettingsOverview {
   llm_provider: string;
   llm_model: string;
@@ -249,8 +255,13 @@ export async function getFAQEntry(entryId: string): Promise<FAQEntry> {
   return apiRequest<FAQEntry>(`/api/v1/admin/faq/${entryId}`);
 }
 
-export async function createFAQEntry(data: Partial<FAQEntry>): Promise<FAQEntry> {
-  return apiRequest<FAQEntry>("/api/v1/admin/faq", {
+export async function createFAQEntry(
+  data: Partial<FAQEntry>,
+  autoMerge: boolean = true
+): Promise<FAQUpsertResponse> {
+  const searchParams = new URLSearchParams();
+  searchParams.set("auto_merge", String(autoMerge));
+  return apiRequest<FAQUpsertResponse>(`/api/v1/admin/faq?${searchParams.toString()}`, {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -295,6 +306,19 @@ export async function rebuildFAQIndex(agentId?: string): Promise<void> {
   await apiRequest(`/api/v1/admin/faq/rebuild-index${query ? `?${query}` : ""}`, {
     method: "POST",
   });
+}
+
+export async function exportFAQEntries(params?: {
+  agent_id?: string;
+  category?: string;
+  enabled?: boolean;
+}): Promise<FAQEntry[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.agent_id) searchParams.set("agent_id", params.agent_id);
+  if (params?.category) searchParams.set("category", params.category);
+  if (params?.enabled !== undefined) searchParams.set("enabled", String(params.enabled));
+  const query = searchParams.toString();
+  return apiRequest<FAQEntry[]>(`/api/v1/admin/faq/export${query ? `?${query}` : ""}`);
 }
 
 // ========== Settings API ==========

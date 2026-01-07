@@ -291,6 +291,23 @@ class FAQImportResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
+class FAQUpsertResponse(FAQEntryResponse):
+    """FAQ Upsert 响应（含合并状态）"""
+
+    merged: bool = Field(default=False, description="是否执行了合并")
+    target_id: str | None = Field(default=None, description="合并目标 FAQ ID")
+    similarity_score: float | None = Field(default=None, description="相似度分数")
+
+
+class FAQExportRequest(BaseModel):
+    """FAQ 导出请求参数"""
+
+    agent_id: str | None = Field(default=None, description="按 Agent 过滤")
+    category: str | None = Field(default=None, description="按分类过滤")
+    enabled: bool | None = Field(default=None, description="按启用状态过滤")
+    format: str = Field(default="json", description="导出格式: json, jsonl")
+
+
 # ========== 运行时配置（内部使用） ==========
 
 

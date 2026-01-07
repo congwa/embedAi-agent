@@ -37,7 +37,17 @@ interface FAQFormSheetProps {
   entry: FAQEntry | null;
   agents: Agent[];
   onClose: () => void;
-  onSave: (data: Partial<FAQEntry>) => Promise<void>;
+  onSave: (data: Partial<FAQEntry>) => Promise<{ merged?: boolean; target_id?: string | null }>;
+  /** 初始问题（用于从会话/聊天页面预填） */
+  initialQuestion?: string;
+  /** 初始答案（用于从会话/聊天页面预填） */
+  initialAnswer?: string;
+  /** 初始来源（如 chat:xxx 或 conversation:xxx） */
+  initialSource?: string;
+  /** 初始 Agent ID（用于锁定 Agent） */
+  initialAgentId?: string;
+  /** 是否锁定 Agent 选择（从会话/聊天入口时不允许修改） */
+  readOnlyAgent?: boolean;
 }
 
 export function FAQFormSheet({
@@ -46,9 +56,15 @@ export function FAQFormSheet({
   agents,
   onClose,
   onSave,
+  initialQuestion,
+  initialAnswer,
+  initialSource,
+  initialAgentId,
+  readOnlyAgent,
 }: FAQFormSheetProps) {
   const isCreating = !entry;
   const [isSaving, setIsSaving] = useState(false);
+  const [mergeResult, setMergeResult] = useState<{ merged: boolean; target_id: string | null } | null>(null);
   const [formData, setFormData] = useState<FAQFormData>({
     question: "",
     answer: "",
@@ -73,18 +89,20 @@ export function FAQFormSheet({
         agent_id: entry.agent_id || "",
       });
     } else {
+      // 使用预填值或默认值
       setFormData({
-        question: "",
-        answer: "",
+        question: initialQuestion || "",
+        answer: initialAnswer || "",
         category: "",
         tags: "",
-        source: "",
+        source: initialSource || "",
         priority: 0,
         enabled: true,
-        agent_id: "",
+        agent_id: initialAgentId || "",
       });
     }
-  }, [entry]);
+    setMergeResult(null);
+  }, [entry, initialQuestion, initialAnswer, initialSource, initialAgentId]);
 
   const handleSave = async () => {
     try {
@@ -99,8 +117,17 @@ export function FAQFormSheet({
         enabled: formData.enabled,
         agent_id: formData.agent_id || null,
       };
-      await onSave(data);
-      onClose();
+      const result = await onSave(data);
+      if (result?.merged !== undefined) {
+        setMergeResult({ merged: result.merged, target_id: result.target_id || null });
+        // 显示结果后短暂延迟再关闭
+        setTimeout(() => {
+          onClose();
+          setMergeResult(null);
+        }, 1500);
+      } else {
+        onClose();
+      }
     } finally {
       setIsSaving(false);
     }
@@ -115,6 +142,18 @@ export function FAQFormSheet({
             {isCreating ? "创建一个新的 FAQ 条目" : "修改 FAQ 条目信息"}
           </SheetDescription>
         </SheetHeader>
+        {/* 合并结果提示 */}
+        {mergeResult && (
+          <div className={`mt-4 rounded-lg p-3 text-sm ${
+            mergeResult.merged 
+              ? "bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400" 
+              : "bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+          }`}>
+            {mergeResult.merged 
+              ? `✓ 已自动合并到 FAQ #${mergeResult.target_id?.slice(0, 8)}...` 
+              : "✓ 新建 FAQ 成功"}
+          </div>
+        )}
         <div className="mt-6 space-y-4">
           <div>
             <Label>问题 *</Label>
@@ -170,22 +209,31 @@ export function FAQFormSheet({
           </div>
           <div>
             <Label>绑定 Agent</Label>
-            <Select
-              value={formData.agent_id || "none"}
-              onValueChange={(v) => setFormData({ ...formData, agent_id: v === "none" ? "" : v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="选择 Agent" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">全局共享</SelectItem>
-                {agents.map((agent) => (
-                  <SelectItem key={agent.id} value={agent.id}>
-                    {agent.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {readOnlyAgent && formData.agent_id ? (
+              <Input
+                value={agents.find((a) => a.id === formData.agent_id)?.name || formData.agent_id}
+                disabled
+                className="bg-zinc-100 dark:bg-zinc-800"
+              />
+            ) : (
+              <Select
+                value={formData.agent_id || "none"}
+                onValueChange={(v) => setFormData({ ...formData, agent_id: v === "none" ? "" : v })}
+                disabled={readOnlyAgent}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择 Agent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">全局共享</SelectItem>
+                  {agents.map((agent) => (
+                    <SelectItem key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <input

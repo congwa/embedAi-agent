@@ -11,6 +11,7 @@ import {
   Bot,
   Headphones,
   Circle,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,8 @@ import {
   endHandoff,
   type ConversationDetailResponse,
 } from "@/lib/api/support";
+import { FAQFormSheet } from "@/components/admin/faq/faq-form-sheet";
+import { createFAQEntry, getAgent, type Agent, type FAQEntry } from "@/lib/api/agents";
 import type { SupportMessage, ConversationState } from "@/types/websocket";
 
 export default function SupportChatPage() {
@@ -47,6 +50,13 @@ export default function SupportChatPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // FAQ 相关状态
+  const [faqAgent, setFaqAgent] = useState<Agent | null>(null);
+  const [faqSheetOpen, setFaqSheetOpen] = useState(false);
+  const [selectedQuestion, setSelectedQuestion] = useState("");
+  const [selectedAnswer, setSelectedAnswer] = useState("");
+  const [selectedSource, setSelectedSource] = useState("");
 
   // WebSocket 消息回调
   const handleNewMessage = useCallback((message: SupportMessage) => {
@@ -106,6 +116,18 @@ export default function SupportChatPage() {
           created_at: m.created_at,
         }));
         setMessages(historyMessages);
+
+        // 加载 Agent 信息，检查是否为 FAQ 类型
+        if (data.agent_id) {
+          try {
+            const agentData = await getAgent(data.agent_id);
+            if (agentData.type === "faq") {
+              setFaqAgent(agentData);
+            }
+          } catch {
+            // Agent 加载失败不影响主流程
+          }
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "加载失败");
       } finally {
@@ -117,6 +139,23 @@ export default function SupportChatPage() {
       loadConversation();
     }
   }, [conversationId]);
+
+  // FAQ 相关操作
+  const handleAddToFAQ = useCallback((userContent: string, assistantContent: string) => {
+    setSelectedQuestion(userContent);
+    setSelectedAnswer(assistantContent);
+    setSelectedSource(`chat:${conversationId}`);
+    setFaqSheetOpen(true);
+  }, [conversationId]);
+
+  const handleSaveFAQ = useCallback(async (data: Partial<FAQEntry>) => {
+    if (!faqAgent) return {};
+    const result = await createFAQEntry({
+      ...data,
+      agent_id: faqAgent.id,
+    });
+    return { merged: result.merged, target_id: result.target_id };
+  }, [faqAgent]);
 
   // 滚动到底部
   useEffect(() => {
@@ -185,11 +224,15 @@ export default function SupportChatPage() {
   };
 
   // 渲染消息
-  const renderMessage = (message: SupportMessage) => {
+  const renderMessage = (message: SupportMessage, index: number) => {
     const isUser = message.role === "user";
     const isAgent = message.role === "human_agent";
     const isAI = message.role === "assistant";
     const isSystem = message.role === "system";
+
+    // 检查是否可以添加到 FAQ（用户消息后紧跟 AI 回复）
+    const nextMsg = messages[index + 1];
+    const canAddToFAQ = faqAgent && isUser && nextMsg?.role === "assistant";
 
     if (isSystem) {
       return (
@@ -235,13 +278,24 @@ export default function SupportChatPage() {
           <div className="text-sm whitespace-pre-wrap">{message.content}</div>
           <div
             className={cn(
-              "text-xs mt-1 opacity-70",
-              isUser || isAgent ? "text-white" : "text-zinc-500"
+              "flex items-center gap-2 text-xs mt-1",
+              isUser || isAgent ? "text-white opacity-70" : "text-zinc-500"
             )}
           >
-            {new Date(message.created_at).toLocaleTimeString()}
-            {isAI && " · AI"}
-            {isAgent && message.operator && ` · ${message.operator}`}
+            <span>
+              {new Date(message.created_at).toLocaleTimeString()}
+              {isAI && " · AI"}
+              {isAgent && message.operator && ` · ${message.operator}`}
+            </span>
+            {canAddToFAQ && (
+              <button
+                onClick={() => handleAddToFAQ(message.content, nextMsg.content)}
+                className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors"
+              >
+                <Plus className="h-3 w-3" />
+                加入 FAQ
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -370,7 +424,7 @@ export default function SupportChatPage() {
               暂无消息
             </div>
           ) : (
-            messages.map(renderMessage)
+            messages.map((msg, idx) => renderMessage(msg, idx))
           )}
           
           {/* 用户正在输入 */}
@@ -426,6 +480,27 @@ export default function SupportChatPage() {
           </div>
         </div>
       </div>
+
+      {/* FAQ 表单（仅 FAQ Agent 显示） */}
+      {faqAgent && (
+        <FAQFormSheet
+          open={faqSheetOpen}
+          entry={null}
+          agents={[faqAgent]}
+          onClose={() => {
+            setFaqSheetOpen(false);
+            setSelectedQuestion("");
+            setSelectedAnswer("");
+            setSelectedSource("");
+          }}
+          onSave={handleSaveFAQ}
+          initialQuestion={selectedQuestion}
+          initialAnswer={selectedAnswer}
+          initialSource={selectedSource}
+          initialAgentId={faqAgent.id}
+          readOnlyAgent
+        />
+      )}
     </div>
   );
 }

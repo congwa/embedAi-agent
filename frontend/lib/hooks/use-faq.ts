@@ -10,6 +10,7 @@ import {
   rebuildFAQIndex,
   type FAQEntry,
   type FAQImportResponse,
+  type FAQUpsertResponse,
 } from "@/lib/api/agents";
 
 interface FAQFilters {
@@ -43,7 +44,7 @@ interface UseFAQReturn {
   page: number;
   setPage: (page: number) => void;
   loadData: () => Promise<void>;
-  createEntry: (data: Partial<FAQEntry>) => Promise<FAQEntry>;
+  createEntry: (data: Partial<FAQEntry>, autoMerge?: boolean) => Promise<FAQUpsertResponse>;
   updateEntry: (id: string, data: Partial<FAQEntry>) => Promise<FAQEntry>;
   deleteEntry: (id: string) => Promise<void>;
   importEntries: (data: {
@@ -115,8 +116,8 @@ export function useFAQ(options: UseFAQOptions = {}): UseFAQReturn {
   }, [entries]);
 
   const createEntry = useCallback(
-    async (data: Partial<FAQEntry>) => {
-      const result = await createFAQEntry(data);
+    async (data: Partial<FAQEntry>, autoMerge: boolean = true) => {
+      const result = await createFAQEntry(data, autoMerge);
       await loadData();
       return result;
     },

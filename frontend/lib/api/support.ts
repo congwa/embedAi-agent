@@ -65,6 +65,7 @@ export interface ConversationDetailResponse {
   updated_at: string;
   handoff_state?: string;
   handoff_operator?: string | null;
+  agent_id?: string;
   messages: MessageResponse[];
 }
 

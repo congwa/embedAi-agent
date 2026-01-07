@@ -26,6 +26,7 @@ from app.schemas.agent import (
     FAQEntryUpdate,
     FAQImportRequest,
     FAQImportResponse,
+    FAQUpsertResponse,
     GreetingConfigSchema,
     GreetingConfigUpdate,
     KnowledgeConfigCreate,
@@ -521,30 +522,58 @@ async def get_faq_entry(
     return FAQEntryResponse.model_validate(entry)
 
 
-@faq_router.post("", response_model=FAQEntryResponse, status_code=status.HTTP_201_CREATED)
+@faq_router.post("", response_model=FAQUpsertResponse, status_code=status.HTTP_201_CREATED)
 async def create_faq_entry(
     data: FAQEntryCreate,
+    auto_merge: bool = True,
     db: AsyncSession = Depends(get_db_session),
 ):
-    """创建 FAQ 条目"""
-    entry = FAQEntry(
-        id=str(uuid.uuid4()),
-        agent_id=data.agent_id,
-        question=data.question,
-        answer=data.answer,
-        category=data.category,
-        tags=data.tags,
-        source=data.source,
-        priority=data.priority,
-        enabled=data.enabled,
+    """创建 FAQ 条目（支持自动合并）
+
+    当 auto_merge=True 时，会自动检索相似 FAQ：
+    - 如果找到高相似度条目，则合并到已有条目
+    - 否则创建新条目
+
+    响应中包含 merged 字段指示是否执行了合并。
+    """
+    from app.services.knowledge.faq_service import (
+        refresh_knowledge_config,
+        upsert_faq_entry,
     )
 
-    db.add(entry)
-    await db.flush()
-    await db.refresh(entry)
+    result = await upsert_faq_entry(
+        data={
+            "question": data.question,
+            "answer": data.answer,
+            "category": data.category,
+            "tags": data.tags,
+            "source": data.source,
+            "priority": data.priority,
+            "enabled": data.enabled,
+            "agent_id": data.agent_id,
+        },
+        db=db,
+        auto_merge=auto_merge,
+        auto_index=True,
+    )
 
-    logger.info("创建 FAQ 条目", entry_id=entry.id)
-    return FAQEntryResponse.model_validate(entry)
+    # 刷新 KnowledgeConfig 版本
+    if result.entry.agent_id:
+        await refresh_knowledge_config(result.entry.agent_id, db)
+
+    logger.info(
+        "FAQ 条目已处理",
+        entry_id=result.entry.id,
+        merged=result.merged,
+        target_id=result.target_id,
+    )
+
+    response_data = FAQEntryResponse.model_validate(result.entry).model_dump()
+    response_data["merged"] = result.merged
+    response_data["target_id"] = result.target_id
+    response_data["similarity_score"] = result.similarity_score
+
+    return FAQUpsertResponse.model_validate(response_data)
 
 
 @faq_router.patch("/{entry_id}", response_model=FAQEntryResponse)
@@ -554,6 +583,8 @@ async def update_faq_entry(
     db: AsyncSession = Depends(get_db_session),
 ):
     """更新 FAQ 条目"""
+    from app.services.knowledge.faq_service import index_faq_entry, refresh_knowledge_config
+
     stmt = select(FAQEntry).where(FAQEntry.id == entry_id)
     result = await db.execute(stmt)
     entry = result.scalar_one_or_none()
@@ -566,6 +597,13 @@ async def update_faq_entry(
         setattr(entry, key, value)
 
     await db.flush()
+
+    # 重新索引更新后的条目
+    await index_faq_entry(entry, entry.agent_id)
+
+    # 刷新 KnowledgeConfig 版本
+    if entry.agent_id:
+        await refresh_knowledge_config(entry.agent_id, db)
 
     logger.info("更新 FAQ 条目", entry_id=entry_id)
     return FAQEntryResponse.model_validate(entry)
@@ -718,3 +756,43 @@ async def rebuild_faq_index(
     indexed = await retriever.index_entries(entries_data)
 
     logger.info("FAQ 索引重建完成", indexed_count=indexed, agent_id=agent_id)
+
+
+@faq_router.get("/export", response_model=list[FAQEntryResponse])
+async def export_faq_entries(
+    agent_id: str | None = None,
+    category: str | None = None,
+    enabled: bool | None = None,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """导出 FAQ 条目
+
+    支持按 Agent、分类、启用状态过滤导出。
+    返回完整的 FAQ 条目列表，可用于训练数据准备。
+
+    训练数据格式建议：
+    - JSONL: {"prompt": question, "completion": answer, "metadata": {...}}
+    """
+    stmt = select(FAQEntry)
+
+    if agent_id:
+        stmt = stmt.where(FAQEntry.agent_id == agent_id)
+    if category:
+        stmt = stmt.where(FAQEntry.category == category)
+    if enabled is not None:
+        stmt = stmt.where(FAQEntry.enabled == enabled)
+
+    stmt = stmt.order_by(FAQEntry.priority.desc(), FAQEntry.created_at.desc())
+
+    result = await db.execute(stmt)
+    entries = result.scalars().all()
+
+    logger.info(
+        "FAQ 导出",
+        count=len(entries),
+        agent_id=agent_id,
+        category=category,
+        enabled=enabled,
+    )
+
+    return [FAQEntryResponse.model_validate(e) for e in entries]
