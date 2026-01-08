@@ -13,6 +13,7 @@ import { TimelineContentItem } from "./TimelineContentItem";
 import { TimelineProductsItem } from "./TimelineProductsItem";
 import { TimelineTodosItem } from "./TimelineTodosItem";
 import { TimelineContextSummarizedItem } from "./TimelineContextSummarizedItem";
+import { useChatThemeOptional } from "../themes";
 
 interface LLMCallClusterProps {
   item: LLMCallClusterItem;
@@ -127,6 +128,10 @@ export function LLMCallCluster({ item, isStreaming = false }: LLMCallClusterProp
   const config = STATUS_CONFIG[item.status];
   const showElapsed = item.status !== "running" && item.elapsedMs !== undefined;
   const hasChildren = item.children.length > 0;
+  
+  // 主题系统
+  const theme = useChatThemeOptional();
+  const themeId = theme?.themeId || "default";
 
   // 统计子事件
   const hasContent = item.children.some((c) => c.type === "content");
@@ -143,12 +148,19 @@ export function LLMCallCluster({ item, isStreaming = false }: LLMCallClusterProp
   };
 
   return (
-    <div className="rounded-lg border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+    <div className={cn(
+      "overflow-hidden",
+      themeId === "default" && "rounded-lg border border-zinc-200 dark:border-zinc-700",
+      themeId === "ethereal" && "chat-ethereal-llm-cluster",
+      themeId === "industrial" && "chat-industrial-llm-cluster"
+    )}>
       {/* Header - 可点击展开/收起 */}
       <div
         className={cn(
           "flex items-center gap-2 px-3 py-2 text-sm cursor-pointer transition-all",
-          config.className
+          themeId === "default" && config.className,
+          themeId === "ethereal" && "chat-ethereal-llm-header",
+          themeId === "industrial" && "chat-industrial-llm-header"
         )}
         onClick={() => setIsExpanded(!isExpanded)}
       >
@@ -173,7 +185,11 @@ export function LLMCallCluster({ item, isStreaming = false }: LLMCallClusterProp
 
       {/* Body - 子事件列表 */}
       {isExpanded && hasChildren && (
-        <div className="border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900">
+        <div className={cn(
+          themeId === "default" && "border-t border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900",
+          themeId === "ethereal" && "chat-ethereal-llm-body border-t border-[var(--chat-border-color)]",
+          themeId === "industrial" && "chat-industrial-llm-body border-t border-[var(--chat-border-color)]"
+        )}>
           <div className="p-3 space-y-3">
             {item.children.map((child) => renderSubItem(child, isStreaming))}
           </div>

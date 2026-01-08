@@ -25,6 +25,16 @@ import {
   TimelineSupportEventItem,
   TimelineGreetingItem,
 } from "./timeline";
+import {
+  useChatThemeOptional,
+  ThemeSwitcherIcon,
+  ThemedUserMessage,
+  ThemedEmptyState,
+  ThemedEmptyIcon,
+  ThemedEmptyTitle,
+  ThemedEmptyDescription,
+  ThemedSuggestionButton,
+} from "./themes";
 
 interface ChatContentProps {  
   title: string;
@@ -47,6 +57,10 @@ export function ChatContent({
   const [dismissedError, setDismissedError] = useState<string | null>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const isErrorVisible = Boolean(error) && dismissedError !== error;
+  
+  // 主题系统
+  const theme = useChatThemeOptional();
+  const themeId = theme?.themeId || "default";
 
   const handleButtonClick = () => {
     if (isStreaming) {
@@ -141,49 +155,67 @@ export function ChatContent({
   };
 
   return (
-    <main className="flex h-screen flex-col overflow-hidden">
+    <main className={cn(
+      "flex h-screen flex-col overflow-hidden",
+      themeId === "ethereal" && "chat-ethereal",
+      themeId === "industrial" && "chat-industrial"
+    )}>
       {/* 顶部栏 */}
-      <header className="z-10 flex h-16 w-full shrink-0 items-center gap-2 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <header className={cn(
+        "z-10 flex h-16 w-full shrink-0 items-center gap-2 px-4",
+        themeId === "default" && "border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900",
+        themeId === "ethereal" && "chat-ethereal-header",
+        themeId === "industrial" && "chat-industrial-header"
+      )}>
         <SidebarTrigger className="-ml-1" />
-        <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        <div className={cn(
+          "flex-1 text-sm font-medium",
+          themeId === "default" && "text-zinc-900 dark:text-zinc-100",
+          themeId === "ethereal" && "text-[var(--chat-text-primary)]",
+          themeId === "industrial" && "text-[var(--chat-text-primary)] uppercase tracking-wider text-xs"
+        )}>
           {title || "新对话"}
         </div>
+        {/* 主题切换器 */}
+        {theme && <ThemeSwitcherIcon />}
       </header>
 
       {/* 消息区域 */}
-      <div ref={chatContainerRef} className="relative flex-1 overflow-y-auto">
+      <div ref={chatContainerRef} className={cn(
+        "relative flex-1 overflow-y-auto",
+        themeId === "ethereal" && "chat-ethereal-messages",
+        themeId === "industrial" && "chat-industrial-messages"
+      )}>
         <ChatContainerRoot className="h-full">
           <ChatContainerContent className="space-y-3 px-5 py-12">
             {timeline.length === 0 && (
-              <div className="flex flex-col items-center justify-center py-20">
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-orange-500/10">
+              <ThemedEmptyState className="flex flex-col items-center justify-center py-20">
+                <ThemedEmptyIcon className="mb-4 flex h-16 w-16 items-center justify-center rounded-full">
                   <span className="text-2xl">🛒</span>
-                </div>
-                <h2 className="mb-2 text-xl font-semibold text-zinc-900 dark:text-zinc-100">
+                </ThemedEmptyIcon>
+                <ThemedEmptyTitle className="mb-2 text-xl font-semibold">
                   商品推荐助手
-                </h2>
-                <p className="text-center text-sm text-zinc-500">
+                </ThemedEmptyTitle>
+                <ThemedEmptyDescription className="text-center text-sm">
                   告诉我你想要什么，我来帮你找到最合适的商品
-                </p>
+                </ThemedEmptyDescription>
                 <div className="mt-6 flex flex-wrap justify-center gap-2">
                   {["推荐一款降噪耳机", "有什么好的跑步鞋", "想买一台破壁机"].map(
                     (suggestion) => (
-                      <Button
+                      <ThemedSuggestionButton
                         key={suggestion}
-                        variant="outline"
-                        size="sm"
-                        className="text-xs"
+                        className="px-3 py-1.5 text-xs"
                         onClick={() => {
                           onSendMessage(suggestion);
                         }}
                         disabled={isStreaming}
                       >
                         {suggestion}
-                      </Button>
+                      </ThemedSuggestionButton>
                     )
                   )}
                 </div>
-              </div>
+              </ThemedEmptyState>
             )}
 
             {timeline.map((item, index) => renderTimelineItem(item, index))}
@@ -196,7 +228,12 @@ export function ChatContent({
       </div>
 
       {/* 输入区域 */}
-      <div className="z-10 shrink-0 bg-white px-3 pb-3 dark:bg-zinc-900 md:px-5 md:pb-5">
+      <div className={cn(
+        "z-10 shrink-0 px-3 pb-3 md:px-5 md:pb-5",
+        themeId === "default" && "bg-white dark:bg-zinc-900",
+        themeId === "ethereal" && "chat-ethereal-input-area",
+        themeId === "industrial" && "chat-industrial-input-area"
+      )}>
         <div className="mx-auto max-w-3xl">
           {/* 错误提示 */}
           {error && isErrorVisible && (
@@ -218,12 +255,21 @@ export function ChatContent({
             value={prompt}
             onValueChange={setPrompt}
             onSubmit={handleButtonClick}
-            className="relative z-10 w-full rounded-3xl border border-zinc-200 bg-white p-0 pt-1 shadow-sm dark:border-zinc-700 dark:bg-zinc-800"
+            className={cn(
+              "relative z-10 w-full p-0 pt-1",
+              themeId === "default" && "rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800",
+              themeId === "ethereal" && "chat-ethereal-input-wrapper",
+              themeId === "industrial" && "chat-industrial-input-wrapper"
+            )}
           >
             <div className="flex flex-col">
               <PromptInputTextarea
-                placeholder="描述你想要的商品..."
-                className="min-h-[44px] pl-4 pt-3 text-base leading-[1.3]"
+                placeholder={themeId === "industrial" ? "INPUT QUERY..." : "描述你想要的商品..."}
+                className={cn(
+                  "min-h-[44px] pl-4 pt-3 text-base leading-[1.3]",
+                  themeId === "ethereal" && "chat-ethereal-textarea",
+                  themeId === "industrial" && "chat-industrial-textarea"
+                )}
               />
 
               <PromptInputActions className="mt-5 flex w-full items-center justify-end gap-2 px-3 pb-3">
@@ -232,8 +278,17 @@ export function ChatContent({
                   disabled={!isStreaming && !prompt.trim()}
                   onClick={handleButtonClick}
                   className={cn(
-                    "h-9 w-9 rounded-full transition-colors",
-                    isStreaming && "bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
+                    "h-9 w-9 transition-colors",
+                    themeId === "default" && "rounded-full",
+                    themeId === "ethereal" && cn(
+                      "rounded-full",
+                      prompt.trim() || isStreaming ? "chat-ethereal-send-btn-active" : "chat-ethereal-send-btn"
+                    ),
+                    themeId === "industrial" && cn(
+                      "rounded-sm",
+                      prompt.trim() || isStreaming ? "chat-industrial-send-btn-active" : "chat-industrial-send-btn"
+                    ),
+                    isStreaming && themeId === "default" && "bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
                   )}
                   title={isStreaming ? "停止生成" : "发送消息"}
                 >

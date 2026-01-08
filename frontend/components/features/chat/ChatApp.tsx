@@ -7,6 +7,7 @@ import { useConversations } from "@/hooks/use-conversations";
 import { useChat } from "@/hooks/use-chat";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatContent } from "./ChatContent";
+import { ChatThemeProvider } from "./themes";
 
 export function ChatApp() {
   // 用户状态
@@ -83,24 +84,26 @@ export function ChatApp() {
   }
 
   return (
-    <SidebarProvider>
-      <ChatSidebar
-        conversations={conversations}
-        currentConversationId={currentConversationId}
-        onNewChat={handleNewChat}
-        onSelectConversation={selectConversation}
-        onDeleteConversation={removeConversation}
-      />
-      <SidebarInset>
-        <ChatContent
-          title={currentConversation?.title || ""}
-          timeline={timeline}
-          isStreaming={isStreaming}
-          error={error}
-          onSendMessage={handleSendMessage}
-          onAbortStream={abortStream}
+    <ChatThemeProvider>
+      <SidebarProvider>
+        <ChatSidebar
+          conversations={conversations}
+          currentConversationId={currentConversationId}
+          onNewChat={handleNewChat}
+          onSelectConversation={selectConversation}
+          onDeleteConversation={removeConversation}
         />
-      </SidebarInset>
-    </SidebarProvider>
+        <SidebarInset>
+          <ChatContent
+            title={currentConversation?.title || ""}
+            timeline={timeline}
+            isStreaming={isStreaming}
+            error={error}
+            onSendMessage={handleSendMessage}
+            onAbortStream={abortStream}
+          />
+        </SidebarInset>
+      </SidebarProvider>
+    </ChatThemeProvider>
   );
 }

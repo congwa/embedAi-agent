@@ -1,0 +1,738 @@
+/**
+ * 聊天主题样式系统
+ * 
+ * 三套主题：
+ * 1. default - 默认简洁风格
+ * 2. ethereal - 晨曦纸境（温润纸质感）
+ * 3. industrial - 极简工业·钛度（冷硬金属感）
+ */
+
+/* ========================================
+   CSS 变量定义
+   ======================================== */
+
+/* 默认主题变量 */
+:root,
+[data-chat-theme="default"] {
+  /* 背景色 */
+  --chat-bg-page: #ffffff;
+  --chat-bg-header: #ffffff;
+  --chat-bg-messages: #ffffff;
+  --chat-bg-input-area: #ffffff;
+  --chat-bg-user-bubble: #f4f4f5;
+  --chat-bg-ai-bubble: #ffffff;
+  --chat-bg-input: #ffffff;
+  
+  /* 文字色 */
+  --chat-text-primary: #18181b;
+  --chat-text-secondary: #71717a;
+  --chat-text-tertiary: #a1a1aa;
+  --chat-text-user: #18181b;
+  --chat-text-ai: #18181b;
+  
+  /* 边框 */
+  --chat-border-color: #e4e4e7;
+  --chat-border-focus: #a1a1aa;
+  
+  /* 功能色 */
+  --chat-accent: #f97316;
+  --chat-accent-hover: #ea580c;
+  --chat-success: #22c55e;
+  --chat-error: #ef4444;
+  
+  /* 阴影 */
+  --chat-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --chat-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --chat-shadow-input: 0 1px 3px rgba(0, 0, 0, 0.1);
+  
+  /* 圆角 */
+  --chat-radius-sm: 0.5rem;
+  --chat-radius-md: 0.75rem;
+  --chat-radius-lg: 1rem;
+  --chat-radius-full: 9999px;
+  --chat-radius-bubble: 1.5rem;
+  
+  /* 动效 */
+  --chat-transition-fast: 150ms;
+  --chat-transition-normal: 200ms;
+  --chat-transition-slow: 300ms;
+}
+
+/* 晨曦纸境主题变量 */
+[data-chat-theme="ethereal"] {
+  /* 背景色 - 暖奶油色调 */
+  --chat-bg-page: #F9F7F2;
+  --chat-bg-page-gradient: radial-gradient(circle at 50% 0%, #FFFDF9 0%, #F9F7F2 60%);
+  --chat-bg-header: rgba(253, 250, 245, 0.85);
+  --chat-bg-messages: transparent;
+  --chat-bg-input-area: rgba(255, 255, 255, 0.85);
+  --chat-bg-user-bubble: #F0EBE0;
+  --chat-bg-ai-bubble: #FFFFFF;
+  --chat-bg-input: transparent;
+  
+  /* 文字色 - 丝绸墨迹 */
+  --chat-text-primary: #4A453E;
+  --chat-text-secondary: #8C867D;
+  --chat-text-tertiary: #B4ACA0;
+  --chat-text-user: #4A453E;
+  --chat-text-ai: #4A453E;
+  --chat-text-accent: #D48806;
+  
+  /* 边框 - 极弱的边界 */
+  --chat-border-color: rgba(74, 69, 62, 0.08);
+  --chat-border-focus: rgba(212, 136, 6, 0.4);
+  
+  /* 功能色 - 暖阳色系 */
+  --chat-accent: #E6A23C;
+  --chat-accent-hover: #D48806;
+  --chat-success: #67C23A;
+  --chat-error: #F56C6C;
+  
+  /* 阴影 - 弥散柔和 */
+  --chat-shadow-sm: 0 2px 8px rgba(74, 69, 62, 0.04);
+  --chat-shadow-md: 0 8px 24px rgba(74, 69, 62, 0.06);
+  --chat-shadow-lg: 0 20px 50px rgba(74, 69, 62, 0.08), 0 0 1px rgba(0,0,0,0.02);
+  --chat-shadow-float: 0 12px 36px rgba(230, 162, 60, 0.15);
+  --chat-shadow-input: 0 12px 36px rgba(74, 69, 62, 0.08);
+  
+  /* 圆角 - 有机形态 */
+  --chat-radius-sm: 0.75rem;
+  --chat-radius-md: 1rem;
+  --chat-radius-lg: 1.25rem;
+  --chat-radius-full: 9999px;
+  --chat-radius-bubble: 1.25rem;
+  --chat-radius-bubble-user: 1.25rem 1.25rem 0.25rem 1.25rem;
+  --chat-radius-bubble-ai: 1.25rem 1.25rem 1.25rem 0.25rem;
+  
+  /* 模糊 */
+  --chat-blur-glass: 20px;
+  
+  /* 动效 */
+  --chat-transition-fast: 200ms;
+  --chat-transition-normal: 300ms;
+  --chat-transition-slow: 500ms;
+}
+
+/* 极简工业·钛度主题变量 */
+[data-chat-theme="industrial"] {
+  /* 背景色 - 氧化黑钛 */
+  --chat-bg-page: #121213;
+  --chat-bg-header: #1C1C1E;
+  --chat-bg-messages: #121213;
+  --chat-bg-input-area: #1C1C1E;
+  --chat-bg-user-bubble: transparent;
+  --chat-bg-ai-bubble: transparent;
+  --chat-bg-input: #0A0A0A;
+  --chat-bg-inset: #0A0A0A;
+  
+  /* 文字色 - 喷砂铝色 */
+  --chat-text-primary: #D1D1D1;
+  --chat-text-secondary: #636366;
+  --chat-text-tertiary: #48484A;
+  --chat-text-user: #FF4500;
+  --chat-text-ai: #D1D1D1;
+  
+  /* 边框 - 金属倒角 */
+  --chat-border-color: #2C2C2E;
+  --chat-border-highlight: rgba(255, 255, 255, 0.1);
+  --chat-border-shadow: rgba(0, 0, 0, 0.8);
+  --chat-border-focus: #FF4500;
+  
+  /* 功能色 - 指示灯 */
+  --chat-accent: #FF4500;
+  --chat-accent-hover: #FF6A33;
+  --chat-success: #00FF9D;
+  --chat-error: #FF3B30;
+  --chat-warning: #FFD60A;
+  
+  /* 阴影 - 内凹/凸起 */
+  --chat-shadow-inset-deep: inset 2px 2px 5px rgba(0,0,0,0.8), inset -1px -1px 1px rgba(255,255,255,0.05);
+  --chat-shadow-inset-shallow: inset 1px 1px 2px rgba(0,0,0,0.5);
+  --chat-shadow-plate: 1px 1px 0px rgba(0,0,0,1), -1px -1px 0px rgba(255,255,255,0.05);
+  --chat-shadow-sm: none;
+  --chat-shadow-md: none;
+  --chat-shadow-input: var(--chat-shadow-inset-deep);
+  
+  /* 圆角 - 精密直角 */
+  --chat-radius-sm: 2px;
+  --chat-radius-md: 2px;
+  --chat-radius-lg: 4px;
+  --chat-radius-full: 2px;
+  --chat-radius-bubble: 0;
+  
+  /* 动效 */
+  --chat-transition-fast: 100ms;
+  --chat-transition-normal: 150ms;
+  --chat-transition-slow: 200ms;
+}
+
+/* ========================================
+   默认主题组件样式
+   ======================================== */
+
+.chat-default {
+  background: var(--chat-bg-page);
+  color: var(--chat-text-primary);
+}
+
+.chat-default-header {
+  background: var(--chat-bg-header);
+  border-bottom: 1px solid var(--chat-border-color);
+}
+
+.chat-default-messages {
+  background: var(--chat-bg-messages);
+}
+
+.chat-default-user-msg {
+  max-width: 85%;
+  padding: 0.625rem 1.25rem;
+  background: var(--chat-bg-user-bubble);
+  color: var(--chat-text-user);
+  border-radius: var(--chat-radius-bubble);
+}
+
+.chat-default-ai-msg {
+  background: var(--chat-bg-ai-bubble);
+  color: var(--chat-text-ai);
+  border-radius: var(--chat-radius-md);
+}
+
+.chat-default-input-area {
+  background: var(--chat-bg-input-area);
+}
+
+.chat-default-input-wrapper {
+  border: 1px solid var(--chat-border-color);
+  border-radius: var(--chat-radius-bubble);
+  background: var(--chat-bg-input);
+  box-shadow: var(--chat-shadow-sm);
+  transition: all var(--chat-transition-normal) ease;
+}
+
+.chat-default-input-wrapper:focus-within {
+  border-color: var(--chat-border-focus);
+  box-shadow: var(--chat-shadow-md);
+}
+
+.chat-default-textarea {
+  background: transparent;
+  color: var(--chat-text-primary);
+}
+
+.chat-default-textarea::placeholder {
+  color: var(--chat-text-tertiary);
+}
+
+.chat-default-send-btn {
+  background: var(--chat-bg-user-bubble);
+  color: var(--chat-text-secondary);
+  border-radius: var(--chat-radius-full);
+  transition: all var(--chat-transition-fast) ease;
+}
+
+.chat-default-send-btn-active {
+  background: var(--chat-accent);
+  color: white;
+}
+
+.chat-default-empty {
+  color: var(--chat-text-primary);
+}
+
+.chat-default-empty-icon {
+  background: rgba(249, 115, 22, 0.1);
+}
+
+.chat-default-empty-title {
+  color: var(--chat-text-primary);
+}
+
+.chat-default-empty-desc {
+  color: var(--chat-text-secondary);
+}
+
+.chat-default-suggestion {
+  border: 1px solid var(--chat-border-color);
+  background: transparent;
+  color: var(--chat-text-primary);
+  border-radius: var(--chat-radius-md);
+  transition: all var(--chat-transition-fast) ease;
+}
+
+.chat-default-suggestion:hover {
+  background: var(--chat-bg-user-bubble);
+}
+
+.chat-default-llm-cluster {
+  border: 1px solid var(--chat-border-color);
+  border-radius: var(--chat-radius-md);
+  overflow: hidden;
+}
+
+.chat-default-llm-header {
+  background: var(--chat-bg-user-bubble);
+}
+
+.chat-default-llm-body {
+  background: var(--chat-bg-ai-bubble);
+  border-top: 1px solid var(--chat-border-color);
+}
+
+/* ========================================
+   晨曦纸境主题组件样式
+   ======================================== */
+
+.chat-ethereal {
+  background: var(--chat-bg-page);
+  background-image: var(--chat-bg-page-gradient);
+  color: var(--chat-text-primary);
+  font-family: 'LXGW WenKai', 'Source Han Serif SC', Georgia, serif;
+}
+
+.chat-ethereal-header {
+  background: var(--chat-bg-header);
+  backdrop-filter: blur(var(--chat-blur-glass));
+  -webkit-backdrop-filter: blur(var(--chat-blur-glass));
+  border-bottom: none;
+  box-shadow: var(--chat-shadow-sm);
+}
+
+.chat-ethereal-messages {
+  background: transparent;
+}
+
+.chat-ethereal-user-msg {
+  max-width: 80%;
+  padding: 0.875rem 1.25rem;
+  background: var(--chat-bg-user-bubble);
+  color: var(--chat-text-user);
+  border-radius: var(--chat-radius-bubble-user);
+  box-shadow: none;
+  line-height: 1.8;
+}
+
+.chat-ethereal-ai-msg {
+  background: var(--chat-bg-ai-bubble);
+  color: var(--chat-text-ai);
+  border-radius: var(--chat-radius-bubble-ai);
+  box-shadow: var(--chat-shadow-sm);
+  line-height: 1.8;
+  padding: 1rem 1.25rem;
+}
+
+.chat-ethereal-input-area {
+  background: transparent;
+  padding: 1rem 1.5rem 1.5rem;
+}
+
+.chat-ethereal-input-wrapper {
+  background: var(--chat-bg-input-area);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 2rem;
+  box-shadow: var(--chat-shadow-lg);
+  transition: all var(--chat-transition-normal) ease-out;
+}
+
+.chat-ethereal-input-wrapper:focus-within {
+  box-shadow: var(--chat-shadow-float);
+  transform: translateY(-2px);
+}
+
+.chat-ethereal-textarea {
+  background: transparent;
+  color: var(--chat-text-primary);
+  font-family: inherit;
+}
+
+.chat-ethereal-textarea::placeholder {
+  color: var(--chat-text-tertiary);
+}
+
+.chat-ethereal-send-btn {
+  background: var(--chat-bg-page);
+  color: var(--chat-text-secondary);
+  border-radius: 50%;
+  transition: all var(--chat-transition-normal) ease-out;
+}
+
+.chat-ethereal-send-btn-active {
+  background: var(--chat-accent);
+  color: white;
+  box-shadow: 0 4px 12px rgba(230, 162, 60, 0.4);
+}
+
+.chat-ethereal-send-btn:active {
+  transform: scale(0.9);
+}
+
+.chat-ethereal-empty {
+  color: var(--chat-text-primary);
+}
+
+.chat-ethereal-empty-icon {
+  background: linear-gradient(135deg, rgba(230, 162, 60, 0.1), rgba(212, 136, 6, 0.15));
+  border-radius: 50%;
+}
+
+.chat-ethereal-empty-title {
+  color: var(--chat-text-primary);
+  font-weight: 500;
+}
+
+.chat-ethereal-empty-desc {
+  color: var(--chat-text-secondary);
+}
+
+.chat-ethereal-suggestion {
+  border: 1px solid var(--chat-border-color);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--chat-text-primary);
+  border-radius: var(--chat-radius-full);
+  padding: 0.5rem 1rem;
+  transition: all var(--chat-transition-normal) ease-out;
+}
+
+.chat-ethereal-suggestion:hover {
+  background: white;
+  transform: translateY(-2px);
+  box-shadow: var(--chat-shadow-md);
+}
+
+.chat-ethereal-llm-cluster {
+  border: none;
+  border-radius: var(--chat-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--chat-shadow-sm);
+  background: white;
+}
+
+.chat-ethereal-llm-header {
+  background: rgba(230, 162, 60, 0.08);
+  border-bottom: 1px solid var(--chat-border-color);
+}
+
+.chat-ethereal-llm-body {
+  background: white;
+}
+
+.chat-ethereal-reasoning {
+  background: rgba(230, 162, 60, 0.05);
+  border-left: 3px solid var(--chat-accent);
+  padding: 0.75rem 1rem;
+  border-radius: 0 var(--chat-radius-sm) var(--chat-radius-sm) 0;
+  color: var(--chat-text-secondary);
+  font-style: italic;
+}
+
+/* 晨曦纸境动画 */
+@keyframes ethereal-float {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.animate-ethereal-float {
+  animation: ethereal-float 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* ========================================
+   极简工业·钛度主题组件样式
+   ======================================== */
+
+.chat-industrial {
+  background: var(--chat-bg-page);
+  color: var(--chat-text-primary);
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  font-size: 13px;
+}
+
+.chat-industrial-header {
+  background: var(--chat-bg-header);
+  border-bottom: 1px solid #000;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  height: 48px;
+}
+
+.chat-industrial-messages {
+  background: var(--chat-bg-messages);
+}
+
+/* 用户消息 - 终端风格 */
+.chat-industrial-user-msg {
+  background: transparent;
+  color: var(--chat-text-user);
+  border-left: 2px solid var(--chat-accent);
+  padding: 0.5rem 0 0.5rem 1rem;
+  font-family: inherit;
+  border-radius: 0;
+}
+
+.chat-industrial-user-msg::before {
+  content: "USER > ";
+  color: var(--chat-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* AI 消息 - 系统响应风格 */
+.chat-industrial-ai-msg {
+  background: transparent;
+  color: var(--chat-text-ai);
+  padding: 0.5rem 0;
+  font-family: inherit;
+  border-radius: 0;
+}
+
+.chat-industrial-ai-msg::before {
+  content: "SYSTEM :: RESPONSE";
+  display: block;
+  color: var(--chat-text-tertiary);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.5rem;
+}
+
+.chat-industrial-input-area {
+  background: var(--chat-bg-input-area);
+  border-top: 1px solid #000;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.chat-industrial-input-wrapper {
+  background: var(--chat-bg-inset);
+  border: 1px solid var(--chat-border-color);
+  border-radius: var(--chat-radius-sm);
+  box-shadow: var(--chat-shadow-inset-deep);
+}
+
+.chat-industrial-input-wrapper:focus-within {
+  border-color: var(--chat-accent);
+  box-shadow: var(--chat-shadow-inset-deep), 0 0 0 1px var(--chat-accent);
+}
+
+.chat-industrial-textarea {
+  background: transparent;
+  color: var(--chat-text-primary);
+  font-family: inherit;
+  caret-color: var(--chat-accent);
+}
+
+.chat-industrial-textarea::placeholder {
+  color: var(--chat-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chat-industrial-send-btn {
+  background: linear-gradient(180deg, #3a3a3c 0%, #2c2c2e 100%);
+  color: var(--chat-text-secondary);
+  border-radius: var(--chat-radius-sm);
+  border: 1px solid var(--chat-border-color);
+  box-shadow: var(--chat-shadow-plate);
+  transition: all var(--chat-transition-fast) ease;
+}
+
+.chat-industrial-send-btn-active {
+  background: var(--chat-accent);
+  color: white;
+  box-shadow: var(--chat-shadow-plate);
+}
+
+.chat-industrial-send-btn:active {
+  box-shadow: var(--chat-shadow-inset-shallow);
+  transform: translateY(1px);
+}
+
+.chat-industrial-empty {
+  color: var(--chat-text-primary);
+}
+
+.chat-industrial-empty-icon {
+  background: var(--chat-bg-inset);
+  border: 1px solid var(--chat-border-color);
+  box-shadow: var(--chat-shadow-inset-shallow);
+}
+
+.chat-industrial-empty-title {
+  color: var(--chat-text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 14px;
+}
+
+.chat-industrial-empty-desc {
+  color: var(--chat-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+}
+
+.chat-industrial-suggestion {
+  background: var(--chat-bg-inset);
+  border: 1px solid var(--chat-border-color);
+  color: var(--chat-text-secondary);
+  border-radius: var(--chat-radius-sm);
+  box-shadow: var(--chat-shadow-plate);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 11px;
+  transition: all var(--chat-transition-fast) ease;
+}
+
+.chat-industrial-suggestion:hover {
+  border-color: var(--chat-accent);
+  color: var(--chat-accent);
+}
+
+.chat-industrial-suggestion:active {
+  box-shadow: var(--chat-shadow-inset-shallow);
+}
+
+.chat-industrial-llm-cluster {
+  border: 1px solid var(--chat-border-color);
+  border-radius: var(--chat-radius-sm);
+  overflow: hidden;
+  background: var(--chat-bg-header);
+}
+
+.chat-industrial-llm-header {
+  background: var(--chat-bg-inset);
+  border-bottom: 1px solid #000;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.chat-industrial-llm-body {
+  background: var(--chat-bg-header);
+}
+
+.chat-industrial-reasoning {
+  background: var(--chat-bg-inset);
+  border-left: 2px solid var(--chat-warning);
+  padding: 0.5rem 1rem;
+  color: var(--chat-text-secondary);
+  font-size: 12px;
+}
+
+/* 工业风状态指示灯 */
+.chat-industrial .status-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 4px currentColor;
+}
+
+.chat-industrial .status-indicator-online {
+  background: var(--chat-success);
+  color: var(--chat-success);
+}
+
+.chat-industrial .status-indicator-offline {
+  background: var(--chat-error);
+  color: var(--chat-error);
+}
+
+/* 工业风动画 - 逐行扫描 */
+@keyframes industrial-scan {
+  0% {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.animate-industrial-scan {
+  animation: industrial-scan 0.15s linear forwards;
+}
+
+/* 工业风故障效果 */
+@keyframes industrial-glitch {
+  0%, 100% {
+    text-shadow: none;
+  }
+  25% {
+    text-shadow: -2px 0 var(--chat-accent), 2px 0 var(--chat-success);
+  }
+  50% {
+    text-shadow: 2px 0 var(--chat-accent), -2px 0 var(--chat-success);
+  }
+  75% {
+    text-shadow: -1px 0 var(--chat-accent), 1px 0 var(--chat-success);
+  }
+}
+
+.animate-industrial-glitch {
+  animation: industrial-glitch 0.3s ease-in-out;
+}
+
+/* 块状光标 */
+.chat-industrial .block-cursor::after {
+  content: "█";
+  animation: blink 1s step-end infinite;
+  color: var(--chat-accent);
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* ========================================
+   通用动画
+   ======================================== */
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+   暗色模式适配（仅默认主题）
+   ======================================== */
+
+.dark [data-chat-theme="default"],
+[data-chat-theme="default"].dark {
+  --chat-bg-page: #18181b;
+  --chat-bg-header: #18181b;
+  --chat-bg-messages: #18181b;
+  --chat-bg-input-area: #18181b;
+  --chat-bg-user-bubble: #27272a;
+  --chat-bg-ai-bubble: #18181b;
+  --chat-bg-input: #27272a;
+  
+  --chat-text-primary: #fafafa;
+  --chat-text-secondary: #a1a1aa;
+  --chat-text-tertiary: #71717a;
+  --chat-text-user: #fafafa;
+  --chat-text-ai: #fafafa;
+  
+  --chat-border-color: #3f3f46;
+  --chat-border-focus: #71717a;
+}
