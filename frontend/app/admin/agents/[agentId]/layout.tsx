@@ -35,6 +35,7 @@ const baseTabs = [
   { id: "overview", label: "基础设置", href: "" },
   { id: "greeting", label: "开场白", href: "/greeting" },
   { id: "tools", label: "工具配置", href: "/tools" },
+  { id: "memory", label: "记忆与提示词", href: "/memory" },
   { id: "conversations", label: "会话洞察", href: "/conversations" },
 ];
 

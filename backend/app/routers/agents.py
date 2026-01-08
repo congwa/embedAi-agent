@@ -4,8 +4,10 @@
 """
 
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -199,6 +201,182 @@ async def refresh_agent(agent_id: str):
     """刷新 Agent 缓存"""
     agent_service.invalidate_agent(agent_id)
     logger.info("刷新 Agent 缓存", agent_id=agent_id)
+
+
+# ========== Memory Config ==========
+
+
+class MemoryConfigResponse(BaseModel):
+    """记忆配置响应"""
+
+    inject_profile: bool = True
+    inject_facts: bool = True
+    inject_graph: bool = True
+    max_facts: int = 5
+    max_graph_entities: int = 5
+    memory_enabled: bool = False
+    store_enabled: bool = False
+    fact_enabled: bool = False
+    graph_enabled: bool = False
+
+
+@router.get("/{agent_id}/memory-config", response_model=MemoryConfigResponse)
+async def get_agent_memory_config(
+    agent_id: str,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """获取 Agent 记忆配置"""
+    from app.core.config import settings
+
+    stmt = select(Agent).where(Agent.id == agent_id)
+    result = await db.execute(stmt)
+    agent = result.scalar_one_or_none()
+
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent 不存在")
+
+    middleware_flags = agent.middleware_flags or {}
+
+    return MemoryConfigResponse(
+        inject_profile=middleware_flags.get("inject_profile", True),
+        inject_facts=middleware_flags.get("inject_facts", True),
+        inject_graph=middleware_flags.get("inject_graph", True),
+        max_facts=middleware_flags.get("max_facts", 5),
+        max_graph_entities=middleware_flags.get("max_graph_entities", 5),
+        memory_enabled=settings.MEMORY_ENABLED,
+        store_enabled=settings.MEMORY_STORE_ENABLED,
+        fact_enabled=settings.MEMORY_FACT_ENABLED,
+        graph_enabled=settings.MEMORY_GRAPH_ENABLED,
+    )
+
+
+class PromptPreviewRequest(BaseModel):
+    """提示词预览请求"""
+
+    user_id: str | None = None
+    mode: str = "natural"
+
+
+class PromptPreviewResponse(BaseModel):
+    """提示词预览响应"""
+
+    base_prompt: str
+    mode_suffix: str
+    memory_context: str
+    full_prompt: str
+
+
+@router.post("/{agent_id}/preview-prompt", response_model=PromptPreviewResponse)
+async def preview_agent_prompt(
+    agent_id: str,
+    request: PromptPreviewRequest,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """预览 Agent 完整提示词（含记忆注入）"""
+    from app.core.config import settings
+    from app.services.agent.core.config import AgentConfigLoader
+    from app.services.agent.core.factory import MODE_PROMPT_SUFFIX
+
+    loader = AgentConfigLoader(db)
+    config = await loader.load_config(agent_id, request.mode)
+
+    if not config:
+        raise HTTPException(status_code=404, detail="Agent 不存在或已禁用")
+
+    base_prompt = config.system_prompt
+    mode_suffix = MODE_PROMPT_SUFFIX.get(request.mode, "")
+
+    memory_context = ""
+    if request.user_id and settings.MEMORY_ENABLED:
+        try:
+            from app.services.memory.middleware.orchestration import (
+                MemoryOrchestrationMiddleware,
+            )
+
+            middleware = MemoryOrchestrationMiddleware()
+            memory_context = await middleware._get_memory_context(
+                request.user_id, "预览查询"
+            )
+        except Exception as e:
+            memory_context = f"[获取记忆上下文失败: {e}]"
+
+    full_prompt_parts = [base_prompt]
+    if mode_suffix:
+        full_prompt_parts.append(mode_suffix)
+    if memory_context:
+        full_prompt_parts.append(f"\n\n{memory_context}")
+
+    return PromptPreviewResponse(
+        base_prompt=base_prompt,
+        mode_suffix=mode_suffix,
+        memory_context=memory_context,
+        full_prompt="".join(full_prompt_parts),
+    )
+
+
+class AgentUserItem(BaseModel):
+    """Agent 用户项"""
+
+    user_id: str
+    conversation_count: int
+    last_active: str | None = None
+
+
+class AgentUsersResponse(BaseModel):
+    """Agent 用户列表响应"""
+
+    total: int
+    items: list[AgentUserItem] = Field(default_factory=list)
+
+
+@router.get("/{agent_id}/users", response_model=AgentUsersResponse)
+async def get_agent_users(
+    agent_id: str,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """获取与 Agent 有对话记录的用户列表"""
+    from app.models.conversation import Conversation
+
+    stmt = select(Agent).where(Agent.id == agent_id)
+    result = await db.execute(stmt)
+    agent = result.scalar_one_or_none()
+
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent 不存在")
+
+    stmt = (
+        select(
+            Conversation.user_id,
+            func.count(Conversation.id).label("conversation_count"),
+            func.max(Conversation.updated_at).label("last_active"),
+        )
+        .where(Conversation.agent_id == agent_id)
+        .group_by(Conversation.user_id)
+        .order_by(func.max(Conversation.updated_at).desc())
+        .limit(limit)
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    items = [
+        AgentUserItem(
+            user_id=row.user_id,
+            conversation_count=row.conversation_count,
+            last_active=row.last_active.isoformat() if row.last_active else None,
+        )
+        for row in rows
+    ]
+
+    count_stmt = (
+        select(func.count(func.distinct(Conversation.user_id)))
+        .where(Conversation.agent_id == agent_id)
+    )
+    count_result = await db.execute(count_stmt)
+    total = count_result.scalar() or 0
+
+    return AgentUsersResponse(total=total, items=items)
 
 
 # ========== Greeting Config ==========

@@ -170,3 +170,130 @@ async def delete_user_profile(user_id: str):
         updated_fields=[],
         message="画像已删除" if deleted else "画像不存在",
     )
+
+
+# ============ 事实记忆 API ============
+
+
+class FactResponse(BaseModel):
+    """事实响应"""
+
+    id: str
+    content: str
+    created_at: str
+    updated_at: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class FactListResponse(BaseModel):
+    """事实列表响应"""
+
+    user_id: str
+    total: int
+    items: list[FactResponse] = Field(default_factory=list)
+
+
+@router.get("/{user_id}/facts", response_model=FactListResponse)
+async def get_user_facts(user_id: str, limit: int = 50):
+    """获取用户事实记忆列表"""
+    from app.core.config import settings
+    from app.services.memory.fact_memory import get_fact_memory_service
+
+    if not settings.MEMORY_FACT_ENABLED:
+        return FactListResponse(user_id=user_id, total=0, items=[])
+
+    try:
+        fact_service = await get_fact_memory_service()
+        facts = await fact_service.get_all_facts(user_id)
+
+        items = [
+            FactResponse(
+                id=f.id,
+                content=f.content,
+                created_at=f.created_at.isoformat() if f.created_at else "",
+                updated_at=f.updated_at.isoformat() if f.updated_at else "",
+                metadata=f.metadata or {},
+            )
+            for f in facts[:limit]
+        ]
+
+        return FactListResponse(user_id=user_id, total=len(facts), items=items)
+
+    except Exception:
+        return FactListResponse(user_id=user_id, total=0, items=[])
+
+
+# ============ 知识图谱 API ============
+
+
+class EntityResponse(BaseModel):
+    """实体响应"""
+
+    name: str
+    entity_type: str
+    observations: list[str] = Field(default_factory=list)
+
+
+class RelationResponse(BaseModel):
+    """关系响应"""
+
+    from_entity: str
+    to_entity: str
+    relation_type: str
+
+
+class GraphResponse(BaseModel):
+    """知识图谱响应"""
+
+    user_id: str
+    entity_count: int
+    relation_count: int
+    entities: list[EntityResponse] = Field(default_factory=list)
+    relations: list[RelationResponse] = Field(default_factory=list)
+
+
+@router.get("/{user_id}/graph", response_model=GraphResponse)
+async def get_user_graph(user_id: str):
+    """获取用户知识图谱"""
+    from app.core.config import settings
+    from app.services.memory.graph_memory import get_graph_manager
+
+    if not settings.MEMORY_GRAPH_ENABLED:
+        return GraphResponse(
+            user_id=user_id, entity_count=0, relation_count=0, entities=[], relations=[]
+        )
+
+    try:
+        graph_manager = await get_graph_manager()
+        graph = await graph_manager.get_user_graph(user_id)
+
+        entities = [
+            EntityResponse(
+                name=e.name,
+                entity_type=e.entity_type,
+                observations=e.observations,
+            )
+            for e in graph.entities
+        ]
+
+        relations = [
+            RelationResponse(
+                from_entity=r.from_entity,
+                to_entity=r.to_entity,
+                relation_type=r.relation_type,
+            )
+            for r in graph.relations
+        ]
+
+        return GraphResponse(
+            user_id=user_id,
+            entity_count=len(entities),
+            relation_count=len(relations),
+            entities=entities,
+            relations=relations,
+        )
+
+    except Exception:
+        return GraphResponse(
+            user_id=user_id, entity_count=0, relation_count=0, entities=[], relations=[]
+        )

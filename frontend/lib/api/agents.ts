@@ -373,3 +373,66 @@ export async function getMiddlewareDefaults(): Promise<MiddlewareDefaults> {
 export async function getRawConfig(): Promise<Record<string, unknown>> {
   return apiRequest<Record<string, unknown>>("/api/v1/admin/settings/raw-config");
 }
+
+// ========== Memory Config API ==========
+
+export interface MemoryConfig {
+  inject_profile: boolean;
+  inject_facts: boolean;
+  inject_graph: boolean;
+  max_facts: number;
+  max_graph_entities: number;
+  memory_enabled: boolean;
+  store_enabled: boolean;
+  fact_enabled: boolean;
+  graph_enabled: boolean;
+}
+
+export interface PromptPreviewRequest {
+  user_id?: string;
+  mode?: string;
+}
+
+export interface PromptPreviewResponse {
+  base_prompt: string;
+  mode_suffix: string;
+  memory_context: string;
+  full_prompt: string;
+}
+
+export interface AgentUserItem {
+  user_id: string;
+  conversation_count: number;
+  last_active: string | null;
+}
+
+export interface AgentUsersResponse {
+  total: number;
+  items: AgentUserItem[];
+}
+
+export async function getAgentMemoryConfig(agentId: string): Promise<MemoryConfig> {
+  return apiRequest<MemoryConfig>(`/api/v1/admin/agents/${agentId}/memory-config`);
+}
+
+export async function previewAgentPrompt(
+  agentId: string,
+  data: PromptPreviewRequest
+): Promise<PromptPreviewResponse> {
+  return apiRequest<PromptPreviewResponse>(`/api/v1/admin/agents/${agentId}/preview-prompt`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function getAgentUsers(
+  agentId: string,
+  limit?: number
+): Promise<AgentUsersResponse> {
+  const searchParams = new URLSearchParams();
+  if (limit) searchParams.set("limit", String(limit));
+  const query = searchParams.toString();
+  return apiRequest<AgentUsersResponse>(
+    `/api/v1/admin/agents/${agentId}/users${query ? `?${query}` : ""}`
+  );
+}
