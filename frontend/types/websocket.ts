@@ -43,6 +43,8 @@ export type WSAction =
   | "client.agent.start_handoff"
   | "client.agent.end_handoff"
   | "client.agent.transfer"
+  | "client.agent.withdraw_message"
+  | "client.agent.edit_message"
   // Server Push
   | "server.message"
   | "server.typing"
@@ -53,7 +55,10 @@ export type WSAction =
   | "server.user_offline"
   | "server.agent_online"
   | "server.agent_offline"
-  | "server.conversation_state";
+  | "server.conversation_state"
+  | "server.message_withdrawn"
+  | "server.message_edited"
+  | "server.messages_deleted";
 
 // 基础消息结构
 export interface WSMessage {
@@ -151,6 +156,31 @@ export interface ErrorPayload {
   detail?: unknown;
 }
 
+// 消息撤回 Payload
+export interface MessageWithdrawnPayload {
+  message_id: string;
+  withdrawn_by: string;
+  withdrawn_at: string;
+  reason?: string;
+}
+
+// 消息编辑 Payload
+export interface MessageEditedPayload {
+  message_id: string;
+  old_content: string;
+  new_content: string;
+  edited_by: string;
+  edited_at: string;
+  deleted_message_ids: string[];
+  regenerate_triggered: boolean;
+}
+
+// 消息删除 Payload
+export interface MessagesDeletedPayload {
+  message_ids: string[];
+  reason: string;
+}
+
 // 客服端消息类型（用于展示）
 export interface SupportMessage {
   id: string;
@@ -168,6 +198,13 @@ export interface SupportMessage {
   delivered_at?: string;
   read_at?: string;
   read_by?: string;
+  // 撤回/编辑相关
+  is_withdrawn?: boolean;
+  withdrawn_at?: string;
+  withdrawn_by?: string;
+  is_edited?: boolean;
+  edited_at?: string;
+  edited_by?: string;
 }
 
 // 会话状态

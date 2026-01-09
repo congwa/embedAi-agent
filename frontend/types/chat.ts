@@ -157,7 +157,10 @@ export type SupportEventType =
   | "support.human_message"
   | "support.human_mode"
   | "support.connected"
-  | "support.ping";
+  | "support.ping"
+  | "support.message_withdrawn"
+  | "support.message_edited"
+  | "support.messages_deleted";
 
 /** 所有事件类型 */
 export type ChatEventType =

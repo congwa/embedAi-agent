@@ -97,6 +97,13 @@ export interface UserMessageItem {
   content: string;
   images?: ImageAttachment[];
   ts: number;
+  // 撤回/编辑相关
+  isWithdrawn?: boolean;
+  withdrawnAt?: string;
+  withdrawnBy?: string;
+  isEdited?: boolean;
+  editedAt?: string;
+  editedBy?: string;
 }
 
 export interface LLMCallClusterItem {
@@ -514,6 +521,82 @@ export function timelineReducer(state: TimelineState, event: ChatEvent): Timelin
 
     case "support.ping":
       return state;
+
+    case "support.message_withdrawn": {
+      const payload = event.payload as {
+        message_id: string;
+        withdrawn_by: string;
+        withdrawn_at: string;
+      };
+      // 更新对应消息的撤回状态
+      const msgIndex = state.indexById[payload.message_id];
+      if (msgIndex !== undefined) {
+        const timeline = [...state.timeline];
+        const item = timeline[msgIndex];
+        if (item.type === "user.message") {
+          timeline[msgIndex] = {
+            ...item,
+            isWithdrawn: true,
+            withdrawnAt: payload.withdrawn_at,
+            withdrawnBy: payload.withdrawn_by,
+          };
+          return { ...state, timeline };
+        }
+      }
+      return state;
+    }
+
+    case "support.message_edited": {
+      const payload = event.payload as {
+        message_id: string;
+        new_content: string;
+        edited_by: string;
+        edited_at: string;
+        deleted_message_ids?: string[];
+      };
+      // 更新对应消息的内容和编辑状态
+      let newState = state;
+      const msgIndex = state.indexById[payload.message_id];
+      if (msgIndex !== undefined) {
+        const timeline = [...newState.timeline];
+        const item = timeline[msgIndex];
+        if (item.type === "user.message") {
+          timeline[msgIndex] = {
+            ...item,
+            content: payload.new_content,
+            isEdited: true,
+            editedAt: payload.edited_at,
+            editedBy: payload.edited_by,
+          };
+          newState = { ...newState, timeline };
+        }
+      }
+      // 删除后续被删除的消息
+      if (payload.deleted_message_ids && payload.deleted_message_ids.length > 0) {
+        const deletedSet = new Set(payload.deleted_message_ids);
+        const timeline = newState.timeline.filter((item) => !deletedSet.has(item.id));
+        const indexById: Record<string, number> = {};
+        timeline.forEach((item, i) => {
+          indexById[item.id] = i;
+        });
+        newState = { ...newState, timeline, indexById };
+      }
+      return newState;
+    }
+
+    case "support.messages_deleted": {
+      const payload = event.payload as {
+        message_ids: string[];
+      };
+      if (!payload.message_ids || payload.message_ids.length === 0) return state;
+      const deletedSet = new Set(payload.message_ids);
+      const timeline = state.timeline.filter((item) => !deletedSet.has(item.id));
+      const indexById: Record<string, number> = {};
+      timeline.forEach((item, i) => {
+        indexById[item.id] = i;
+      });
+      return { ...state, timeline, indexById };
+    }
 
     case "error": {
       const payload = event.payload as ErrorPayload;

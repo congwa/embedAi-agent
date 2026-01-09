@@ -14,6 +14,9 @@ import {
   Plus,
   ImagePlus,
   X,
+  Trash2,
+  Pencil,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -26,7 +29,24 @@ import {
 } from "@/lib/api/support";
 import { FAQFormSheet } from "@/components/admin/faq/faq-form-sheet";
 import { createFAQEntry, getAgent, type Agent, type FAQEntry } from "@/lib/api/agents";
-import type { SupportMessage, ConversationState } from "@/types/websocket";
+import type { SupportMessage, ConversationState, MessageWithdrawnPayload, MessageEditedPayload, MessagesDeletedPayload } from "@/types/websocket";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import type { ImageAttachment } from "@/types/chat";
 import { uploadImage, type ImageUploadResponse } from "@/lib/api/upload";
 
@@ -67,6 +87,14 @@ export default function SupportChatPage() {
   const [selectedAnswer, setSelectedAnswer] = useState("");
   const [selectedSource, setSelectedSource] = useState("");
 
+  // 撤回/编辑相关状态
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingMessage, setEditingMessage] = useState<SupportMessage | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editRegenerate, setEditRegenerate] = useState(true);
+  const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
+  const [withdrawingMessage, setWithdrawingMessage] = useState<SupportMessage | null>(null);
+
   // WebSocket 消息回调
   const handleNewMessage = useCallback((message: SupportMessage) => {
     setMessages((prev) => {
@@ -86,6 +114,33 @@ export default function SupportChatPage() {
     setLocalHandoffState(state.handoff_state);
   }, []);
 
+  // 消息撤回回调
+  const handleMessageWithdrawn = useCallback((payload: MessageWithdrawnPayload) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === payload.message_id
+          ? { ...msg, is_withdrawn: true, withdrawn_at: payload.withdrawn_at, withdrawn_by: payload.withdrawn_by }
+          : msg
+      )
+    );
+  }, []);
+
+  // 消息编辑回调
+  const handleMessageEdited = useCallback((payload: MessageEditedPayload) => {
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === payload.message_id
+          ? { ...msg, content: payload.new_content, is_edited: true, edited_at: payload.edited_at, edited_by: payload.edited_by }
+          : msg
+      )
+    );
+  }, []);
+
+  // 消息删除回调
+  const handleMessagesDeleted = useCallback((payload: MessagesDeletedPayload) => {
+    setMessages((prev) => prev.filter((msg) => !payload.message_ids.includes(msg.id)));
+  }, []);
+
   // WebSocket 连接
   const {
     isConnected,
@@ -94,11 +149,16 @@ export default function SupportChatPage() {
     sendMessage,
     startHandoff: wsStartHandoff,
     endHandoff: wsEndHandoff,
+    withdrawMessage,
+    editMessage,
   } = useSupportWebSocket({
     conversationId,
     agentId,
     onMessage: handleNewMessage,
     onStateChange: handleStateChange,
+    onMessageWithdrawn: handleMessageWithdrawn,
+    onMessageEdited: handleMessageEdited,
+    onMessagesDeleted: handleMessagesDeleted,
   });
 
   // 有效的 handoff 状态（优先使用本地状态，其次使用 WebSocket 状态）
@@ -294,16 +354,60 @@ export default function SupportChatPage() {
     }
   };
 
+  // 检查消息是否在可操作时间范围内（5分钟）
+  const isWithinTimeLimit = (createdAt: string) => {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffMs = now.getTime() - created.getTime();
+    return diffMs <= 5 * 60 * 1000; // 5 分钟
+  };
+
+  // 打开编辑弹窗
+  const openEditDialog = (message: SupportMessage) => {
+    setEditingMessage(message);
+    setEditContent(message.content);
+    setEditRegenerate(message.role === "user");
+    setEditDialogOpen(true);
+  };
+
+  // 确认编辑
+  const confirmEdit = () => {
+    if (editingMessage && editContent.trim()) {
+      editMessage(editingMessage.id, editContent.trim(), editRegenerate);
+      setEditDialogOpen(false);
+      setEditingMessage(null);
+      setEditContent("");
+    }
+  };
+
+  // 打开撤回确认弹窗
+  const openWithdrawDialog = (message: SupportMessage) => {
+    setWithdrawingMessage(message);
+    setWithdrawDialogOpen(true);
+  };
+
+  // 确认撤回
+  const confirmWithdraw = () => {
+    if (withdrawingMessage) {
+      withdrawMessage(withdrawingMessage.id);
+      setWithdrawDialogOpen(false);
+      setWithdrawingMessage(null);
+    }
+  };
+
   // 渲染消息
   const renderMessage = (message: SupportMessage, index: number) => {
     const isUser = message.role === "user";
     const isAgent = message.role === "human_agent";
     const isAI = message.role === "assistant";
     const isSystem = message.role === "system";
+    const isWithdrawn = message.is_withdrawn;
+    const isEdited = message.is_edited;
+    const canOperate = isWithinTimeLimit(message.created_at) && !isWithdrawn;
 
     // 检查是否可以添加到 FAQ（用户消息后紧跟 AI 回复）
     const nextMsg = messages[index + 1];
-    const canAddToFAQ = faqAgent && isUser && nextMsg?.role === "assistant";
+    const canAddToFAQ = faqAgent && isUser && nextMsg?.role === "assistant" && !isWithdrawn;
 
     if (isSystem) {
       return (
@@ -315,11 +419,40 @@ export default function SupportChatPage() {
       );
     }
 
+    // 已撤回消息的显示
+    if (isWithdrawn) {
+      return (
+        <div
+          key={message.id}
+          className={cn(
+            "flex gap-3 mb-4",
+            isUser ? "flex-row" : "flex-row-reverse"
+          )}
+        >
+          <div
+            className={cn(
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-300 dark:bg-zinc-600"
+            )}
+          >
+            {isUser && <User className="h-4 w-4 text-white" />}
+            {isAI && <Bot className="h-4 w-4 text-white" />}
+            {isAgent && <Headphones className="h-4 w-4 text-white" />}
+          </div>
+          <div className="max-w-[70%] rounded-2xl px-4 py-2 bg-zinc-200 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 italic">
+            <div className="text-sm">[此消息已被客服撤回]</div>
+            <div className="text-xs mt-1 opacity-70">
+              {new Date(message.created_at).toLocaleTimeString()}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
         key={message.id}
         className={cn(
-          "flex gap-3 mb-4",
+          "group flex gap-3 mb-4",
           isUser ? "flex-row" : "flex-row-reverse"
         )}
       >
@@ -338,58 +471,87 @@ export default function SupportChatPage() {
         </div>
 
         {/* 消息内容 */}
-        <div
-          className={cn(
-            "max-w-[70%] rounded-2xl px-4 py-2",
-            isUser && "bg-blue-500 text-white",
-            isAI && "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100",
-            isAgent && "bg-green-500 text-white"
-          )}
-        >
-          {/* 图片展示 */}
-          {message.images && message.images.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2">
-              {message.images.map((img) => (
-                <a
-                  key={img.id}
-                  href={img.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block"
-                >
-                  <img
-                    src={img.thumbnail_url || img.url}
-                    alt={img.filename || "图片"}
-                    className="max-w-[200px] max-h-[150px] rounded-lg object-cover"
-                  />
-                </a>
-              ))}
-            </div>
-          )}
-          {message.content && (
-            <div className="text-sm whitespace-pre-wrap">{message.content}</div>
-          )}
+        <div className="flex items-start gap-1">
           <div
             className={cn(
-              "flex items-center gap-2 text-xs mt-1",
-              isUser || isAgent ? "text-white opacity-70" : "text-zinc-500"
+              "max-w-[70%] rounded-2xl px-4 py-2",
+              isUser && "bg-blue-500 text-white",
+              isAI && "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100",
+              isAgent && "bg-green-500 text-white"
             )}
           >
-            <span>
-              {new Date(message.created_at).toLocaleTimeString()}
-              {isAI && " · AI"}
-              {isAgent && message.operator && ` · ${message.operator}`}
-            </span>
-            {canAddToFAQ && (
-              <button
-                onClick={() => handleAddToFAQ(message.content, nextMsg.content)}
-                className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors"
-              >
-                <Plus className="h-3 w-3" />
-                加入 FAQ
-              </button>
+            {/* 图片展示 */}
+            {message.images && message.images.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2">
+                {message.images.map((img) => (
+                  <a
+                    key={img.id}
+                    href={img.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block"
+                  >
+                    <img
+                      src={img.thumbnail_url || img.url}
+                      alt={img.filename || "图片"}
+                      className="max-w-[200px] max-h-[150px] rounded-lg object-cover"
+                    />
+                  </a>
+                ))}
+              </div>
             )}
+            {message.content && (
+              <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+            )}
+            <div
+              className={cn(
+                "flex items-center gap-2 text-xs mt-1",
+                isUser || isAgent ? "text-white opacity-70" : "text-zinc-500"
+              )}
+            >
+              <span>
+                {new Date(message.created_at).toLocaleTimeString()}
+                {isEdited && " (已编辑)"}
+                {isAI && " · AI"}
+                {isAgent && message.operator && ` · ${message.operator}`}
+              </span>
+              {canAddToFAQ && (
+                <button
+                  onClick={() => handleAddToFAQ(message.content, nextMsg.content)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  加入 FAQ
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* 操作菜单 - 仅对可操作的消息显示 */}
+          {canOperate && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-zinc-100 dark:hover:bg-zinc-700">
+                  <MoreHorizontal className="h-4 w-4 text-zinc-500" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-32">
+                {(isUser || isAgent) && (
+                  <DropdownMenuItem onClick={() => openEditDialog(message)}>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    编辑
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onClick={() => openWithdrawDialog(message)}
+                  className="text-red-600 focus:text-red-600"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  撤回
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
       </div>
     );
@@ -633,6 +795,94 @@ export default function SupportChatPage() {
           readOnlyAgent
         />
       )}
+
+      {/* 撤回确认弹窗 */}
+      <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>确认撤回</DialogTitle>
+            <DialogDescription>
+              确定要撤回这条消息吗？撤回后用户将看到「此消息已被客服撤回」。
+            </DialogDescription>
+          </DialogHeader>
+          {withdrawingMessage && (
+            <div className="p-3 bg-zinc-100 dark:bg-zinc-800 rounded-lg text-sm text-zinc-700 dark:text-zinc-300 max-h-32 overflow-y-auto">
+              {withdrawingMessage.content.length > 100
+                ? `${withdrawingMessage.content.slice(0, 100)}...`
+                : withdrawingMessage.content}
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setWithdrawDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmWithdraw}
+            >
+              确认撤回
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 编辑消息弹窗 */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>编辑消息</DialogTitle>
+            <DialogDescription>
+              修改消息内容。{editingMessage?.role === "user" && "编辑用户消息后可以选择重新生成 AI 回复。"}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium mb-2 block">消息内容</Label>
+              <Textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={4}
+                className="resize-none"
+                placeholder="输入新的消息内容..."
+              />
+            </div>
+            {editingMessage?.role === "user" && (
+              <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                <Switch
+                  id="regenerate"
+                  checked={editRegenerate}
+                  onCheckedChange={setEditRegenerate}
+                />
+                <Label htmlFor="regenerate" className="text-sm cursor-pointer">
+                  删除后续 AI 回复并重新生成
+                </Label>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditDialogOpen(false);
+                setEditingMessage(null);
+                setEditContent("");
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              onClick={confirmEdit}
+              disabled={!editContent.trim()}
+              className="bg-green-500 hover:bg-green-600"
+            >
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

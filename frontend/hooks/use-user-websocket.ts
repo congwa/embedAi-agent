@@ -13,6 +13,9 @@ import type {
   HandoffEndedPayload,
   AgentPresencePayload,
   ConversationStatePayload,
+  MessageWithdrawnPayload,
+  MessageEditedPayload,
+  MessagesDeletedPayload,
 } from "@/types/websocket";
 import { WS_PROTOCOL_VERSION } from "@/types/websocket";
 
@@ -22,6 +25,9 @@ interface UseUserWebSocketOptions {
   wsBaseUrl?: string;
   onMessage?: (message: SupportMessage) => void;
   onStateChange?: (state: ConversationState) => void;
+  onMessageWithdrawn?: (payload: MessageWithdrawnPayload) => void;
+  onMessageEdited?: (payload: MessageEditedPayload) => void;
+  onMessagesDeleted?: (payload: MessagesDeletedPayload) => void;
   enabled?: boolean;
 }
 
@@ -63,6 +69,9 @@ export function useUserWebSocket({
   wsBaseUrl,
   onMessage,
   onStateChange,
+  onMessageWithdrawn,
+  onMessageEdited,
+  onMessagesDeleted,
   enabled = true,
 }: UseUserWebSocketOptions): UseUserWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
@@ -197,6 +206,24 @@ export function useUserWebSocket({
             break;
           }
 
+          case "server.message_withdrawn": {
+            const payload = msg.payload as unknown as MessageWithdrawnPayload;
+            onMessageWithdrawn?.(payload);
+            break;
+          }
+
+          case "server.message_edited": {
+            const payload = msg.payload as unknown as MessageEditedPayload;
+            onMessageEdited?.(payload);
+            break;
+          }
+
+          case "server.messages_deleted": {
+            const payload = msg.payload as unknown as MessagesDeletedPayload;
+            onMessagesDeleted?.(payload);
+            break;
+          }
+
           default:
             console.log("Unknown action:", msg.action);
         }
@@ -204,7 +231,7 @@ export function useUserWebSocket({
         console.error("Failed to parse WebSocket message:", e);
       }
     },
-    [onMessage, onStateChange]
+    [onMessage, onStateChange, onMessageWithdrawn, onMessageEdited, onMessagesDeleted]
   );
 
   // 连接 WebSocket

@@ -37,7 +37,10 @@ class WSErrorCode(StrEnum):
 
     # 业务相关
     CONVERSATION_NOT_FOUND = "CONVERSATION_NOT_FOUND"
+    MESSAGE_NOT_FOUND = "MESSAGE_NOT_FOUND"
     MESSAGE_SEND_FAILED = "MESSAGE_SEND_FAILED"
+    MESSAGE_ALREADY_WITHDRAWN = "MESSAGE_ALREADY_WITHDRAWN"
+    TIME_LIMIT_EXCEEDED = "TIME_LIMIT_EXCEEDED"
     HANDOFF_FAILED = "HANDOFF_FAILED"
 
     # 系统相关
@@ -78,6 +81,8 @@ class WSAction(StrEnum):
     CLIENT_AGENT_START_HANDOFF = "client.agent.start_handoff"
     CLIENT_AGENT_END_HANDOFF = "client.agent.end_handoff"
     CLIENT_AGENT_TRANSFER = "client.agent.transfer"
+    CLIENT_AGENT_WITHDRAW_MESSAGE = "client.agent.withdraw_message"
+    CLIENT_AGENT_EDIT_MESSAGE = "client.agent.edit_message"
 
     # Server Push
     SERVER_MESSAGE = "server.message"
@@ -90,6 +95,9 @@ class WSAction(StrEnum):
     SERVER_AGENT_ONLINE = "server.agent_online"
     SERVER_AGENT_OFFLINE = "server.agent_offline"
     SERVER_CONVERSATION_STATE = "server.conversation_state"
+    SERVER_MESSAGE_WITHDRAWN = "server.message_withdrawn"
+    SERVER_MESSAGE_EDITED = "server.message_edited"
+    SERVER_MESSAGES_DELETED = "server.messages_deleted"
 
 
 # ========== 基础结构 ==========
@@ -255,6 +263,45 @@ class ConversationStatePayload(BaseModel):
     operator: str | None = None
 
 
+# ========== 消息撤回/编辑 Payloads ==========
+class WithdrawMessagePayload(BaseModel):
+    """撤回消息请求"""
+    message_id: str = Field(..., description="要撤回的消息 ID")
+    reason: str = Field(default="", description="撤回原因")
+
+
+class EditMessagePayload(BaseModel):
+    """编辑消息请求"""
+    message_id: str = Field(..., description="要编辑的消息 ID")
+    new_content: str = Field(..., min_length=1, max_length=10000, description="新内容")
+    regenerate: bool = Field(default=True, description="是否重新生成后续 AI 回复")
+
+
+class MessageWithdrawnPayload(BaseModel):
+    """消息已撤回通知"""
+    message_id: str
+    withdrawn_by: str
+    withdrawn_at: str  # ISO 格式时间
+    reason: str = ""
+
+
+class MessageEditedPayload(BaseModel):
+    """消息已编辑通知"""
+    message_id: str
+    old_content: str
+    new_content: str
+    edited_by: str
+    edited_at: str  # ISO 格式时间
+    deleted_message_ids: list[str] = []  # 被删除的后续消息 ID
+    regenerate_triggered: bool = False  # 是否触发了重新生成
+
+
+class MessagesDeletedPayload(BaseModel):
+    """消息已删除通知（编辑时删除后续消息）"""
+    message_ids: list[str]
+    reason: str = "edit_regenerate"  # 删除原因
+
+
 # ========== Payload 映射表 ==========
 ACTION_PAYLOAD_MAP: dict[str, type[BaseModel]] = {
     # System
@@ -277,6 +324,8 @@ ACTION_PAYLOAD_MAP: dict[str, type[BaseModel]] = {
     WSAction.CLIENT_AGENT_START_HANDOFF: StartHandoffPayload,
     WSAction.CLIENT_AGENT_END_HANDOFF: EndHandoffPayload,
     WSAction.CLIENT_AGENT_TRANSFER: TransferPayload,
+    WSAction.CLIENT_AGENT_WITHDRAW_MESSAGE: WithdrawMessagePayload,
+    WSAction.CLIENT_AGENT_EDIT_MESSAGE: EditMessagePayload,
 
     # Server Push
     WSAction.SERVER_MESSAGE: ServerMessagePayload,
@@ -289,4 +338,7 @@ ACTION_PAYLOAD_MAP: dict[str, type[BaseModel]] = {
     WSAction.SERVER_AGENT_ONLINE: AgentPresencePayload,
     WSAction.SERVER_AGENT_OFFLINE: AgentPresencePayload,
     WSAction.SERVER_CONVERSATION_STATE: ConversationStatePayload,
+    WSAction.SERVER_MESSAGE_WITHDRAWN: MessageWithdrawnPayload,
+    WSAction.SERVER_MESSAGE_EDITED: MessageEditedPayload,
+    WSAction.SERVER_MESSAGES_DELETED: MessagesDeletedPayload,
 }

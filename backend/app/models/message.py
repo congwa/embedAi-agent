@@ -76,6 +76,39 @@ class Message(Base):
         nullable=True,
     )  # 响应耗时（毫秒）
 
+    # ========== 撤回/编辑相关字段 ==========
+    is_withdrawn: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )  # 是否已撤回
+    withdrawn_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )  # 撤回时间
+    withdrawn_by: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )  # 撤回操作人
+
+    is_edited: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )  # 是否已编辑
+    edited_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        nullable=True,
+    )  # 编辑时间
+    edited_by: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )  # 编辑操作人
+    original_content: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )  # 原始内容（编辑前备份）
+
     # 关联
     conversation: Mapped["Conversation"] = relationship(
         "Conversation",

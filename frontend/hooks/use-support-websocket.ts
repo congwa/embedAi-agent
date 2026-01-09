@@ -14,6 +14,9 @@ import type {
   UserPresencePayload,
   ConversationStatePayload,
   ReadReceiptPayload,
+  MessageWithdrawnPayload,
+  MessageEditedPayload,
+  MessagesDeletedPayload,
 } from "@/types/websocket";
 import { WS_PROTOCOL_VERSION } from "@/types/websocket";
 import type { ImageAttachment } from "@/types/chat";
@@ -24,6 +27,9 @@ interface UseSupportWebSocketOptions {
   onMessage?: (message: SupportMessage) => void;
   onStateChange?: (state: ConversationState) => void;
   onReadReceipt?: (payload: ReadReceiptPayload) => void;
+  onMessageWithdrawn?: (payload: MessageWithdrawnPayload) => void;
+  onMessageEdited?: (payload: MessageEditedPayload) => void;
+  onMessagesDeleted?: (payload: MessagesDeletedPayload) => void;
 }
 
 interface UseSupportWebSocketReturn {
@@ -36,6 +42,8 @@ interface UseSupportWebSocketReturn {
   startHandoff: (reason?: string) => void;
   endHandoff: (summary?: string) => void;
   markAsRead: (messageIds: string[]) => void;
+  withdrawMessage: (messageId: string, reason?: string) => void;
+  editMessage: (messageId: string, newContent: string, regenerate?: boolean) => void;
 }
 
 function generateId(): string {
@@ -63,6 +71,9 @@ export function useSupportWebSocket({
   onMessage,
   onStateChange,
   onReadReceipt,
+  onMessageWithdrawn,
+  onMessageEdited,
+  onMessagesDeleted,
 }: UseSupportWebSocketOptions): UseSupportWebSocketReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -207,13 +218,31 @@ export function useSupportWebSocket({
           break;
         }
 
+        case "server.message_withdrawn": {
+          const payload = msg.payload as unknown as MessageWithdrawnPayload;
+          onMessageWithdrawn?.(payload);
+          break;
+        }
+
+        case "server.message_edited": {
+          const payload = msg.payload as unknown as MessageEditedPayload;
+          onMessageEdited?.(payload);
+          break;
+        }
+
+        case "server.messages_deleted": {
+          const payload = msg.payload as unknown as MessagesDeletedPayload;
+          onMessagesDeleted?.(payload);
+          break;
+        }
+
         default:
           console.log("Unknown action:", msg.action, msg.payload);
       }
     } catch (e) {
       console.error("Failed to parse WebSocket message:", e);
     }
-  }, [onMessage, onStateChange]);
+  }, [onMessage, onStateChange, onMessageWithdrawn, onMessageEdited, onMessagesDeleted]);
 
   // 连接 WebSocket
   const connect = useCallback(() => {
@@ -328,6 +357,34 @@ export function useSupportWebSocket({
     [send, conversationId]
   );
 
+  // 撤回消息
+  const withdrawMessage = useCallback(
+    (messageId: string, reason?: string) => {
+      send(
+        buildMessage(
+          "client.agent.withdraw_message",
+          { message_id: messageId, reason: reason || "" },
+          conversationId
+        )
+      );
+    },
+    [send, conversationId]
+  );
+
+  // 编辑消息
+  const editMessage = useCallback(
+    (messageId: string, newContent: string, regenerate: boolean = true) => {
+      send(
+        buildMessage(
+          "client.agent.edit_message",
+          { message_id: messageId, new_content: newContent, regenerate },
+          conversationId
+        )
+      );
+    },
+    [send, conversationId]
+  );
+
   return {
     isConnected,
     connectionId,
@@ -338,5 +395,7 @@ export function useSupportWebSocket({
     startHandoff,
     endHandoff,
     markAsRead,
+    withdrawMessage,
+    editMessage,
   };
 }

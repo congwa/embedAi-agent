@@ -219,3 +219,114 @@ class MessageRepository(BaseRepository[Message]):
             )
         )
         return len(list(result.scalars().all()))
+
+    # ========== 撤回/编辑相关方法 ==========
+
+    async def withdraw_message(
+        self,
+        message_id: str,
+        operator: str,
+    ) -> Message | None:
+        """撤回消息
+        
+        Args:
+            message_id: 消息 ID
+            operator: 操作人（客服 ID）
+            
+        Returns:
+            更新后的消息，如果消息不存在或已撤回则返回 None
+        """
+        message = await self.get_by_id(message_id)
+        if not message or message.is_withdrawn:
+            return None
+        
+        now = datetime.now()
+        message.is_withdrawn = True
+        message.withdrawn_at = now
+        message.withdrawn_by = operator
+        await self.update(message)
+        return message
+
+    async def edit_message(
+        self,
+        message_id: str,
+        new_content: str,
+        operator: str,
+    ) -> Message | None:
+        """编辑消息内容
+        
+        Args:
+            message_id: 消息 ID
+            new_content: 新内容
+            operator: 操作人（客服 ID）
+            
+        Returns:
+            更新后的消息，如果消息不存在或已撤回则返回 None
+        """
+        message = await self.get_by_id(message_id)
+        if not message or message.is_withdrawn:
+            return None
+        
+        now = datetime.now()
+        # 首次编辑时保存原始内容
+        if not message.is_edited:
+            message.original_content = message.content
+        
+        message.content = new_content
+        message.is_edited = True
+        message.edited_at = now
+        message.edited_by = operator
+        await self.update(message)
+        return message
+
+    async def get_messages_after(
+        self,
+        conversation_id: str,
+        after_message_id: str,
+    ) -> list[Message]:
+        """获取指定消息之后的所有消息
+        
+        Args:
+            conversation_id: 会话 ID
+            after_message_id: 起始消息 ID（不包含）
+            
+        Returns:
+            后续消息列表
+        """
+        # 先获取参考消息的创建时间
+        ref_message = await self.get_by_id(after_message_id)
+        if not ref_message:
+            return []
+        
+        result = await self.session.execute(
+            select(Message)
+            .where(
+                and_(
+                    Message.conversation_id == conversation_id,
+                    Message.created_at > ref_message.created_at,
+                )
+            )
+            .order_by(Message.created_at)
+        )
+        return list(result.scalars().all())
+
+    async def delete_messages(
+        self,
+        message_ids: list[str],
+    ) -> int:
+        """删除消息
+        
+        Args:
+            message_ids: 要删除的消息 ID 列表
+            
+        Returns:
+            删除的消息数量
+        """
+        count = 0
+        for msg_id in message_ids:
+            message = await self.get_by_id(msg_id)
+            if message:
+                await self.session.delete(message)
+                count += 1
+        await self.session.flush()
+        return count
