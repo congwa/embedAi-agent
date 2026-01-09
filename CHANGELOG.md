@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11] - 2026-01-09
+
+### 2026-01-09 17:40 (UTC+08:00)
+
+#### Added
+
+- **多智能体系统架构** (`backend/app/services/agent/*`, `backend/app/models/agent.py`): 重构 Agent 架构，支持多 Agent 类型（Product/FAQ/KB/Custom），实现模块化设计与配置驱动的 Agent 创建。
+- **Quick Setup 一站式引导** (`backend/app/routers/quick_setup.py`, `backend/app/services/quick_setup/*`, `frontend/app/admin/quick-setup/*`): 新增可视化配置向导，支持 3 步完成 Agent 创建（选择类型 → 配置知识源 → 设置开场白），降低非技术用户使用门槛。
+- **Agent 开场白系统** (`backend/app/models/agent.py`, `frontend/components/features/chat/*`): 支持多渠道开场白配置（Web/嵌入组件/客服），可设置触发条件、延迟时间、CTA 按钮等。
+- **推荐问题系统** (`backend/app/models/agent.py`, `backend/app/routers/agents.py`, `frontend/components/features/chat/*`): 支持为 Agent 配置推荐问题，提供热度统计与智能排序，引导用户快速提问。
+- **PostgreSQL 数据库支持** (`backend/app/core/database.py`, `backend/.env.example`): 新增多数据库后端架构，支持 SQLite 和 PostgreSQL 切换，生产环境可使用 PostgreSQL 提升性能。
+- **消息撤回与编辑功能** (`backend/app/routers/chat.py`, `backend/app/services/conversation.py`): 支持客服消息撤回、编辑与重新生成，优化客服工作流。
+- **图片上传与 OCR 识别** (`backend/app/routers/ocr.py`, `backend/app/routers/upload.py`, `frontend/components/features/chat/*`): 支持多模态对话，用户可上传图片并进行 OCR 文字识别。
+- **消息分页查询接口** (`backend/app/routers/conversations.py`): 优化历史消息加载性能，支持分页查询与懒加载。
+- **Agent 记忆配置与预览** (`backend/app/routers/agents.py`, `frontend/app/admin/agents/*`): 支持查看用户记忆数据、配置记忆策略、预览提示词效果。
+- **聊天主题系统** (`frontend/stores/theme-store.ts`, `frontend/components/features/chat/*`): 新增 Ethereal 与 Industrial 两种聊天界面风格，支持动态切换。
+- **健康检查系统** (`backend/app/routers/health.py`, `backend/app/core/health.py`): 新增系统健康检查端点，监控 Qdrant、数据库、LLM API 等依赖状态。
+- **管理后台设置中心** (`backend/app/routers/admin.py`, `frontend/app/admin/settings/*`): 提供系统配置概览、中间件默认值查询、原始配置导出等功能。
+- **消息响应耗时追踪** (`backend/app/models/message.py`, `backend/app/services/agent/middleware/logging.py`): 记录每条消息的 LLM 响应耗时，支持性能分析。
+- **默认 Agent 配置注入** (`backend/app/core/config.py`, `backend/app/services/agent/bootstrap.py`): 支持通过环境变量或配置文件定义默认 Agent，启动时自动初始化。
+- **FAQ 高级筛选与统计** (`backend/app/routers/agents.py`, `frontend/app/admin/faq/*`): 新增 FAQ 分类统计、最近更新追踪、智能合并建议等功能。
+- **客服工作台热度排序** (`backend/app/services/support/heat_score.py`, `frontend/app/support/*`): 基于等待时长、消息数、用户活跃度等维度计算会话热度，优化客服优先级管理。
+- **Agent 激活机制** (`frontend/contexts/agent-context.tsx`, `frontend/components/admin/agent-switcher.tsx`): 支持全局激活 Agent，管理后台可快速切换当前工作的 Agent。
+- **悬浮聊天气泡拖拽** (`frontend/components/features/embed/*`): 嵌入式组件支持拖拽与边缘吸附，优化移动端体验。
+
+#### Changed
+
+- **统一 API 路由前缀** (`backend/app/main.py`, `backend/app/routers/*`): 将所有 API 路由统一为 `/api/v1` 前缀，规范化接口版本管理。
+- **Docker Compose 配置统一** (`docker-compose.yml`, `docker-compose.prod.yml`): 移除独立生产环境配置文件，统一使用 `docker-compose.yml` 并通过 profile 控制环境。
+- **服务容器依赖注入** (`backend/app/core/dependencies.py`, `backend/app/core/container.py`): 新增服务容器统一管理依赖注入，优化 WebSocket 与路由层代码复用。
+- **状态管理迁移至 Zustand** (`frontend/stores/*`, `frontend/hooks/*`): 将 Agent 与 Chat 状态管理从 Context 迁移到 Zustand Store，提升性能与可维护性。
+- **优化爬虫模块错误处理** (`backend/app/routers/crawler.py`, `backend/app/core/health.py`): 统一服务不可用错误码，优化爬虫健康检查与功能检测。
+- **日志系统增强** (`backend/app/core/logging.py`): 默认启用文件日志，新增全局异常钩子与 asyncio 事件循环异常处理器。
+- **管理后台导航优化** (`frontend/app/admin/layout.tsx`): 调整侧边栏导航顺序，Agent 中心置顶并添加核心标签，优化用户体验。
+
+#### Fixed
+
+- **筛选器空值处理** (`frontend/app/admin/conversations/page.tsx`, `frontend/app/admin/crawler/sites/page.tsx`): 修复 Radix UI SelectItem 空字符串冲突，统一使用 `"all"` 作为默认值。
+- **会话列表类型检查** (`frontend/app/page.tsx`, `frontend/lib/api/conversations.ts`): 新增数组类型检查，防止非数组类型导致的运行时错误。
+- **Qdrant 连接失败处理** (`backend/app/core/qdrant.py`): 优化 Qdrant 客户端容错机制，连接失败时不阻塞应用启动。
+- **SQLAlchemy 布尔比较** (`backend/app/repositories/message.py`): 使用 `.is_(False)` 和 `is None` 替代 `== False` 和 `== None`，符合最佳实践。
+
+#### Docs
+
+- **Docker 一键部署指南** (`README.md`, `README_DOCKER.md`): 新增详细的 Docker 部署文档，优化快速开始章节结构。
+- **README 重构** (`README.md`): 重写用户文档，强调四种 Agent 类型、三种对话模式、一站式引导等核心功能，面向非技术用户优化。
+
 ## [0.1.10] - 2026-01-04
 
 ### 2026-01-04 16:00 (UTC+08:00)
