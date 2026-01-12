@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Simple version update script for EmbedAI Agent
+Simple version update script for EmbedEase AI
 # 预览模式
 python3 update_version.py --dry-run
 
@@ -95,7 +95,7 @@ def update_frontend_version(new_version):
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] in ['-h', '--help']:
-        print("EmbedAI Agent Version Update Script")
+        print("EmbedEase AI Version Update Script")
         print("")
         print("Usage:")
         print("    python update_version.py [increment_type] [--dry-run]")

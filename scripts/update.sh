@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # ========================================
-# EmbedAI Agent 更新脚本
+# EmbedEase AI 更新脚本
 # ========================================
 
 set -e
 
-echo "开始更新 EmbedAI Agent..."
+echo "开始更新 EmbedEase AI..."
 echo ""
 
 # 备份当前数据

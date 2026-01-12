@@ -677,10 +677,10 @@ export default function LandingPage() {
               <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center text-white font-bold">
                 E
               </div>
-              <span className="font-bold">EmbedAI Agent</span>
+              <span className="font-bold">EmbedEase AI</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © 2026 EmbedAI Agent. 让每一个匿名访客都成为潜在客户。
+              © 2026 EmbedEase AI. 让每一个匿名访客都成为潜在客户。
             </p>
           </div>
         </div>

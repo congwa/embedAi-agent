@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ========================================
-# EmbedAI Agent 一键安装脚本
+# EmbedEase AI 一键安装脚本
 # ========================================
 # 自动检测环境、配置参数、启动服务
 # 适合不懂代码的用户直接运行
@@ -478,7 +478,7 @@ import_sample_data() {
 show_access_info() {
     print_header "安装完成"
     
-    echo -e "${GREEN}🎉 恭喜！EmbedAI Agent 已成功安装并启动${NC}"
+    echo -e "${GREEN}🎉 恭喜！EmbedEase AI 已成功安装并启动${NC}"
     echo ""
     echo "访问地址："
     echo -e "  前端界面: ${BLUE}http://localhost:$FRONTEND_PORT${NC}"
@@ -508,9 +508,9 @@ show_access_info() {
 main() {
     clear
     
-    print_header "EmbedAI Agent 一键安装向导"
+    print_header "EmbedEase AI 一键安装向导"
     
-    echo "欢迎使用 EmbedAI Agent！"
+    echo "欢迎使用 EmbedEase AI！"
     echo "本脚本将帮助您快速部署完整的商品推荐 Agent 系统"
     echo ""
     echo "安装过程包括："
