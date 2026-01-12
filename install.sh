@@ -287,9 +287,9 @@ QDRANT_COLLECTION=products
 # ========================================
 # PostgreSQL 数据库配置
 # ========================================
-POSTGRES_USER=embedai
+POSTGRES_USER=embedeaseai
 POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
-POSTGRES_DB=embedai
+POSTGRES_DB=embedeaseai
 POSTGRES_PORT=5432
 
 # ========================================

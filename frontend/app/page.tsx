@@ -60,7 +60,7 @@ export default function LandingPage() {
             >
               E
             </motion.div>
-            <span className="font-bold text-xl tracking-tight">EmbedAI</span>
+            <span className="font-bold text-xl tracking-tight">EmbedeaseAi</span>
           </div>
 
           <div className="flex items-center gap-4">
@@ -130,7 +130,7 @@ export default function LandingPage() {
                 transition={{ delay: 0.9 }}
                 className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed"
               >
-                EmbedAI 不仅仅是智能客服，它能将网站的匿名咨询
+                EmbedeaseAi 不仅仅是智能客服，它能将网站的匿名咨询
                 <span className="text-foreground font-semibold">实时推送到企业微信</span>
                 ，让您一键直连客户，抓住稍纵即逝的商机。
               </motion.p>

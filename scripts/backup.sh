@@ -8,7 +8,7 @@ set -e
 
 BACKUP_DIR="./backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/embedai-backup-$TIMESTAMP.tar.gz"
+BACKUP_FILE="$BACKUP_DIR/embedeaseai-backup-$TIMESTAMP.tar.gz"
 
 # 创建备份目录
 mkdir -p "$BACKUP_DIR"
@@ -24,12 +24,12 @@ docker compose -f docker-compose.prod.yml exec -T backend tar -czf - /app/data >
 
 # 备份 Qdrant 数据
 echo "备份 Qdrant 数据..."
-docker run --rm -v embedai-agent_qdrant_data:/data -v "$(pwd)/$BACKUP_DIR":/backup alpine tar -czf "/backup/qdrant-data-$TIMESTAMP.tar.gz" /data
+docker run --rm -v embedeaseai-agent_qdrant_data:/data -v "$(pwd)/$BACKUP_DIR":/backup alpine tar -czf "/backup/qdrant-data-$TIMESTAMP.tar.gz" /data
 
 # 备份 PostgreSQL 数据（如果使用）
 if docker compose -f docker-compose.prod.yml ps postgres | grep -q "Up"; then
     echo "备份 PostgreSQL 数据..."
-    docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U embedai embedai > "$BACKUP_DIR/postgres-$TIMESTAMP.sql"
+    docker compose -f docker-compose.prod.yml exec -T postgres pg_dump -U embedeaseai embedeaseai > "$BACKUP_DIR/postgres-$TIMESTAMP.sql"
 fi
 
 # 备份配置文件

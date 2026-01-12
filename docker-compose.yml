@@ -14,7 +14,7 @@ services:
   # ========== Qdrant 向量数据库 ==========
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: embedai-qdrant
+    container_name: embedeaseai-qdrant
     ports:
       - "${QDRANT_PORT:-6333}:6333"
       - "6334:6334"
@@ -29,28 +29,28 @@ services:
       retries: 5
     restart: unless-stopped
     networks:
-      - embedai-network
+      - embedeaseai-network
 
   # ========== PostgreSQL 数据库（可选，通过 --profile postgres 启用）==========
   postgres:
     image: postgres:16-alpine
-    container_name: embedai-postgres
+    container_name: embedeaseai-postgres
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     environment:
-      - POSTGRES_USER=${POSTGRES_USER:-embedai}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-embedai_password}
-      - POSTGRES_DB=${POSTGRES_DB:-embedai}
+      - POSTGRES_USER=${POSTGRES_USER:-embedeaseai}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-embedeaseai_password}
+      - POSTGRES_DB=${POSTGRES_DB:-embedeaseai}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-embedai}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-embedeaseai}"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
     networks:
-      - embedai-network
+      - embedeaseai-network
     profiles:
       - postgres
       - production
@@ -58,7 +58,7 @@ services:
   # ========== MinIO 对象存储（用于图片上传）==========
   minio:
     image: minio/minio:latest
-    container_name: embedai-minio
+    container_name: embedeaseai-minio
     ports:
       - "${MINIO_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
@@ -75,14 +75,14 @@ services:
       retries: 3
     restart: unless-stopped
     networks:
-      - embedai-network
+      - embedeaseai-network
 
   # ========== 后端服务（生产环境，通过 --profile production 启用）==========
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: embedai-backend
+    container_name: embedeaseai-backend
     ports:
       - "${API_PORT:-8000}:8000"
     env_file:
@@ -112,7 +112,7 @@ services:
       start_period: 40s
     restart: unless-stopped
     networks:
-      - embedai-network
+      - embedeaseai-network
     profiles:
       - production
 
@@ -121,7 +121,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: embedai-frontend
+    container_name: embedeaseai-frontend
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
@@ -137,14 +137,14 @@ services:
       start_period: 40s
     restart: unless-stopped
     networks:
-      - embedai-network
+      - embedeaseai-network
     profiles:
       - production
 
   # ========== Nginx 反向代理（生产环境，通过 --profile production 启用）==========
   nginx:
     image: nginx:alpine
-    container_name: embedai-nginx
+    container_name: embedeaseai-nginx
     ports:
       - "${NGINX_HTTP_PORT:-80}:80"
       - "${NGINX_HTTPS_PORT:-443}:443"
@@ -156,7 +156,7 @@ services:
       - backend
     restart: unless-stopped
     networks:
-      - embedai-network
+      - embedeaseai-network
     profiles:
       - production
 
@@ -173,5 +173,5 @@ volumes:
     driver: local
 
 networks:
-  embedai-network:
+  embedeaseai-network:
     driver: bridge

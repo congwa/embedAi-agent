@@ -86,9 +86,9 @@ class Settings(BaseSettings):
     # PostgreSQL 配置（DATABASE_BACKEND=postgres 时生效）
     POSTGRES_HOST: str = "localhost"
     POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str = "embedai"
+    POSTGRES_USER: str = "embedeaseai"
     POSTGRES_PASSWORD: str = ""
-    POSTGRES_DB: str = "embedai"
+    POSTGRES_DB: str = "embedeaseai"
     POSTGRES_URL: str | None = None  # 直接指定完整 URL（优先级最高）
 
     # 连接池配置（PostgreSQL 生效）

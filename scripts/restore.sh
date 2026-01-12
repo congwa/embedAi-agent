@@ -8,7 +8,7 @@ set -e
 
 if [ -z "$1" ]; then
     echo "用法: $0 <备份文件>"
-    echo "示例: $0 ./backups/embedai-backup-20240108_120000.tar.gz"
+    echo "示例: $0 ./backups/embedeaseai-backup-20240108_120000.tar.gz"
     exit 1
 fi
 
@@ -42,13 +42,13 @@ tar -xzf "$BACKUP_FILE" -C "$TEMP_DIR"
 # 恢复后端数据
 if [ -f "$TEMP_DIR"/backend-data-*.tar.gz ]; then
     echo "恢复后端数据..."
-    docker run --rm -v embedai-agent_backend_data:/app/data -v "$TEMP_DIR":/backup alpine sh -c "cd / && tar -xzf /backup/backend-data-*.tar.gz"
+    docker run --rm -v embedeaseai-agent_backend_data:/app/data -v "$TEMP_DIR":/backup alpine sh -c "cd / && tar -xzf /backup/backend-data-*.tar.gz"
 fi
 
 # 恢复 Qdrant 数据
 if [ -f "$TEMP_DIR"/qdrant-data-*.tar.gz ]; then
     echo "恢复 Qdrant 数据..."
-    docker run --rm -v embedai-agent_qdrant_data:/data -v "$TEMP_DIR":/backup alpine sh -c "cd / && tar -xzf /backup/qdrant-data-*.tar.gz"
+    docker run --rm -v embedeaseai-agent_qdrant_data:/data -v "$TEMP_DIR":/backup alpine sh -c "cd / && tar -xzf /backup/qdrant-data-*.tar.gz"
 fi
 
 # 恢复配置文件
@@ -62,7 +62,7 @@ if [ -f "$TEMP_DIR"/postgres-*.sql ]; then
     echo "恢复 PostgreSQL 数据..."
     docker compose -f docker-compose.prod.yml up -d postgres
     sleep 5
-    docker compose -f docker-compose.prod.yml exec -T postgres psql -U embedai embedai < "$TEMP_DIR"/postgres-*.sql
+    docker compose -f docker-compose.prod.yml exec -T postgres psql -U embedeaseai embedeaseai < "$TEMP_DIR"/postgres-*.sql
 fi
 
 # 清理临时目录
