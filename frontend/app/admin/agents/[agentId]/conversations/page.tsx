@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { FAQFormSheet } from "@/components/admin/faq/faq-form-sheet";
 import { useAgentDetail } from "@/lib/hooks/use-agents";
 import { createFAQEntry, type Agent, type FAQEntry } from "@/lib/api/agents";
+import { Markdown } from "@/components/prompt-kit/markdown";
 
 interface ConversationMessage {
   id: string;
@@ -294,9 +295,9 @@ export default function AgentConversationsPage() {
                                     </Button>
                                   )}
                                 </div>
-                                <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
-                                  {msg.content}
-                                </p>
+                                <div className="mt-1 text-sm text-zinc-700 dark:text-zinc-300 prose prose-sm dark:prose-invert max-w-none">
+                                  <Markdown>{msg.content}</Markdown>
+                                </div>
                               </div>
                             </div>
                           );

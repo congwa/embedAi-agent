@@ -28,7 +28,10 @@ export function TimelineSupportEventItem({ item }: TimelineSupportEventItemProps
               </span>
             )}
           </div>
-          <MessageContent className="max-w-[85%] rounded-2xl rounded-tl-sm bg-blue-50 px-4 py-2.5 text-zinc-900 dark:bg-blue-900/30 dark:text-zinc-100 sm:max-w-[75%]">
+          <MessageContent
+            markdown
+            className="max-w-[85%] rounded-2xl rounded-tl-sm bg-blue-50 px-4 py-2.5 text-zinc-900 dark:bg-blue-900/30 dark:text-zinc-100 sm:max-w-[75%]"
+          >
             {item.content}
           </MessageContent>
         </div>

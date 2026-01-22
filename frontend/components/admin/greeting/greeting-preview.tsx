@@ -1,7 +1,7 @@
 "use client";
 
 import { Bot } from "lucide-react";
-import ReactMarkdown from "react-markdown";
+import { Markdown } from "@/components/prompt-kit/markdown";
 import { cn } from "@/lib/utils";
 
 interface GreetingPreviewProps {
@@ -58,7 +58,7 @@ export function GreetingPreview({
                 <p className="mb-2 text-sm text-zinc-500">{subtitle}</p>
               )}
               <div className="prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown>{body || "请输入开场白内容..."}</ReactMarkdown>
+                <Markdown>{body || "请输入开场白内容..."}</Markdown>
               </div>
 
               {/* CTA 按钮 */}

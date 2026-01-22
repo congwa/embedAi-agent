@@ -1,19 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertCircle, ArrowUp, Bot, Network, Square, X } from "lucide-react";
+import { AlertCircle, Bot, Network, X } from "lucide-react";
 import {
   ChatContainerContent,
   ChatContainerRoot,
 } from "@/components/prompt-kit/chat-container";
 import { Message } from "@/components/prompt-kit/message";
-import {
-  PromptInput,
-  PromptInputActions,
-  PromptInputTextarea,
-} from "@/components/prompt-kit/prompt-input";
 import { ScrollButton } from "@/components/prompt-kit/scroll-button";
-import { Button } from "@/components/ui/button";
+import { ChatRichInput } from "@/components/features/chat/ChatRichInput";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +22,7 @@ import {
   TimelineSupportEventItem,
   TimelineGreetingItem,
   TimelineWaitingItem,
-} from "./timeline";
+} from "@/components/features/chat/timeline";
 import {
   useChatThemeOptional,
   ThemeSwitcherIcon,
@@ -36,8 +31,8 @@ import {
   ThemedEmptyTitle,
   ThemedEmptyDescription,
   ThemedSuggestionButton,
-} from "./themes";
-import { QuickQuestionBar } from "./QuickQuestionBar";
+} from "@/components/features/chat/themes";
+import { QuickQuestionBar } from "@/components/features/chat/QuickQuestionBar";
 import { useSuggestedQuestions } from "@/lib/hooks/use-suggested-questions";
 import { useAgentStore } from "@/stores/agent-store";
 
@@ -92,7 +87,7 @@ export function ChatContent() {
     }
   };
 
-  const renderTimelineItem = (item: TimelineItem, index: number) => {
+  const renderTimelineItem = (item: TimelineItem, _index: number) => {
     switch (item.type) {
       case "user.message":
         return (
@@ -319,57 +314,18 @@ export function ChatContent() {
               </button>
             </div>
           )}
-          <PromptInput
-            isLoading={isStreaming}
+          <ChatRichInput
             value={prompt}
             onValueChange={setPrompt}
             onSubmit={handleButtonClick}
+            placeholder={themeId === "industrial" ? "INPUT QUERY..." : "描述你想要的商品..."}
+            isLoading={isStreaming}
             className={cn(
-              "relative z-10 w-full p-0 pt-1",
-              themeId === "default" && "rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-800",
+              "relative z-10 w-full shadow-sm",
               themeId === "ethereal" && "chat-ethereal-input-wrapper",
               themeId === "industrial" && "chat-industrial-input-wrapper"
             )}
-          >
-            <div className="flex flex-col">
-              <PromptInputTextarea
-                placeholder={themeId === "industrial" ? "INPUT QUERY..." : "描述你想要的商品..."}
-                className={cn(
-                  "min-h-[44px] pl-4 pt-3 text-base leading-[1.3]",
-                  themeId === "ethereal" && "chat-ethereal-textarea",
-                  themeId === "industrial" && "chat-industrial-textarea"
-                )}
-              />
-
-              <PromptInputActions className="mt-5 flex w-full items-center justify-end gap-2 px-3 pb-3">
-                <Button
-                  size="icon"
-                  disabled={!isStreaming && !prompt.trim()}
-                  onClick={handleButtonClick}
-                  className={cn(
-                    "h-9 w-9 transition-colors",
-                    themeId === "default" && "rounded-full",
-                    themeId === "ethereal" && cn(
-                      "rounded-full",
-                      prompt.trim() || isStreaming ? "chat-ethereal-send-btn-active" : "chat-ethereal-send-btn"
-                    ),
-                    themeId === "industrial" && cn(
-                      "rounded-sm",
-                      prompt.trim() || isStreaming ? "chat-industrial-send-btn-active" : "chat-industrial-send-btn"
-                    ),
-                    isStreaming && themeId === "default" && "bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
-                  )}
-                  title={isStreaming ? "停止生成" : "发送消息"}
-                >
-                  {isStreaming ? (
-                    <Square className="h-4 w-4" />
-                  ) : (
-                    <ArrowUp className="h-4 w-4" />
-                  )}
-                </Button>
-              </PromptInputActions>
-            </div>
-          </PromptInput>
+          />
         </div>
       </div>
     </main>

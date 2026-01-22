@@ -2,8 +2,11 @@
 
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { MessageCircle, X, Trash2, Minus, AlertCircle, ArrowUp, Square, Headphones, Bot } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import "./embed.css";
 import { useUserWebSocket, type SupportMessage, type ConversationState } from "./useUserWebSocket";
+import { EmbedRichInput } from "./EmbedRichInput";
 
 interface EmbedConfig {
   apiBaseUrl?: string;
@@ -406,7 +409,9 @@ export function EmbedWidget({ config }: EmbedWidgetProps) {
                       <div className="embed-message-system">{msg.content}</div>
                     )}
                     {msg.role !== "system" && (
-                      <div className="embed-message-content">{msg.content}</div>
+                      <div className="embed-message-content embed-markdown">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -436,24 +441,14 @@ export function EmbedWidget({ config }: EmbedWidgetProps) {
                 </button>
               </div>
             )}
-            <div className="embed-input-wrapper">
-              <textarea
-                className="embed-input"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={placeholder}
-                rows={1}
-                disabled={isLoading}
-              />
-              <button
-                className={`embed-send-btn ${isStreaming ? "embed-send-btn-stop" : ""}`}
-                onClick={handleSubmit}
-                disabled={isLoading || (!isStreaming && !input.trim())}
-              >
-                {isStreaming ? <Square size={14} /> : <ArrowUp size={14} />}
-              </button>
-            </div>
+            <EmbedRichInput
+              value={input}
+              onChange={setInput}
+              onSubmit={handleSubmit}
+              placeholder={placeholder}
+              disabled={isLoading}
+              isLoading={isStreaming}
+            />
           </div>
         </div>
       )}

@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Slider } from "@/components/ui/slider";
 import { Save, Loader2, Globe, Headphones, Code } from "lucide-react";
 import { GreetingPreview } from "@/components/admin/greeting";
-import { RichEditor } from "@/components/admin/rich-editor";
+import { RichEditor } from "@/components/rich-editor";
 import {
   getAgentGreeting,
   updateAgentGreeting,

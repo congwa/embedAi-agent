@@ -7,12 +7,8 @@ import {
   ChatContainerRoot,
 } from "@/components/prompt-kit/chat-container";
 import { Message } from "@/components/prompt-kit/message";
-import {
-  PromptInput,
-  PromptInputActions,
-  PromptInputTextarea,
-} from "@/components/prompt-kit/prompt-input";
 import { ScrollButton } from "@/components/prompt-kit/scroll-button";
+import { ChatRichInput } from "@/components/features/chat/ChatRichInput";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { TimelineItem } from "@/hooks/use-timeline-reducer";
@@ -228,39 +224,14 @@ export function EmbedChatContent({
             </button>
           </div>
         )}
-        <PromptInput
-          isLoading={isStreaming}
+        <ChatRichInput
           value={prompt}
           onValueChange={setPrompt}
           onSubmit={handleButtonClick}
-          className="relative w-full rounded-2xl border border-zinc-200 bg-zinc-50 p-0 dark:border-zinc-700 dark:bg-zinc-800"
-        >
-          <div className="flex items-center gap-1 pr-1">
-            <PromptInputTextarea
-              placeholder="输入消息..."
-              className="min-h-[36px] max-h-[100px] pl-3 py-2 text-sm leading-[1.4] flex-1"
-            />
-            <PromptInputActions className="flex items-center">
-              <Button
-                size="icon"
-                disabled={!isStreaming && !prompt.trim()}
-                onClick={handleButtonClick}
-                className={cn(
-                  "h-7 w-7 rounded-full transition-colors",
-                  isStreaming &&
-                    "bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700"
-                )}
-                title={isStreaming ? "停止" : "发送"}
-              >
-                {isStreaming ? (
-                  <Square className="h-3 w-3" />
-                ) : (
-                  <ArrowUp className="h-3 w-3" />
-                )}
-              </Button>
-            </PromptInputActions>
-          </div>
-        </PromptInput>
+          placeholder="输入消息..."
+          disabled={false}
+          isLoading={isStreaming}
+        />
       </div>
     </div>
   );

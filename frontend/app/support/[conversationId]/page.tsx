@@ -49,6 +49,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import type { ImageAttachment } from "@/types/chat";
 import { uploadImage, type ImageUploadResponse } from "@/lib/api/upload";
+import { Markdown } from "@/components/prompt-kit/markdown";
+import { ChatRichInput } from "@/components/features/chat/ChatRichInput";
 
 export default function SupportChatPage() {
   const params = useParams();
@@ -501,7 +503,9 @@ export default function SupportChatPage() {
               </div>
             )}
             {message.content && (
-              <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+              <div className="text-sm prose prose-sm dark:prose-invert max-w-none">
+                <Markdown>{message.content}</Markdown>
+              </div>
             )}
             <div
               className={cn(
@@ -745,32 +749,19 @@ export default function SupportChatPage() {
             >
               <ImagePlus className={cn("h-5 w-5", isUploading && "animate-pulse")} />
             </Button>
-            <textarea
+            <ChatRichInput
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onValueChange={setInputValue}
+              onSubmit={handleSend}
               placeholder={
                 effectiveHandoffState === "human"
                   ? "输入消息..."
                   : "请先点击「接入」开始客服介入"
               }
               disabled={effectiveHandoffState !== "human"}
-              className={cn(
-                "flex-1 resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm",
-                "focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500",
-                "dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100",
-                "disabled:opacity-50 disabled:cursor-not-allowed"
-              )}
-              rows={1}
+              isLoading={false}
+              className="flex-1"
             />
-            <Button
-              size="icon"
-              onClick={handleSend}
-              disabled={(!inputValue.trim() && pendingImages.length === 0) || effectiveHandoffState !== "human"}
-              className="h-11 w-11 rounded-xl bg-green-500 hover:bg-green-600"
-            >
-              <ArrowUp className="h-5 w-5" />
-            </Button>
           </div>
         </div>
       </div>
