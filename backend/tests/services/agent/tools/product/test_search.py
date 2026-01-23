@@ -3,9 +3,7 @@
 测试商品搜索工具的模型和逻辑。
 """
 
-import pytest
 import json
-from unittest.mock import MagicMock, AsyncMock, patch
 
 from app.services.agent.tools.product.search import (
     ProductSearchResult,

@@ -1,12 +1,11 @@
 """工具调用策略测试"""
 
-import pytest
 
 from app.services.agent.core.policy import (
-    ToolPolicy,
-    NATURAL_POLICY,
     FREE_POLICY,
+    NATURAL_POLICY,
     STRICT_POLICY,
+    ToolPolicy,
     get_policy,
 )
 

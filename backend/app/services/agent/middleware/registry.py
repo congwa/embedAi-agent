@@ -172,7 +172,7 @@ def _get_middleware_specs(mode: str, model: Any) -> list[MiddlewareSpec]:
             try:
                 summarization_model = init_chat_model(settings.AGENT_SUMMARIZATION_MODEL)
             except Exception as e:
-                logger.warning(f"摘要模型初始化失败，使用主模型", error=str(e))
+                logger.warning("摘要模型初始化失败，使用主模型", error=str(e))
 
         inner = SummarizationMiddleware(
             model=summarization_model,
@@ -344,7 +344,9 @@ def build_middlewares_for_agent(config: "AgentConfig", model: Any) -> list[Any]:
     from app.services.agent.middleware.sequential_tools import SequentialToolExecutionMiddleware
     from app.services.agent.middleware.sliding_window import SlidingWindowMiddleware
     from app.services.agent.middleware.strict_mode import StrictModeMiddleware
-    from app.services.agent.middleware.summarization_broadcast import SummarizationBroadcastMiddleware
+    from app.services.agent.middleware.summarization_broadcast import (
+        SummarizationBroadcastMiddleware,
+    )
     from app.services.agent.middleware.todo_broadcast import TodoBroadcastMiddleware
     from app.services.memory.middleware.orchestration import MemoryOrchestrationMiddleware
 

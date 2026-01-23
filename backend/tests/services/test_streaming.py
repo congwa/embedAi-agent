@@ -3,15 +3,11 @@
 测试 SSE 流服务的逻辑。
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
 
 from app.schemas.events import (
-    StreamLevelEventType,
     LLMCallBoundaryEventType,
-    LLMCallInternalEventType,
+    StreamLevelEventType,
     ToolCallEventType,
-    DataEventType,
 )
 
 

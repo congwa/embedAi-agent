@@ -3,8 +3,6 @@
 测试应用配置的加载和验证。
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
 
 from app.core.config import settings
 

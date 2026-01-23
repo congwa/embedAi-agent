@@ -3,7 +3,6 @@
 测试商品对比工具的模型和逻辑。
 """
 
-import pytest
 import json
 
 

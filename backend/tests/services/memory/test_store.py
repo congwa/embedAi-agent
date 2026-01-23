@@ -2,8 +2,6 @@
 
 from datetime import datetime
 
-import pytest
-
 from app.services.memory.store import Item
 
 

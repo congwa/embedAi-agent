@@ -5,7 +5,6 @@
 - mineru_official: MinerU 官方云服务 API
 """
 
-import asyncio
 import base64
 import os
 import time
@@ -76,7 +75,7 @@ class MinerUProcessor(BaseOCRProcessor):
                     if response.status_code == 200:
                         return {
                             "status": "healthy",
-                            "message": f"MinerU 服务运行正常",
+                            "message": "MinerU 服务运行正常",
                             "details": {"server_url": self.server_url, "is_official": self.is_official},
                         }
                 except httpx.RequestError:

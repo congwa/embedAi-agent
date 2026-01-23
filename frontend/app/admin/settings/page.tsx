@@ -97,9 +97,10 @@ function MiddlewareCompareRow({
 }: {
   label: string;
   globalValue: boolean;
-  agentValue: boolean | undefined;
+  agentValue: boolean | null | undefined;
 }) {
-  const isOverridden = agentValue !== undefined && agentValue !== globalValue;
+  const normalizedAgentValue = agentValue ?? undefined;
+  const isOverridden = normalizedAgentValue !== undefined && normalizedAgentValue !== globalValue;
   const effectiveValue = agentValue ?? globalValue;
 
   return (

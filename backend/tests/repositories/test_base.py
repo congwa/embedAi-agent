@@ -4,9 +4,8 @@
 由于需要数据库连接，这里主要测试 Repository 的初始化和类型定义。
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
 from typing import TypeVar
+from unittest.mock import MagicMock
 
 from app.repositories.base import BaseRepository, ModelT
 

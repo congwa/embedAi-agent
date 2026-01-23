@@ -2,9 +2,6 @@
 
 from datetime import datetime
 
-import pytest
-from pydantic import ValidationError
-
 from app.services.memory.models import (
     Entity,
     Fact,

@@ -50,6 +50,10 @@ class ProductSearchResult(BaseModel):
     summary: str = Field(description="商品摘要")
     url: str | None = Field(default=None, description="商品链接")
     category: str | None = Field(default=None, description="商品分类")
+    # 扩展字段（阶段二）
+    highlights: list[str] | None = Field(default=None, description="商品亮点标签")
+    rating: float | None = Field(default=None, description="商品评分")
+    reviews_count: int | None = Field(default=None, description="评价数量")
 
 
 class SearchProductsResponse(BaseModel):
@@ -217,6 +221,10 @@ async def search_products(
                 "summary": doc.page_content[:200],
                 "url": doc.metadata.get("url"),
                 "category": doc.metadata.get("category"),
+                # 扩展字段
+                "highlights": doc.metadata.get("highlights"),
+                "rating": doc.metadata.get("rating"),
+                "reviewsCount": doc.metadata.get("reviews_count"),
             }
             results.append(product)
 

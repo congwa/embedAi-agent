@@ -6,17 +6,17 @@
 - 配置检查清单
 """
 
+from app.services.quick_setup.checklist import ChecklistService
 from app.services.quick_setup.configurators import (
     AgentTypeConfigurator,
     CustomAgentConfigurator,
     FAQAgentConfigurator,
     KBAgentConfigurator,
     ProductAgentConfigurator,
-    get_configurator,
     get_all_configurators,
+    get_configurator,
 )
 from app.services.quick_setup.state_manager import QuickSetupStateManager
-from app.services.quick_setup.checklist import ChecklistService
 
 __all__ = [
     "AgentTypeConfigurator",

@@ -27,7 +27,7 @@ from app.core.config import settings
 from app.core.logging import get_logger
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import DeclarativeBase
+    pass
 
 logger = get_logger("crawler.database")
 

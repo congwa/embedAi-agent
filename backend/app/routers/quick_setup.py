@@ -10,7 +10,7 @@
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,7 +26,6 @@ from app.schemas.quick_setup import (
     QuickSetupState,
     QuickSetupStateUpdate,
     ServiceHealthItem,
-    SetupStepStatus,
 )
 from app.services.quick_setup.checklist import get_checklist_service
 from app.services.quick_setup.configurators import get_all_configurators, get_configurator

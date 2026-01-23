@@ -9,7 +9,7 @@ from typing import Any
 from app.core.config import settings
 from app.core.llm import get_chat_model
 from app.core.logging import get_logger
-from app.schemas.agent import RoutingPolicy, RoutingRule, SubAgentConfig
+from app.schemas.agent import RoutingPolicy, SubAgentConfig
 
 logger = get_logger("agent.intent")
 
@@ -84,7 +84,7 @@ class IntentClassifier:
             for keyword in rule.condition.keywords or []:
                 if keyword.lower() in message_lower:
                     logger.debug(
-                        f"关键词匹配成功",
+                        "关键词匹配成功",
                         keyword=keyword,
                         target=rule.target,
                     )
@@ -95,7 +95,7 @@ class IntentClassifier:
             for hint in sub_agent.routing_hints:
                 if hint.lower() in message_lower:
                     logger.debug(
-                        f"routing_hints 匹配成功",
+                        "routing_hints 匹配成功",
                         hint=hint,
                         target=sub_agent.agent_id,
                     )
@@ -126,7 +126,7 @@ class IntentClassifier:
                 target = self._match_intent_to_agent(intent)
                 if target:
                     logger.debug(
-                        f"意图识别成功",
+                        "意图识别成功",
                         intent=intent,
                         target=target,
                     )

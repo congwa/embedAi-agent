@@ -10,7 +10,6 @@ from langchain.agents.middleware.types import AgentMiddleware, AgentState
 from langchain_core.messages import AnyMessage, trim_messages
 from langgraph.runtime import Runtime
 
-from app.core.config import settings
 from app.core.logging import get_logger
 from app.schemas.events import StreamEventType
 

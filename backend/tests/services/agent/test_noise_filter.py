@@ -2,13 +2,8 @@
 
 import json
 
-import pytest
-
 from app.services.agent.middleware.noise_filter import (
     NoiseFilterMiddleware,
-    GENERIC_NOISE_PATTERNS,
-    MAX_PRODUCT_DESCRIPTION_LENGTH,
-    MAX_PRODUCTS_IN_LIST,
 )
 
 

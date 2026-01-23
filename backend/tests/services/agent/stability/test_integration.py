@@ -3,16 +3,14 @@
 测试多个组件协同工作时的稳定性。
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from app.services.agent.core.policy import NATURAL_POLICY, STRICT_POLICY
 from app.services.agent.middleware.noise_filter import NoiseFilterMiddleware
 from app.services.agent.middleware.sliding_window import SlidingWindowMiddleware
 from app.services.agent.middleware.strict_mode import StrictModeMiddleware
-from app.services.agent.core.policy import ToolPolicy, NATURAL_POLICY, STRICT_POLICY
-from app.services.agent.tools.registry import get_tools, get_tool_names
+from app.services.agent.tools.registry import get_tool_names, get_tools
 
 
 class TestMiddlewareChainStability:

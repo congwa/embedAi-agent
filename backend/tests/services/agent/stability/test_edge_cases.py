@@ -3,25 +3,22 @@
 测试各种边界条件下的 Agent 行为稳定性。
 """
 
-import pytest
 import json
-from unittest.mock import MagicMock
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
+from app.services.agent.core.policy import ToolPolicy, get_policy
 from app.services.agent.middleware.noise_filter import NoiseFilterMiddleware
 from app.services.agent.middleware.sliding_window import SlidingWindowMiddleware
 from app.services.agent.middleware.strict_mode import (
+    STRICT_MODE_FALLBACK_MESSAGE,
     StrictModeMiddleware,
     _has_tool_calls,
-    STRICT_MODE_FALLBACK_MESSAGE,
 )
-from app.services.agent.core.policy import ToolPolicy, get_policy
 from app.services.agent.tools.registry import (
     ToolSpec,
     _get_tool_specs,
     get_tools,
-    get_tool_names,
 )
 
 

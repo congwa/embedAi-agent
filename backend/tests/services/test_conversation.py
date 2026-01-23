@@ -3,9 +3,9 @@
 测试会话服务的业务逻辑。
 """
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from datetime import datetime
 
 from app.services.conversation import ConversationService
 

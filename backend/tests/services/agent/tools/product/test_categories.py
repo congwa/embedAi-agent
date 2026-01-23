@@ -3,7 +3,6 @@
 测试类目相关工具的模型和逻辑。
 """
 
-import pytest
 import json
 
 

@@ -1,14 +1,12 @@
 """严格模式中间件测试"""
 
-import pytest
 from langchain_core.messages import AIMessage
 
-from app.services.agent.core.policy import ToolPolicy, STRICT_POLICY, NATURAL_POLICY
+from app.services.agent.core.policy import NATURAL_POLICY, STRICT_POLICY, ToolPolicy
 from app.services.agent.middleware.strict_mode import (
-    StrictModeMiddleware,
     STRICT_MODE_FALLBACK_MESSAGE,
+    StrictModeMiddleware,
     _has_tool_calls,
-    _get_mode_from_request,
 )
 
 

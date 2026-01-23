@@ -17,7 +17,6 @@ from typing import Any
 from langchain.agents.middleware.types import AgentMiddleware
 from langgraph.prebuilt.tool_node import ToolCallRequest, ToolCallWrapper
 
-from app.core.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger("middleware.noise_filter")

@@ -3,9 +3,9 @@
 测试客服介入状态管理服务的状态机、方法和边界条件。
 """
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from datetime import datetime
 
 from app.models.conversation import HandoffState
 from app.services.support.handoff import HandoffService

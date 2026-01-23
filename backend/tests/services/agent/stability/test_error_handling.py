@@ -3,15 +3,13 @@
 测试 Agent 在各种异常情况下的稳定性和错误处理能力。
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from app.services.agent.core.policy import ToolPolicy
 from app.services.agent.middleware.noise_filter import NoiseFilterMiddleware
 from app.services.agent.middleware.sliding_window import SlidingWindowMiddleware
 from app.services.agent.middleware.strict_mode import StrictModeMiddleware
-from app.services.agent.core.policy import ToolPolicy
 
 
 class TestToolCallErrorHandling:

@@ -200,8 +200,8 @@ class RapidOCRProcessor(BaseOCRProcessor):
     def _create_temp_image_file(self, image) -> str:
         """将图像数据保存为临时文件"""
         try:
-            from PIL import Image
             import numpy as np
+            from PIL import Image
 
             with tempfile.NamedTemporaryFile(mode="wb", suffix=".png", delete=False) as tmp_file:
                 temp_path = tmp_file.name

@@ -1,6 +1,5 @@
 """Agent 配置模块测试"""
 
-import pytest
 
 from app.services.agent.core.config import (
     DEFAULT_PROMPTS,

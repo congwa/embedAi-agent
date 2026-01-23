@@ -3,9 +3,7 @@
 测试商品详情工具的模型和逻辑。
 """
 
-import pytest
 import json
-from pydantic import ValidationError
 
 
 class TestProductDetailsInput:

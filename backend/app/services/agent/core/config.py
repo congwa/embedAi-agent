@@ -267,7 +267,7 @@ class AgentConfigLoader:
         routing_policy_config = None
 
         if agent.is_supervisor and agent.sub_agents:
-            from app.schemas.agent import SubAgentConfig, RoutingPolicy
+            from app.schemas.agent import RoutingPolicy, SubAgentConfig
 
             # 解析子 Agent 配置
             sub_agents_config = [

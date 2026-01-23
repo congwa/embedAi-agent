@@ -3,7 +3,6 @@
 测试价格筛选和属性筛选工具的模型和逻辑。
 """
 
-import pytest
 import json
 
 

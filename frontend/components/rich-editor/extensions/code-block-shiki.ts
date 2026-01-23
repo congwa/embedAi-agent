@@ -16,6 +16,8 @@ export const CodeBlockShiki = CodeBlock.extend<CodeBlockShikiOptions>({
       exitOnArrowDown: true,
       defaultLanguage: "text",
       theme: "github-dark",
+      enableTabIndentation: false,
+      tabSize: 2,
       HTMLAttributes: {
         class: "code-block-shiki",
       },
@@ -115,10 +117,11 @@ export const CodeBlockShiki = CodeBlock.extend<CodeBlockShikiOptions>({
       language: {
         default: this.options.defaultLanguage,
         parseHTML: (element) => {
+          const prefix = this.options.languageClassPrefix ?? "language-";
           const classNames = [...(element.firstElementChild?.classList || [])];
           const languages = classNames
-            .filter((name) => name.startsWith(this.options.languageClassPrefix))
-            .map((name) => name.replace(this.options.languageClassPrefix, ""));
+            .filter((name) => name.startsWith(prefix))
+            .map((name) => name.replace(prefix, ""));
           const language = languages[0];
           if (!language) return this.options.defaultLanguage;
           return language;

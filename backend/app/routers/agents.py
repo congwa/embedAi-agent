@@ -4,7 +4,6 @@
 """
 
 import uuid
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -44,8 +43,6 @@ from app.schemas.suggested_question import (
     SuggestedQuestionImportFromFAQ,
     SuggestedQuestionReorder,
     SuggestedQuestionResponse,
-    SuggestedQuestionsPublicResponse,
-    SuggestedQuestionPublicItem,
     SuggestedQuestionUpdate,
 )
 from app.services.agent.core.service import agent_service

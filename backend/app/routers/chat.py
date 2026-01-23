@@ -3,7 +3,6 @@
 import asyncio
 import uuid
 from collections.abc import AsyncGenerator
-
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -15,11 +14,11 @@ from app.core.dependencies import get_db_session
 from app.core.logging import get_logger
 from app.models.agent import SuggestedQuestion
 from app.models.conversation import HandoffState
+from app.schemas.chat import ChatRequest
 from app.schemas.suggested_question import (
     SuggestedQuestionPublicItem,
     SuggestedQuestionsPublicResponse,
 )
-from app.schemas.chat import ChatRequest
 from app.services.agent.core.service import agent_service
 from app.services.chat_stream import ChatStreamOrchestrator
 from app.services.conversation import ConversationService

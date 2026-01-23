@@ -13,7 +13,9 @@ export const EnhancedImage = Image.extend({
   addOptions() {
     return {
       ...this.parent?.(),
+      inline: false,
       allowBase64: true,
+      resize: false as const,
       HTMLAttributes: {
         class: "rich-editor-image max-w-full rounded-lg my-2",
       },
@@ -65,7 +67,7 @@ export const EnhancedImage = Image.extend({
   },
 
   addExtensions() {
-    const base = (this.parent?.() as unknown[]) || [];
+    const base = this.parent?.() || [];
     return [
       ...base,
       Node.create({

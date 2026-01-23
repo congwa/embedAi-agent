@@ -19,7 +19,12 @@ from app.routers import ocr as ocr_router
 from app.routers import quick_setup as quick_setup_router
 from app.routers import system as system_router
 from app.routers import upload as upload_router
-from app.routers.agents import faq_router, knowledge_router, suggested_questions_router, suggested_question_item_router
+from app.routers.agents import (
+    faq_router,
+    knowledge_router,
+    suggested_question_item_router,
+    suggested_questions_router,
+)
 from app.routers.agents import router as agents_router
 from app.scheduler import task_registry, task_scheduler
 from app.scheduler.routers import router as scheduler_router

@@ -162,7 +162,10 @@ const RichEditor = React.forwardRef<RichEditorRef, RichEditorProps>(
         },
         executeCommand: (command: string, value?: unknown) => {
           if (editor?.commands && command in editor.commands) {
-            (editor.commands as Record<string, (v?: unknown) => void>)[command](value);
+            const cmd = (editor.commands as unknown as Record<string, (...args: unknown[]) => unknown>)[command];
+            if (typeof cmd === "function") {
+              cmd(value);
+            }
           }
         },
         getPreviewText: (maxLength?: number) => {

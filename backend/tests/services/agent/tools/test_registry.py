@@ -1,12 +1,11 @@
 """工具注册表测试"""
 
-import pytest
 
 from app.services.agent.tools.registry import (
     ToolSpec,
     _get_tool_specs,
-    get_tools,
     get_tool_names,
+    get_tools,
 )
 
 

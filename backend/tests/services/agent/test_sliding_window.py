@@ -1,7 +1,6 @@
 """滑动窗口中间件测试"""
 
-import pytest
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from app.services.agent.middleware.sliding_window import SlidingWindowMiddleware
 

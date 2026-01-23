@@ -3,11 +3,11 @@
 测试意图分类器的模糊意图处理、意图切换和上下文延续。
 """
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
 
+import pytest
+
+from app.schemas.agent import RoutingCondition, RoutingPolicy, RoutingRule, SubAgentConfig
 from app.services.agent.core.intent import IntentClassifier
-from app.schemas.agent import RoutingPolicy, RoutingRule, SubAgentConfig, RoutingCondition
 
 
 class TestIntentClassifierAmbiguityHandling:

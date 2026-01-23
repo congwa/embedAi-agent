@@ -43,6 +43,58 @@ class TestProductSearchResult:
         assert result.url == "https://example.com/product/P001"
         assert result.category == "电子产品"
 
+    def test_valid_with_extended_fields(self):
+        """测试扩展字段（highlights, rating, reviews_count）"""
+        result = ProductSearchResult(
+            id="P001",
+            name="测试商品",
+            price=99.99,
+            summary="商品摘要",
+            highlights=["高性价比", "续航强", "轻薄便携"],
+            rating=4.8,
+            reviews_count=1500,
+        )
+        assert result.highlights == ["高性价比", "续航强", "轻薄便携"]
+        assert result.rating == 4.8
+        assert result.reviews_count == 1500
+
+    def test_extended_fields_optional(self):
+        """测试扩展字段为可选"""
+        result = ProductSearchResult(
+            id="P001",
+            name="测试商品",
+            price=99.99,
+            summary="商品摘要",
+        )
+        assert result.highlights is None
+        assert result.rating is None
+        assert result.reviews_count is None
+
+    def test_empty_highlights(self):
+        """测试空亮点列表"""
+        result = ProductSearchResult(
+            id="P001",
+            name="测试商品",
+            price=99.99,
+            summary="商品摘要",
+            highlights=[],
+        )
+        assert result.highlights == []
+
+    def test_rating_boundary(self):
+        """测试评分边界值"""
+        # 最低评分
+        r1 = ProductSearchResult(id="P1", name="商品", price=10, summary="摘要", rating=0.0)
+        assert r1.rating == 0.0
+        
+        # 最高评分
+        r2 = ProductSearchResult(id="P2", name="商品", price=10, summary="摘要", rating=5.0)
+        assert r2.rating == 5.0
+        
+        # 小数评分
+        r3 = ProductSearchResult(id="P3", name="商品", price=10, summary="摘要", rating=4.75)
+        assert r3.rating == 4.75
+
     def test_price_zero(self):
         """测试价格为零"""
         result = ProductSearchResult(

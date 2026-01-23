@@ -3,8 +3,6 @@
 测试会话模型的字段、枚举和状态追踪。
 """
 
-import pytest
-from datetime import datetime
 
 from app.models.conversation import Conversation, HandoffState
 

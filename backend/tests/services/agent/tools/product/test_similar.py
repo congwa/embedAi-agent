@@ -3,8 +3,6 @@
 测试查找相似商品工具的模型和逻辑。
 """
 
-import pytest
-import json
 
 
 class TestFindSimilarProductsInput:

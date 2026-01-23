@@ -1,11 +1,10 @@
 """意图分类器测试"""
 
-import pytest
 
 from app.schemas.agent import (
+    RoutingCondition,
     RoutingPolicy,
     RoutingRule,
-    RoutingCondition,
     SubAgentConfig,
 )
 from app.services.agent.core.intent import IntentClassifier

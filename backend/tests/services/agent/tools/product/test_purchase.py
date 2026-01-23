@@ -3,7 +3,6 @@
 测试获取购买链接工具的模型和逻辑。
 """
 
-import pytest
 import json
 
 

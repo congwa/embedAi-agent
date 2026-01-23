@@ -3,7 +3,6 @@
 测试精选商品工具的模型和逻辑。
 """
 
-import pytest
 import json
 
 

@@ -4,7 +4,6 @@
 支持复杂版面（表格、图片、公式）的识别。
 """
 
-import asyncio
 import base64
 import os
 import time

@@ -156,7 +156,7 @@ class StreamingResponseHandler:
                 )
 
     async def _handle_tool_message(self, msg: ToolMessage) -> None:
-        """处理工具消息，提取商品数据"""
+        """处理工具消息，提取商品数据（延迟到 finalize 阶段统一推送）"""
         # 去重
         msg_id = getattr(msg, "id", None)
         if isinstance(msg_id, str) and msg_id in self.seen_tool_ids:
@@ -178,11 +178,17 @@ class StreamingResponseHandler:
             if normalized_products is None:
                 return
 
-            self.products_data = normalized_products
-            await self.emitter.aemit(
-                StreamEventType.ASSISTANT_PRODUCTS.value,
-                {"items": normalized_products},
-            )
+            # 收集商品数据，延迟到 finalize 阶段统一推送
+            # 这样商品推荐会在 Agent 总结完成后才展示给用户
+            if self.products_data is None:
+                self.products_data = normalized_products
+            else:
+                # 合并多次工具调用返回的商品（去重）
+                seen_ids = {p.get("id") for p in self.products_data}
+                for product in normalized_products:
+                    if product.get("id") not in seen_ids:
+                        self.products_data.append(product)
+                        seen_ids.add(product.get("id"))
         except Exception:
             pass
 
@@ -202,6 +208,19 @@ class StreamingResponseHandler:
             )
             self.full_content = self.full_reasoning
             self.full_reasoning = ""
+
+        # 在总结阶段统一推送商品数据（延迟推送）
+        # 这样商品推荐会在 Agent 总结完成后才展示给用户
+        if self.products_data:
+            await self.emitter.aemit(
+                StreamEventType.ASSISTANT_PRODUCTS.value,
+                {"items": self.products_data},
+            )
+            logger.info(
+                "📦 推送商品推荐（总结阶段）",
+                conversation_id=self.conversation_id,
+                product_count=len(self.products_data),
+            )
 
         result = {
             "content": self.full_content,
