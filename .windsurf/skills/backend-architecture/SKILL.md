@@ -52,6 +52,7 @@ backend/
 | `KnowledgeBase/Document` | `knowledge.py` | 知识库 |
 | `FAQItem` | `faq.py` | FAQ 条目 |
 | `AppMetadata` | `app_metadata.py` | 键值存储（系统配置）|
+| `Skill/AgentSkill` | `skill.py` | 技能定义、Agent-技能关联 |
 
 ## 业务服务 (app/services/)
 
@@ -85,6 +86,26 @@ agent/
 └── bootstrap.py    # 默认 Agent 初始化
 ```
 
+### 技能服务 (`services/skill/`)
+
+Agent 可扩展技能系统：
+
+```
+skill/
+├── service.py      # SkillService - CRUD、Agent 关联、技能匹配
+├── generator.py    # SkillGenerator - AI 智能生成技能
+├── registry.py     # SkillRegistry - 运行时缓存
+├── injector.py     # SkillInjector - 技能注入到 Agent
+└── system_skills.py # 系统内置技能定义
+```
+
+| 类 | 职责 |
+|-----|------|
+| `SkillService` | 技能 CRUD、Agent 关联、关键词匹配 |
+| `SkillGenerator` | 根据用户描述 AI 生成结构化技能 |
+| `SkillRegistry` | 单例模式，缓存技能实例，提供快速匹配 |
+| `SkillInjector` | always_apply 技能注入、关键词触发激活 |
+
 ### 其他服务
 
 | 服务 | 目录/文件 | 职责 |
@@ -106,6 +127,7 @@ agent/
 |------|------|------|
 | `admin.py` | `/api/v1/admin` | 后台管理 |
 | `system_config.py` | `/api/v1/admin/system-config` | 系统配置 |
+| `skills.py` | `/api/v1/admin/skills` | 技能管理、AI 生成 |
 | `chat.py` | `/api/v1/chat` | 聊天 API |
 | `conversations.py` | `/api/v1/conversations` | 会话管理 |
 | `agents/` | `/api/v1/agents` | Agent CRUD |
@@ -141,6 +163,13 @@ APScheduler 定时任务：
 
 通过 `SystemConfigService` 管理动态配置，支持后台管理界面修改。
 
+## 事件类型 (app/schemas/events.py)
+
+| 事件 | 说明 |
+|------|------|
+| `skill.activated` | 技能被激活（关键词触发） |
+| `skill.loaded` | 技能被加载（AI 主动调用） |
+
 ## 测试
 
 ```bash
@@ -149,4 +178,7 @@ uv run pytest
 
 # 运行特定模块测试
 uv run pytest tests/services/test_system_config.py -v
+
+# 运行技能系统测试
+uv run pytest tests/schemas/test_skill.py tests/services/test_skill.py tests/routers/test_skills.py -v
 ```
