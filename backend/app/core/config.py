@@ -21,18 +21,20 @@ class Settings(BaseSettings):
 
     # ========== LLM 提供商配置 ==========
     # 主要提供商设置
+    # 注意：这些字段现在是可选的，可以在后台管理中配置
+    # 优先级：数据库配置 > 环境变量
     LLM_PROVIDER: str = "siliconflow"  # 提供商: openai, openrouter, siliconflow 等
-    LLM_API_KEY: str  # API Key（必填）
-    LLM_BASE_URL: str  # API Base URL（必填）
-    LLM_CHAT_MODEL: str  # 聊天模型 ID（必填）
+    LLM_API_KEY: str = ""  # API Key（可选，可在后台配置）
+    LLM_BASE_URL: str = "https://api.siliconflow.cn/v1"  # API Base URL
+    LLM_CHAT_MODEL: str = "moonshotai/Kimi-K2-Thinking"  # 聊天模型 ID
 
     # ========== Embeddings 配置 ==========
     # Embeddings 提供商设置（可以与 LLM 不同）
     EMBEDDING_PROVIDER: str = "siliconflow"  # Embedding 提供商
     EMBEDDING_API_KEY: str | None = None  # 如为空则使用 LLM_API_KEY
     EMBEDDING_BASE_URL: str | None = None  # 如为空则使用 LLM_BASE_URL
-    EMBEDDING_MODEL: str  # 嵌入模型 ID（必填）
-    EMBEDDING_DIMENSION: int  # 嵌入维度（必填）
+    EMBEDDING_MODEL: str = "Qwen/Qwen3-Embedding-8B"  # 嵌入模型 ID
+    EMBEDDING_DIMENSION: int = 4096  # 嵌入维度
 
     # ========== Rerank 配置 ==========
     RERANK_ENABLED: bool = False  # 是否启用 Rerank 重排序

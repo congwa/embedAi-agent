@@ -12,7 +12,7 @@ description: |
   2. 修改业务逻辑时必须同步更新相关测试用例
   3. 测试全部通过才算功能完成
   
-  触发关键词：后端、backend、python、测试、test、pytest、功能、feature、修复、fix
+  触发关键词：后端、backend、python、测试、test、pytest、功能、feature、修复、fix、实现、修改、完成、验证
   alwaysApply: true
 ---
 

@@ -14,6 +14,7 @@ import {
   Check,
   X,
   ChevronRight,
+  Pencil,
 } from "lucide-react";
 import { PageHeader } from "@/components/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -203,10 +204,18 @@ export default function SettingsPage() {
         {/* LLM 配置 */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Bot className="h-4 w-4" />
-              LLM 配置
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Bot className="h-4 w-4" />
+                LLM 配置
+              </CardTitle>
+              <Button variant="ghost" size="sm" asChild>
+                <a href="/admin/settings/llm-config">
+                  <Pencil className="mr-1 h-3 w-3" />
+                  配置
+                </a>
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-1">
             <ConfigItem label="Provider" value={settings.llm_provider} />
