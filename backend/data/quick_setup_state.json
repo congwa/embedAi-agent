@@ -1,6 +1,6 @@
 {
   "completed": false,
-  "current_step": 2,
+  "current_step": 3,
   "steps": [
     {
       "index": 0,
@@ -31,7 +31,7 @@
       "key": "knowledge",
       "title": "知识 & Agent 配置",
       "description": "根据 Agent 类型配置知识源和工具",
-      "status": "pending",
+      "status": "in_progress",
       "data": null
     },
     {
@@ -39,7 +39,7 @@
       "key": "greeting",
       "title": "开场白配置",
       "description": "设置 Agent 的欢迎消息和触发策略",
-      "status": "pending",
+      "status": "in_progress",
       "data": null
     },
     {
@@ -60,5 +60,5 @@
     }
   ],
   "agent_id": null,
-  "updated_at": "2026-01-27T14:26:15.232660"
+  "updated_at": "2026-01-27T14:39:55.400101"
 }

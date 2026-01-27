@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, Bot, RefreshCw, Zap, MessageSquareText } from "lucide-react";
 import { useAgentDetail } from "@/lib/hooks/use-agents";
@@ -200,11 +200,11 @@ export default function AgentDetailLayout({
       <Tabs value={currentTab}>
         <TabsList>
           {agentTabs.map((tab) => (
-            <TabsTrigger key={tab.id} value={tab.id} asChild>
-              <Link href={`/admin/agents/${agentId}${tab.href}`}>
+            <Link key={tab.id} href={`/admin/agents/${agentId}${tab.href}`}>
+              <TabsTrigger value={tab.id}>
                 {tab.label}
-              </Link>
-            </TabsTrigger>
+              </TabsTrigger>
+            </Link>
           ))}
         </TabsList>
       </Tabs>
