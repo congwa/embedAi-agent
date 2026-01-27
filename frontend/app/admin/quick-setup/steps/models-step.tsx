@@ -75,8 +75,13 @@ export function ModelsStep({ onComplete, onSkip, isLoading }: StepProps) {
     const load = async () => {
       try {
         setLoading(true);
-        const statsData = await getQuickStats();
+        // 并行加载统计和健康检查，页面加载时直接显示结果
+        const [statsData, healthData] = await Promise.all([
+          getQuickStats(),
+          checkServicesHealth(),
+        ]);
         setStats(statsData);
+        setHealth(healthData);
       } catch (e) {
         console.error("加载失败", e);
       } finally {
@@ -87,6 +92,7 @@ export function ModelsStep({ onComplete, onSkip, isLoading }: StepProps) {
   }, []);
 
   const handleTestConnection = useCallback(async () => {
+    // 开始测试，显示进度动画
     setTestProgress({
       phase: "testing",
       currentService: null,
@@ -95,7 +101,6 @@ export function ModelsStep({ onComplete, onSkip, isLoading }: StepProps) {
       startTime: Date.now(),
       endTime: null,
     });
-    setHealth(null);
 
     try {
       // 逐步显示测试进度
@@ -257,7 +262,7 @@ export function ModelsStep({ onComplete, onSkip, isLoading }: StepProps) {
           )}
 
           {/* 服务详细状态 */}
-          {health ? (
+          {health && testProgress.phase !== "testing" && (
             <div className="grid gap-3 md:grid-cols-3">
               {health.services.map((service) => (
                 <div
@@ -290,11 +295,6 @@ export function ModelsStep({ onComplete, onSkip, isLoading }: StepProps) {
                   )}
                 </div>
               ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-zinc-500">
-              <Server className="h-8 w-8 mx-auto mb-2 text-zinc-300" />
-              <p>点击“测试连接”检查服务状态</p>
             </div>
           )}
 

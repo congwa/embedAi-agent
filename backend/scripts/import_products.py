@@ -282,8 +282,8 @@ async def create_vector_index(products_data: list[dict]) -> None:
 def main():
     """主函数"""
     if len(sys.argv) < 2:
-        # 默认使用 data/products.json
-        json_path = Path(__file__).parent.parent / "data" / "products.json"
+        # 默认使用 fixtures/products.json
+        json_path = Path(__file__).parent.parent / "fixtures" / "products.json"
     else:
         json_path = Path(sys.argv[1])
 
