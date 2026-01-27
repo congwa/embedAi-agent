@@ -153,6 +153,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     extensions,
     content: html || "",
     editable,
+    immediatelyRender: false,
     editorProps: {
       attributes: {
         spellcheck: enableSpellCheck ? "true" : "false",
