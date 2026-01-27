@@ -112,6 +112,11 @@ const systemNavItems = [
     icon: Wand2,
   },
   {
+    title: "提示词管理",
+    href: "/admin/prompts",
+    icon: FileText,
+  },
+  {
     title: "爬虫管理",
     href: "/admin/crawler",
     icon: Globe,
