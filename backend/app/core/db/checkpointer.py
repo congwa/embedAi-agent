@@ -57,7 +57,13 @@ class CheckpointerManager:
             return self._checkpointer
 
     async def _create_sqlite_checkpointer(self) -> "AsyncSqliteSaver":
-        """创建 SQLite Checkpointer"""
+        """创建 SQLite Checkpointer
+        
+        防死锁优化：
+        - WAL 模式：允许读写并发
+        - synchronous=NORMAL：在 WAL 模式下安全且高性能
+        - busy_timeout=30s：等待锁释放而非立即失败
+        """
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
         settings.ensure_data_dir()
@@ -65,6 +71,11 @@ class CheckpointerManager:
             settings.CHECKPOINT_DB_PATH,
             isolation_level=None,
         )
+        
+        # 设置 PRAGMA 优化
+        await self._conn.execute("PRAGMA journal_mode=WAL")
+        await self._conn.execute("PRAGMA synchronous=NORMAL")
+        await self._conn.execute("PRAGMA busy_timeout=30000")
 
         # 添加 is_alive 方法（兼容性）
         if not hasattr(self._conn, "is_alive"):

@@ -1,16 +1,49 @@
-"""提示词集成测试配置"""
+"""提示词集成测试配置
 
+配置日志输出到文件，方便调试和排查问题
+"""
+
+import logging
 import os
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
 from typing import Any
 
-# 加载 .env 文件
+# 先加载 .env 文件（在模块导入时就加载，确保 requires_api 标记能正确读取配置）
 _env_path = Path(__file__).parents[3] / ".env"
 if _env_path.exists():
     load_dotenv(_env_path, override=True)
+
+# 日志目录
+_logs_dir = Path(__file__).parent / "logs"
+_logs_dir.mkdir(exist_ok=True)
+
+
+def pytest_configure(config):
+    """pytest 配置钩子 - 配置日志输出到文件"""
+    # 配置日志输出到文件
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = _logs_dir / f"test_run_{timestamp}.log"
+    
+    # 配置文件日志处理器
+    file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S"
+    ))
+    
+    # 添加到根日志
+    root_logger = logging.getLogger()
+    root_logger.addHandler(file_handler)
+    root_logger.setLevel(logging.DEBUG)
+    
+    # 保存日志文件路径供后续使用
+    config._log_file = log_file
+    print(f"\n📝 提示词测试日志将写入: {log_file}")
 
 
 def _has_api_config() -> bool:

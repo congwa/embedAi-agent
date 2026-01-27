@@ -15,13 +15,14 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -37,7 +38,12 @@ _crawler_session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
 def _get_crawler_engine() -> AsyncEngine:
-    """获取爬虫数据库引擎"""
+    """获取爬虫数据库引擎
+    
+    SQLite 防死锁优化：
+    1. 使用 NullPool：每次请求创建新连接，用完即关
+    2. 通过 event listener 设置 WAL + synchronous=NORMAL + busy_timeout
+    """
     global _crawler_engine
     if _crawler_engine is None:
         backend = settings.DATABASE_BACKEND
@@ -45,9 +51,20 @@ def _get_crawler_engine() -> AsyncEngine:
             _crawler_engine = create_async_engine(
                 settings.crawler_database_url,
                 connect_args={"timeout": 30, "check_same_thread": False},
+                poolclass=NullPool,
                 echo=False,
                 future=True,
             )
+            
+            # 在每个连接建立时设置 PRAGMA
+            @event.listens_for(_crawler_engine.sync_engine, "connect")
+            def _set_sqlite_pragma(dbapi_conn, connection_record):
+                cursor = dbapi_conn.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA synchronous=NORMAL")
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.close()
+                
         elif backend == "postgres":
             _crawler_engine = create_async_engine(
                 settings.crawler_database_url,
@@ -136,8 +153,7 @@ async def init_crawler_db() -> None:
     backend = settings.DATABASE_BACKEND
 
     async with engine.begin() as conn:
-        if backend == "sqlite":
-            await conn.execute(text("PRAGMA journal_mode=WAL"))
+        # PRAGMA 已通过 event listener 在连接时自动设置（SQLite）
         await conn.run_sync(CrawlerBase.metadata.create_all)
 
-    logger.info("爬虫数据库表初始化完成", backend=backend)
+    logger.info("爬虫数据库表初始化完成（WAL + NullPool）", backend=backend)

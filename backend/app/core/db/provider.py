@@ -6,13 +6,14 @@
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
-from sqlalchemy import text
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import DeclarativeBase
@@ -50,16 +51,34 @@ class DatabaseProvider(ABC):
 
 
 class SQLiteProvider(DatabaseProvider):
-    """SQLite 数据库提供者"""
+    """SQLite 数据库提供者
+    
+    防死锁优化策略：
+    1. 使用 NullPool：每次请求创建新连接，用完即关，避免多连接争抢写入锁
+    2. WAL 模式：允许读写并发，减少锁冲突
+    3. synchronous=NORMAL：在 WAL 模式下安全且高性能
+    4. busy_timeout=30s：等待锁释放而非立即失败
+    """
 
     def __init__(self, database_url: str):
         self._database_url = database_url
         self._engine = create_async_engine(
             database_url,
             connect_args={"timeout": 30, "check_same_thread": False},
+            poolclass=NullPool,
             echo=False,
             future=True,
         )
+        
+        # 在每个连接建立时设置 PRAGMA（通过 event listener）
+        @event.listens_for(self._engine.sync_engine, "connect")
+        def _set_sqlite_pragma(dbapi_conn, connection_record):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.execute("PRAGMA busy_timeout=30000")
+            cursor.close()
+        
         self._session_factory = async_sessionmaker(
             self._engine,
             class_=AsyncSession,
@@ -82,9 +101,9 @@ class SQLiteProvider(DatabaseProvider):
 
     async def init_db(self, base: "type[DeclarativeBase]") -> None:
         async with self._engine.begin() as conn:
-            await conn.execute(text("PRAGMA journal_mode=WAL"))
+            # PRAGMA 已通过 event listener 在连接时自动设置
             await conn.run_sync(base.metadata.create_all)
-        logger.info("SQLite 数据库初始化完成")
+        logger.info("SQLite 数据库初始化完成（WAL + NullPool）")
 
     async def close(self) -> None:
         await self._engine.dispose()

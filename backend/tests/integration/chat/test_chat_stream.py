@@ -90,7 +90,7 @@ class TestChatStreamIntegration:
                 user_message_id=user_message.id,
                 assistant_message_id=assistant_message_id,
                 mode="natural",
-                db=db_session,
+                db=None,  # 不传递 session，让工具自行创建短事务（防死锁）
             )
 
             events: list[dict[str, Any]] = []
@@ -159,7 +159,7 @@ class TestChatStreamIntegration:
                 user_message_id=user_message.id,
                 assistant_message_id=assistant_message_id,
                 mode="natural",
-                db=db_session,
+                db=None,  # 不传递 session，让工具自行创建短事务（防死锁）
             )
 
             events: list[dict[str, Any]] = []
@@ -236,7 +236,7 @@ class TestChatStreamIntegration:
                 user_message_id=user_message.id,
                 assistant_message_id=assistant_message_id,
                 mode="strict",  # 严格模式
-                db=db_session,
+                db=None,  # 不传递 session，让工具自行创建短事务（防死锁）
             )
 
             events: list[dict[str, Any]] = []
@@ -295,7 +295,7 @@ class TestChatStreamIntegration:
                 user_message_id=user_message.id,
                 assistant_message_id=assistant_message_id,
                 mode=mode,
-                db=db_session,
+                db=None,  # 不传递 session，让工具自行创建短事务（防死锁）
             )
 
             events: list[dict[str, Any]] = []

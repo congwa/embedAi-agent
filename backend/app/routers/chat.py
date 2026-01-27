@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import get_db_context
 from app.core.dependencies import get_db_session
 from app.core.logging import get_logger
 from app.models.agent import SuggestedQuestion
@@ -34,11 +35,15 @@ logger = get_logger("chat")
 async def chat(
     request_data: ChatRequest,
     request: Request,
-    db: AsyncSession = Depends(get_db_session),
 ):
     """流式聊天接口
 
     使用 SSE (Server-Sent Events) 返回流式响应。
+    
+    SQLite 防死锁优化：
+    - 保存用户消息使用独立短事务，快速释放连接
+    - 流式响应不持有长连接，工具内部自行创建短事务
+    - 避免整个 SSE 流生命周期（可能数十秒）占用数据库连接
 
     支持客户端主动中断：
     - 客户端可以通过关闭连接来中断对话生成
@@ -53,45 +58,53 @@ async def chat(
     - support.human_message: 人工消息 {"type": "support.human_message", "payload": {...}}
     - error: 错误 {"type": "error", "payload": {"message": "..."}}
     """
-    conversation_service = ConversationService(db)
-    handoff_service = HandoffService(db)
+    # 使用独立短事务保存用户消息和检查状态
+    # 避免整个 SSE 流持有数据库连接
+    async with get_db_context() as db:
+        conversation_service = ConversationService(db)
+        handoff_service = HandoffService(db)
 
-    # 检查会话的 handoff 状态
-    handoff_state = await handoff_service.get_handoff_state(request_data.conversation_id)
-    is_human_mode = handoff_state == HandoffState.HUMAN.value
+        # 检查会话的 handoff 状态
+        handoff_state = await handoff_service.get_handoff_state(request_data.conversation_id)
+        is_human_mode = handoff_state == HandoffState.HUMAN.value
 
-    # 准备图片元数据
-    extra_metadata = None
-    message_type = "text"
-    if request_data.has_images:
-        message_type = "text_with_images"
-        extra_metadata = {
-            "images": [img.model_dump() for img in request_data.images]  # type: ignore
-        }
+        # 准备图片元数据
+        extra_metadata = None
+        message_type = "text"
+        if request_data.has_images:
+            message_type = "text_with_images"
+            extra_metadata = {
+                "images": [img.model_dump() for img in request_data.images]  # type: ignore
+            }
 
-    # 保存用户消息
-    user_message = await conversation_service.add_message(
-        conversation_id=request_data.conversation_id,
-        role="user",
-        content=request_data.message,
-        message_type=message_type,
-        extra_metadata=extra_metadata,
-    )
+        # 保存用户消息
+        user_message = await conversation_service.add_message(
+            conversation_id=request_data.conversation_id,
+            role="user",
+            content=request_data.message,
+            message_type=message_type,
+            extra_metadata=extra_metadata,
+        )
+        # 提取需要的数据，在 session 关闭前获取
+        user_message_id = user_message.id
+        
     logger.info(
         "保存用户消息",
-        message_id=user_message.id,
+        message_id=user_message_id,
         conversation_id=request_data.conversation_id,
         is_human_mode=is_human_mode,
     )
 
-    # 发送新消息通知（无论是否人工模式都发送）
-    asyncio.create_task(
-        handoff_service.notify_new_message(
-            conversation_id=request_data.conversation_id,
-            user_id=request_data.user_id,
-            message_preview=request_data.message[:200],
-        )
-    )
+    # 发送新消息通知（无论是否人工模式都发送，使用独立短事务）
+    async def _notify_new_message():
+        async with get_db_context() as notify_db:
+            notify_handoff_service = HandoffService(notify_db)
+            await notify_handoff_service.notify_new_message(
+                conversation_id=request_data.conversation_id,
+                user_id=request_data.user_id,
+                message_preview=request_data.message[:200],
+            )
+    asyncio.create_task(_notify_new_message())
 
     # 如果是人工模式，转发消息给客服端，不走 RAG
     # 架构：发送消息立即返回，用户通过独立的 SSE 订阅接收客服消息
@@ -104,11 +117,10 @@ async def chat(
         server_msg = build_server_message(
             action=WSAction.SERVER_MESSAGE,
             payload={
-                "message_id": user_message.id,
+                "message_id": user_message_id,
                 "role": "user",
                 "content": request_data.message,
                 "user_id": request_data.user_id,
-                "created_at": user_message.created_at.isoformat(),
             },
             conversation_id=request_data.conversation_id,
         )
@@ -120,10 +132,9 @@ async def chat(
             {
                 "type": "support.user_message",
                 "payload": {
-                    "message_id": user_message.id,
+                    "message_id": user_message_id,
                     "content": request_data.message,
                     "user_id": request_data.user_id,
-                    "created_at": user_message.created_at.isoformat(),
                 },
             },
         )
@@ -133,7 +144,7 @@ async def chat(
             yield encode_sse({
                 "type": "meta.start",
                 "payload": {
-                    "user_message_id": user_message.id,
+                    "user_message_id": user_message_id,
                     "assistant_message_id": None,
                     "mode": "human",
                 },
@@ -164,48 +175,56 @@ async def chat(
         )
 
     async def event_generator() -> AsyncGenerator[str, None]:
-        """生成 SSE 事件流，支持中断检测"""
+        """生成 SSE 事件流，支持中断检测
+        
+        SQLite 防死锁优化：
+        - 使用 NullPool，每个请求都是新连接，不会阻塞连接池
+        - WAL 模式允许读写并发
+        - 工具内部使用 get_db_context() 创建独立短事务
+        - db=None 让工具不复用外层 session，避免嵌套事务
+        """
         assistant_message_id = str(uuid.uuid4())
-        orchestrator = ChatStreamOrchestrator(
-            conversation_service=conversation_service,
-            agent_service=agent_service,
-            conversation_id=request_data.conversation_id,
-            user_id=request_data.user_id,
-            user_message=request_data.message,
-            user_message_id=user_message.id,
-            assistant_message_id=assistant_message_id,
-            mode=request_data.effective_mode,
-            agent_id=request_data.agent_id,
-            images=request_data.images,
-            db=db,  # 传递数据库会话给工具使用
-        )
-
-        try:
-            async for event in orchestrator.run():
-                # 检测客户端是否断开连接
-                if await request.is_disconnected():
-                    logger.info(
-                        "客户端断开连接，中止生成（不保存消息）",
-                        conversation_id=request_data.conversation_id,
-                        assistant_message_id=assistant_message_id,
-                    )
-                    break
-                # logger.debug(
-                #     "发送SSE事件",
-                #     event=event,
-                # )
-                yield encode_sse(event)
-        except asyncio.CancelledError:
-            logger.info(
-                "生成被取消（不保存消息）",
+        
+        # 为保存 assistant 消息创建独立 session
+        # 注意：db=None 让工具自行创建短事务，避免嵌套
+        async with get_db_context() as stream_db:
+            stream_conversation_service = ConversationService(stream_db)
+            orchestrator = ChatStreamOrchestrator(
+                conversation_service=stream_conversation_service,
+                agent_service=agent_service,
                 conversation_id=request_data.conversation_id,
+                user_id=request_data.user_id,
+                user_message=request_data.message,
+                user_message_id=user_message_id,
                 assistant_message_id=assistant_message_id,
+                mode=request_data.effective_mode,
+                agent_id=request_data.agent_id,
+                images=request_data.images,
+                db=None,  # 不传递 session，让工具自行创建短事务
             )
-            # 用户主动停止属于正常路径：不保存不完整的消息，直接返回
-            return
-        except Exception as e:
-            logger.error("生成过程出错", error=str(e), exc_info=True)
-            yield encode_sse({"type": "error", "payload": {"message": str(e)}})
+
+            try:
+                async for event in orchestrator.run():
+                    # 检测客户端是否断开连接
+                    if await request.is_disconnected():
+                        logger.info(
+                            "客户端断开连接，中止生成（不保存消息）",
+                            conversation_id=request_data.conversation_id,
+                            assistant_message_id=assistant_message_id,
+                        )
+                        break
+                    yield encode_sse(event)
+            except asyncio.CancelledError:
+                logger.info(
+                    "生成被取消（不保存消息）",
+                    conversation_id=request_data.conversation_id,
+                    assistant_message_id=assistant_message_id,
+                )
+                # 用户主动停止属于正常路径：不保存不完整的消息，直接返回
+                return
+            except Exception as e:
+                logger.error("生成过程出错", error=str(e), exc_info=True)
+                yield encode_sse({"type": "error", "payload": {"message": str(e)}})
 
     return StreamingResponse(
         event_generator(),
