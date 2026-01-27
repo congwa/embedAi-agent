@@ -56,6 +56,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
 
 
+# 别名，兼容旧代码
+get_session = get_db
+
+
 @asynccontextmanager
 async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
     """获取数据库会话（上下文管理器）"""
