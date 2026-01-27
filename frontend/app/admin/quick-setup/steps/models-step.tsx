@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   Bot,
   Database,
@@ -8,7 +8,9 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  ExternalLink,
+  RefreshCw,
+  Clock,
+  AlertCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,22 +42,41 @@ function ConfigDisplay({
   );
 }
 
+interface TestProgress {
+  phase: "idle" | "testing" | "done" | "error";
+  currentService: string | null;
+  testedServices: string[];
+  error: string | null;
+  startTime: number | null;
+  endTime: number | null;
+}
+
 export function ModelsStep({ onComplete, onSkip, isLoading }: StepProps) {
   const [stats, setStats] = useState<QuickStats | null>(null);
   const [health, setHealth] = useState<HealthCheckResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [testing, setTesting] = useState(false);
+  const [testProgress, setTestProgress] = useState<TestProgress>({
+    phase: "idle",
+    currentService: null,
+    testedServices: [],
+    error: null,
+    startTime: null,
+    endTime: null,
+  });
+
+  const serviceNames = ["qdrant", "llm", "database"];
+  const serviceLabels: Record<string, string> = {
+    qdrant: "Qdrant 向量数据库",
+    llm: "LLM API 服务",
+    database: "SQLite 数据库",
+  };
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        const [statsData, healthData] = await Promise.all([
-          getQuickStats(),
-          checkServicesHealth(),
-        ]);
+        const statsData = await getQuickStats();
         setStats(statsData);
-        setHealth(healthData);
       } catch (e) {
         console.error("加载失败", e);
       } finally {
@@ -65,16 +86,59 @@ export function ModelsStep({ onComplete, onSkip, isLoading }: StepProps) {
     load();
   }, []);
 
-  const handleTestConnection = async () => {
-    setTesting(true);
+  const handleTestConnection = useCallback(async () => {
+    setTestProgress({
+      phase: "testing",
+      currentService: null,
+      testedServices: [],
+      error: null,
+      startTime: Date.now(),
+      endTime: null,
+    });
+    setHealth(null);
+
     try {
+      // 逐步显示测试进度
+      for (const service of serviceNames) {
+        setTestProgress((prev) => ({
+          ...prev,
+          currentService: service,
+        }));
+        // 模拟步骤延迟，让用户看到进度
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        setTestProgress((prev) => ({
+          ...prev,
+          testedServices: [...prev.testedServices, service],
+        }));
+      }
+
+      // 调用实际 API
       const healthData = await checkServicesHealth();
       setHealth(healthData);
+
+      setTestProgress((prev) => ({
+        ...prev,
+        phase: "done",
+        currentService: null,
+        endTime: Date.now(),
+      }));
     } catch (e) {
       console.error("测试失败", e);
-    } finally {
-      setTesting(false);
+      setTestProgress((prev) => ({
+        ...prev,
+        phase: "error",
+        currentService: null,
+        error: e instanceof Error ? e.message : "测试连接失败",
+        endTime: Date.now(),
+      }));
     }
+  }, []);
+
+  const getTestDuration = () => {
+    if (testProgress.startTime && testProgress.endTime) {
+      return ((testProgress.endTime - testProgress.startTime) / 1000).toFixed(1);
+    }
+    return null;
   };
 
   if (loading) {
@@ -97,61 +161,150 @@ export function ModelsStep({ onComplete, onSkip, isLoading }: StepProps) {
       </div>
 
       {/* Service Health */}
-      {health && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between text-base">
-              <span className="flex items-center gap-2">
-                <Server className="h-4 w-4" />
-                服务连接状态
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleTestConnection}
-                disabled={testing}
-              >
-                {testing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
-                测试连接
-              </Button>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center justify-between text-base">
+            <span className="flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              服务连接状态
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleTestConnection}
+              disabled={testProgress.phase === "testing"}
+            >
+              {testProgress.phase === "testing" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              {testProgress.phase === "testing" ? "测试中..." : "测试连接"}
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* 测试进度显示 */}
+          {testProgress.phase === "testing" && (
+            <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2 mb-3">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  正在测试服务连接...
+                </span>
+              </div>
+              <div className="space-y-2">
+                {serviceNames.map((service) => {
+                  const isTested = testProgress.testedServices.includes(service);
+                  const isCurrent = testProgress.currentService === service;
+                  return (
+                    <div
+                      key={service}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      {isTested ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : isCurrent ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                      ) : (
+                        <Clock className="h-4 w-4 text-zinc-300" />
+                      )}
+                      <span
+                        className={isTested ? "text-green-600" : isCurrent ? "text-blue-600" : "text-zinc-400"}
+                      >
+                        {serviceLabels[service]}
+                      </span>
+                      {isTested && <span className="text-green-500">✓</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 测试错误 */}
+          {testProgress.phase === "error" && (
+            <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-red-500" />
+                <span className="text-sm font-medium text-red-700 dark:text-red-300">
+                  测试失败: {testProgress.error}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 测试结果显示 */}
+          {health && testProgress.phase === "done" && (
+            <div className="mb-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-medium text-green-700 dark:text-green-300">
+                    测试完成
+                  </span>
+                </div>
+                {getTestDuration() && (
+                  <span className="text-xs text-green-600">耗时 {getTestDuration()}s</span>
+                )}
+              </div>
+              <div className="text-sm text-green-600">
+                {health.all_ok
+                  ? `✅ 所有 ${health.services.length} 个服务连接正常`
+                  : `⚠️ ${health.services.filter((s) => s.status === "ok").length}/${health.services.length} 个服务正常`}
+              </div>
+            </div>
+          )}
+
+          {/* 服务详细状态 */}
+          {health ? (
             <div className="grid gap-3 md:grid-cols-3">
               {health.services.map((service) => (
                 <div
                   key={service.name}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  className="flex flex-col rounded-lg border p-3"
                 >
-                  <div className="flex items-center gap-2">
-                    {service.status === "ok" ? (
-                      <CheckCircle className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-red-500" />
-                    )}
-                    <span className="font-medium capitalize">{service.name}</span>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {service.status === "ok" ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-red-500" />
+                      )}
+                      <span className="font-medium">{serviceLabels[service.name] || service.name}</span>
+                    </div>
+                    <Badge
+                      variant={service.status === "ok" ? "default" : "destructive"}
+                      className={
+                        service.status === "ok" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : ""
+                      }
+                    >
+                      {service.status === "ok" ? "正常" : "异常"}
+                    </Badge>
                   </div>
-                  <Badge
-                    variant={service.status === "ok" ? "default" : "destructive"}
-                    className={
-                      service.status === "ok" ? "bg-green-100 text-green-700" : ""
-                    }
-                  >
-                    {service.status === "ok" ? "正常" : "异常"}
-                  </Badge>
+                  {service.message && (
+                    <p className="text-xs text-zinc-500 mt-1">{service.message}</p>
+                  )}
+                  {service.latency_ms && (
+                    <p className="text-xs text-zinc-400 mt-1">延迟: {service.latency_ms}ms</p>
+                  )}
                 </div>
               ))}
             </div>
-            {!health.all_ok && (
-              <p className="mt-3 text-sm text-amber-600">
-                部分服务连接异常，请检查配置和服务状态
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="text-center py-8 text-zinc-500">
+              <Server className="h-8 w-8 mx-auto mb-2 text-zinc-300" />
+              <p>点击“测试连接”检查服务状态</p>
+            </div>
+          )}
+
+          {health && !health.all_ok && (
+            <p className="mt-3 text-sm text-amber-600">
+              部分服务连接异常，请检查配置和服务状态
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* LLM Config */}
       {stats && (
