@@ -16,7 +16,7 @@ from app.prompts.schemas import (
     PromptUpdate,
 )
 
-router = APIRouter(prefix="/prompts", tags=["prompts"])
+router = APIRouter(prefix="/api/v1/admin/prompts", tags=["prompts"])
 
 
 @router.get("", response_model=PromptListResponse)
