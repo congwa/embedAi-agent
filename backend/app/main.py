@@ -207,14 +207,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("关闭主数据库引擎时出错", module="app", error=str(e))
 
-    # 3.1 关闭爬虫数据库引擎
+    # 3.1 关闭爬虫数据库 Provider
     if settings.CRAWLER_ENABLED:
         try:
-            from app.core.crawler_database import crawler_engine
-            await crawler_engine.dispose()
-            logger.debug("爬虫数据库引擎已关闭", module="app")
+            from app.core.crawler_database import close_crawler_provider
+            await close_crawler_provider()
+            logger.debug("爬虫数据库 Provider 已关闭", module="app")
         except Exception as e:
-            logger.warning("关闭爬虫数据库引擎时出错", module="app", error=str(e))
+            logger.warning("关闭爬虫数据库 Provider 时出错", module="app", error=str(e))
 
     # 4. 关闭 OpenAI 客户端（仅清理已初始化的资源）
     try:

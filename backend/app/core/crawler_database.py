@@ -1,6 +1,6 @@
 """爬虫数据库连接管理
 
-独立的爬虫数据库，与主应用数据库分离，避免：
+使用 Provider 模式管理爬虫数据库连接，与主应用数据库分离，避免：
 1. 爬虫长事务阻塞用户查询
 2. 死锁风险
 3. 数据库文件过大
@@ -13,86 +13,62 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
 
-from sqlalchemy import event, text
-from sqlalchemy.ext.asyncio import (
-    AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.db.provider import (
+    DatabaseProvider,
+    PostgresProvider,
+    SQLiteProvider,
+)
 from app.core.logging import get_logger
-
-if TYPE_CHECKING:
-    pass
 
 logger = get_logger("crawler.database")
 
-# ========== 爬虫数据库 Provider ==========
-_crawler_engine: AsyncEngine | None = None
-_crawler_session_factory: async_sessionmaker[AsyncSession] | None = None
+# ========== 爬虫数据库 Provider（单例）==========
+_crawler_provider: DatabaseProvider | None = None
 
 
-def _get_crawler_engine() -> AsyncEngine:
-    """获取爬虫数据库引擎
+def get_crawler_provider() -> DatabaseProvider:
+    """获取爬虫数据库 Provider（单例）
     
-    SQLite 防死锁优化：
-    1. 使用 NullPool：每次请求创建新连接，用完即关
-    2. 通过 event listener 设置 WAL + synchronous=NORMAL + busy_timeout
+    根据 DATABASE_BACKEND 配置自动选择 SQLite 或 PostgreSQL
     """
-    global _crawler_engine
-    if _crawler_engine is None:
+    global _crawler_provider
+    if _crawler_provider is None:
         backend = settings.DATABASE_BACKEND
         if backend == "sqlite":
-            _crawler_engine = create_async_engine(
-                settings.crawler_database_url,
-                connect_args={"timeout": 30, "check_same_thread": False},
-                poolclass=NullPool,
-                echo=False,
-                future=True,
+            _crawler_provider = SQLiteProvider(settings.crawler_database_url)
+            logger.info(
+                "爬虫数据库 Provider 初始化",
+                backend="sqlite",
+                path=settings.CRAWLER_DATABASE_PATH,
             )
-            
-            # 在每个连接建立时设置 PRAGMA
-            @event.listens_for(_crawler_engine.sync_engine, "connect")
-            def _set_sqlite_pragma(dbapi_conn, connection_record):
-                cursor = dbapi_conn.cursor()
-                cursor.execute("PRAGMA journal_mode=WAL")
-                cursor.execute("PRAGMA synchronous=NORMAL")
-                cursor.execute("PRAGMA busy_timeout=30000")
-                cursor.close()
-                
         elif backend == "postgres":
-            _crawler_engine = create_async_engine(
+            _crawler_provider = PostgresProvider(
                 settings.crawler_database_url,
                 pool_size=settings.DATABASE_POOL_SIZE,
                 max_overflow=settings.DATABASE_POOL_MAX_OVERFLOW,
                 pool_timeout=settings.DATABASE_POOL_TIMEOUT,
-                echo=False,
-                future=True,
+            )
+            logger.info(
+                "爬虫数据库 Provider 初始化",
+                backend="postgres",
+                host=settings.POSTGRES_HOST,
             )
         else:
             msg = f"不支持的数据库后端: {backend}"
             raise ValueError(msg)
-        logger.info("爬虫数据库引擎初始化", backend=backend)
-    return _crawler_engine
+    return _crawler_provider
 
 
-def _get_crawler_session_factory() -> async_sessionmaker[AsyncSession]:
-    """获取爬虫数据库会话工厂"""
-    global _crawler_session_factory
-    if _crawler_session_factory is None:
-        _crawler_session_factory = async_sessionmaker(
-            _get_crawler_engine(),
-            class_=AsyncSession,
-            expire_on_commit=False,
-            autocommit=False,
-            autoflush=False,
-        )
-    return _crawler_session_factory
+async def close_crawler_provider() -> None:
+    """关闭爬虫数据库 Provider"""
+    global _crawler_provider
+    if _crawler_provider is not None:
+        await _crawler_provider.close()
+        _crawler_provider = None
 
 
 @asynccontextmanager
@@ -101,7 +77,7 @@ async def get_crawler_db() -> AsyncGenerator[AsyncSession, None]:
 
     用于爬虫相关的数据操作（CrawlSite, CrawlTask, CrawlPage）
     """
-    session_factory = _get_crawler_session_factory()
+    session_factory = get_crawler_provider().session_factory
     async with session_factory() as session:
         try:
             yield session
@@ -125,7 +101,7 @@ async def get_crawler_db_dep() -> AsyncGenerator[AsyncSession, None]:
 
     用于爬虫相关的数据操作（CrawlSite, CrawlTask, CrawlPage）
     """
-    session_factory = _get_crawler_session_factory()
+    session_factory = get_crawler_provider().session_factory
     async with session_factory() as session:
         try:
             yield session
@@ -149,11 +125,5 @@ async def init_crawler_db() -> None:
     from app.models.crawler import CrawlerBase
 
     settings.ensure_data_dir()
-    engine = _get_crawler_engine()
-    backend = settings.DATABASE_BACKEND
-
-    async with engine.begin() as conn:
-        # PRAGMA 已通过 event listener 在连接时自动设置（SQLite）
-        await conn.run_sync(CrawlerBase.metadata.create_all)
-
-    logger.info("爬虫数据库表初始化完成（WAL + NullPool）", backend=backend)
+    provider = get_crawler_provider()
+    await provider.init_db(CrawlerBase)
