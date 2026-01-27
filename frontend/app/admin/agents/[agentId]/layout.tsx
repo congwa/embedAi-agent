@@ -169,11 +169,13 @@ export default function AgentDetailLayout({
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>激活此 Agent</AlertDialogTitle>
-                  <AlertDialogDescription className="space-y-2">
-                    <p>确定要将 <strong>{agent.name}</strong> 设为激活状态吗？</p>
-                    <p className="text-amber-600 dark:text-amber-400">
-                      ⚠️ 激活后，所有用户对话将由该 Agent 处理。
-                    </p>
+                  <AlertDialogDescription asChild>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <p>确定要将 <strong>{agent.name}</strong> 设为激活状态吗？</p>
+                      <p className="text-amber-600 dark:text-amber-400">
+                        ⚠️ 激活后，所有用户对话将由该 Agent 处理。
+                      </p>
+                    </div>
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
