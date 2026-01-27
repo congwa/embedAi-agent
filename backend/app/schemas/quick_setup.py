@@ -97,7 +97,7 @@ class AgentTypeField(BaseModel):
 
     key: str = Field(..., description="字段标识")
     label: str = Field(..., description="显示名称")
-    type: Literal["text", "textarea", "select", "multiselect", "switch", "number"] = Field(...)
+    type: Literal["text", "textarea", "select", "multiselect", "switch", "number", "agent_selector", "agent_selector_single"] = Field(...)
     required: bool = Field(default=False)
     default: Any = Field(default=None)
     options: list[dict[str, str]] | None = Field(default=None, description="选项列表")
@@ -119,12 +119,12 @@ class AgentTypeStepConfig(BaseModel):
 class AgentTypeConfig(BaseModel):
     """Agent 类型完整配置"""
 
-    type: Literal["product", "faq", "kb", "custom"] = Field(..., description="Agent 类型")
+    type: Literal["product", "faq", "kb", "custom", "supervisor"] = Field(..., description="Agent 类型")
     name: str = Field(..., description="类型名称")
     description: str = Field(..., description="类型描述")
     icon: str = Field(default="Bot", description="图标名称")
     default_tool_categories: list[str] = Field(default_factory=list)
-    default_middleware_flags: dict[str, bool] = Field(default_factory=dict)
+    default_middleware_flags: dict[str, Any] = Field(default_factory=dict)
     default_knowledge_type: str | None = Field(default=None)
     steps: list[AgentTypeStepConfig] = Field(default_factory=list, description="类型特定步骤配置")
     greeting_template: dict[str, Any] | None = Field(default=None, description="开场白模板")
