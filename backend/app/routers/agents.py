@@ -150,7 +150,9 @@ async def update_agent(
     db: AsyncSession = Depends(get_db_session),
 ):
     """更新 Agent"""
-    stmt = select(Agent).where(Agent.id == agent_id)
+    from sqlalchemy.orm import selectinload
+
+    stmt = select(Agent).options(selectinload(Agent.knowledge_config)).where(Agent.id == agent_id)
     result = await db.execute(stmt)
     agent = result.scalar_one_or_none()
 
