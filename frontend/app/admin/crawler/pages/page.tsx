@@ -90,7 +90,7 @@ export default function CrawlerPagesPage() {
   };
 
   return (
-    <FeatureGuard features={features} requiredFeature="crawler">
+    <FeatureGuard features={features} requiredFeature="crawler" loading={featuresLoading}>
       <div className="space-y-6">
       <PageHeader
         title="页面数据"

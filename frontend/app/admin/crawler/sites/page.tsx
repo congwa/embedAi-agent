@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, ExternalLink } from "lucide-react";
 import { PageHeader, ErrorState } from "@/components/admin";
 import { Button } from "@/components/ui/button";
+import { useFeatures } from "@/hooks/use-features";
+import { FeatureGuard } from "@/components/features/feature-guard";
 import {
   Table,
   TableBody,
@@ -43,6 +45,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
 };
 
 export default function CrawlerSitesPage() {
+  const { features, loading: featuresLoading } = useFeatures();
   const [sites, setSites] = useState<CrawlSite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
@@ -69,16 +72,17 @@ export default function CrawlerSitesPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="站点配置"
-        description={error ? "站点配置管理" : `共 ${sites.length} 个站点`}
-        actions={
-          <Button variant="outline" size="icon" onClick={loadData} disabled={isLoading}>
-            <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-          </Button>
-        }
-      />
+    <FeatureGuard features={features} requiredFeature="crawler" loading={featuresLoading}>
+      <div className="space-y-6">
+        <PageHeader
+          title="站点配置"
+          description={error ? "站点配置管理" : `共 ${sites.length} 个站点`}
+          actions={
+            <Button variant="outline" size="icon" onClick={loadData} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+            </Button>
+          }
+        />
 
       {/* 错误状态 - 如果有错误则显示错误，否则显示表格 */}
       {error ? (
@@ -172,6 +176,7 @@ export default function CrawlerSitesPage() {
         </Table>
       </div>
       )}
-    </div>
+      </div>
+    </FeatureGuard>
   );
 }

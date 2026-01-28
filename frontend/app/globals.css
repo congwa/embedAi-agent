@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "../assets/css/chat-themes.css";
 
+@plugin "@tailwindcss/typography";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

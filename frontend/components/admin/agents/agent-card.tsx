@@ -22,15 +22,17 @@ const typeConfig: Record<string, { label: string; color: string }> = {
 interface AgentCardProps {
   agent: Agent;
   className?: string;
+  basePath?: string;
 }
 
-export function AgentCard({ agent, className }: AgentCardProps) {
+export function AgentCard({ agent, className, basePath = "/admin/agents" }: AgentCardProps) {
   const router = useRouter();
   const activeAgent = useAgentStore((s) => s.activeAgent());
   const activateAgent = useAgentStore((s) => s.activateAgent);
   const [isActivating, setIsActivating] = useState(false);
   const typeInfo = typeConfig[agent.type] || typeConfig.custom;
   const isActive = activeAgent?.id === agent.id;
+  const agentHref = `${basePath}/${agent.id}`;
 
   const capabilities = [];
   if (agent.tool_categories?.includes("faq")) capabilities.push("faq");
@@ -44,12 +46,12 @@ export function AgentCard({ agent, className }: AgentCardProps) {
     const success = await activateAgent(agent.id);
     setIsActivating(false);
     if (success) {
-      router.push(`/admin/agents/${agent.id}`);
+      router.push(agentHref);
     }
   };
 
   return (
-    <Link href={`/admin/agents/${agent.id}`}>
+    <Link href={agentHref}>
       <Card
         className={cn(
           "group cursor-pointer transition-all hover:border-zinc-300 hover:shadow-sm dark:hover:border-zinc-700",

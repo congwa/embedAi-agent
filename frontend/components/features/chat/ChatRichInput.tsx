@@ -24,6 +24,7 @@ interface ChatRichInputProps {
   disabled?: boolean;
   isLoading?: boolean;
   className?: string;
+  showToolbar?: boolean;
 }
 
 export function ChatRichInput({
@@ -34,6 +35,7 @@ export function ChatRichInput({
   disabled = false,
   isLoading = false,
   className,
+  showToolbar = true,
 }: ChatRichInputProps) {
   const theme = useChatThemeOptional();
   
@@ -126,90 +128,95 @@ export function ChatRichInput({
         )}
       />
       
-      <div className="flex items-center justify-between px-2 py-1.5 border-t border-[var(--chat-border-color)]">
-        <TooltipProvider delayDuration={300}>
-          <div className="flex items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-[var(--chat-text-secondary)] hover:text-[var(--chat-text-primary)] hover:bg-[var(--chat-bg-user-bubble)]"
-                  onClick={toggleBold}
-                  disabled={disabled}
-                >
-                  <Bold className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">粗体</TooltipContent>
-            </Tooltip>
+      <div className={cn(
+        "flex items-center px-2 py-1.5 border-t border-[var(--chat-border-color)]",
+        showToolbar ? "justify-between" : "justify-end"
+      )}>
+        {showToolbar && (
+          <TooltipProvider delayDuration={300}>
+            <div className="flex items-center gap-0.5">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-[var(--chat-text-secondary)] hover:text-[var(--chat-text-primary)] hover:bg-[var(--chat-bg-user-bubble)]"
+                    onClick={toggleBold}
+                    disabled={disabled}
+                  >
+                    <Bold className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">粗体</TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-[var(--chat-text-secondary)] hover:text-[var(--chat-text-primary)] hover:bg-[var(--chat-bg-user-bubble)]"
-                  onClick={toggleItalic}
-                  disabled={disabled}
-                >
-                  <Italic className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">斜体</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-[var(--chat-text-secondary)] hover:text-[var(--chat-text-primary)] hover:bg-[var(--chat-bg-user-bubble)]"
+                    onClick={toggleItalic}
+                    disabled={disabled}
+                  >
+                    <Italic className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">斜体</TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-[var(--chat-text-secondary)] hover:text-[var(--chat-text-primary)] hover:bg-[var(--chat-bg-user-bubble)]"
-                  onClick={toggleBulletList}
-                  disabled={disabled}
-                >
-                  <List className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">无序列表</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-[var(--chat-text-secondary)] hover:text-[var(--chat-text-primary)] hover:bg-[var(--chat-bg-user-bubble)]"
+                    onClick={toggleBulletList}
+                    disabled={disabled}
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">无序列表</TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-[var(--chat-text-secondary)] hover:text-[var(--chat-text-primary)] hover:bg-[var(--chat-bg-user-bubble)]"
-                  onClick={toggleOrderedList}
-                  disabled={disabled}
-                >
-                  <ListOrdered className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">有序列表</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-[var(--chat-text-secondary)] hover:text-[var(--chat-text-primary)] hover:bg-[var(--chat-bg-user-bubble)]"
+                    onClick={toggleOrderedList}
+                    disabled={disabled}
+                  >
+                    <ListOrdered className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">有序列表</TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-[var(--chat-text-secondary)] hover:text-[var(--chat-text-primary)] hover:bg-[var(--chat-bg-user-bubble)]"
-                  onClick={toggleCode}
-                  disabled={disabled}
-                >
-                  <Code className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">代码</TooltipContent>
-            </Tooltip>
-          </div>
-        </TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-[var(--chat-text-secondary)] hover:text-[var(--chat-text-primary)] hover:bg-[var(--chat-bg-user-bubble)]"
+                    onClick={toggleCode}
+                    disabled={disabled}
+                  >
+                    <Code className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">代码</TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
+        )}
 
         <Button
           type="button"

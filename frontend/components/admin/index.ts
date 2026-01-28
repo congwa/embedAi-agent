@@ -1,4 +1,4 @@
-export { AdminSidebar } from "./admin-sidebar";
+export { AdminSidebar, SingleAgentSidebar, MultiAgentSidebar } from "./sidebars";
 export { AgentSwitcher } from "./agent-switcher";
 export { StatCard } from "./stat-card";
 export { PageHeader } from "./page-header";

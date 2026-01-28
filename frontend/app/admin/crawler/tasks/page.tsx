@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, CheckCircle, XCircle, Clock, Loader2 } from "lucide-react";
 import { PageHeader, DataTablePagination } from "@/components/admin";
 import { Button } from "@/components/ui/button";
+import { useFeatures } from "@/hooks/use-features";
+import { FeatureGuard } from "@/components/features/feature-guard";
 import {
   Select,
   SelectContent,
@@ -36,6 +38,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: React.E
 };
 
 export default function CrawlerTasksPage() {
+  const { features, loading: featuresLoading } = useFeatures();
   const [data, setData] = useState<PaginatedResponse<CrawlTaskListItem> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,9 +82,10 @@ export default function CrawlerTasksPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="任务列表"
+    <FeatureGuard features={features} requiredFeature="crawler" loading={featuresLoading}>
+      <div className="space-y-6">
+        <PageHeader
+          title="任务列表"
         description={`共 ${data?.total || 0} 个任务`}
         actions={
           <Button variant="outline" size="icon" onClick={loadData} disabled={isLoading}>
@@ -217,6 +221,7 @@ export default function CrawlerTasksPage() {
           />
         </div>
       )}
-    </div>
+      </div>
+    </FeatureGuard>
   );
 }

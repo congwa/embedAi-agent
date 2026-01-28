@@ -6,7 +6,7 @@
  */
 
 import { ReactNode } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Settings } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
@@ -18,6 +18,12 @@ interface FeatureGuardProps {
   requiredFeature: keyof SystemFeatures
   fallback?: ReactNode
   redirectTo?: string
+  loading?: boolean
+  settingsPath?: string
+}
+
+const FEATURE_SETTINGS_MAP: Record<string, string> = {
+  crawler: '/admin/settings/crawler',
 }
 
 export function FeatureGuard({
@@ -26,9 +32,20 @@ export function FeatureGuard({
   requiredFeature,
   fallback,
   redirectTo = '/admin',
+  loading = false,
+  settingsPath,
 }: FeatureGuardProps) {
   const router = useRouter()
   const enabled = isFeatureEnabled(features, requiredFeature)
+
+  // 加载中时显示 loading 状态
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-900 border-t-transparent dark:border-zinc-100" />
+      </div>
+    )
+  }
 
   if (enabled) {
     return <>{children}</>
@@ -39,6 +56,7 @@ export function FeatureGuard({
   }
 
   const message = getFeatureMessage(features, requiredFeature)
+  const featureSettingsPath = settingsPath || FEATURE_SETTINGS_MAP[requiredFeature]
 
   return (
     <div className="flex items-center justify-center min-h-[400px] p-8">
@@ -49,15 +67,29 @@ export function FeatureGuard({
           <AlertDescription className="mt-2">
             <p className="mb-4">{message}</p>
             <p className="text-sm text-muted-foreground mb-4">
-              请联系系统管理员在环境配置中启用此功能。
+              {featureSettingsPath 
+                ? "您可以在设置中心启用此功能。" 
+                : "请联系系统管理员在环境配置中启用此功能。"
+              }
             </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push(redirectTo)}
-            >
-              返回管理后台
-            </Button>
+            <div className="flex gap-2">
+              {featureSettingsPath && (
+                <Button
+                  size="sm"
+                  onClick={() => router.push(featureSettingsPath)}
+                >
+                  <Settings className="mr-2 h-4 w-4" />
+                  前往设置
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(redirectTo)}
+              >
+                返回管理后台
+              </Button>
+            </div>
           </AlertDescription>
         </Alert>
       </div>

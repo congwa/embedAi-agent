@@ -3,18 +3,25 @@
 提供系统功能开关状态查询接口，供前端判断哪些功能可用。
 """
 
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.database import get_db
 from app.core.health import dependency_registry
 from app.core.logging import get_logger
+from app.services.crawler import crawler_config_service
 
 router = APIRouter(prefix="/api/v1/system", tags=["system"])
 logger = get_logger("api.system")
 
 
 @router.get("/features")
-async def get_features():
+async def get_features(
+    session: Annotated[AsyncSession, Depends(get_db)],
+):
     """获取系统功能状态
     
     返回各功能模块的启用状态和健康信息，供前端控制导航和页面渲染。
@@ -29,8 +36,11 @@ async def get_features():
             "last_error": info.last_error if info else None,
         }
     
+    # 动态获取爬虫启用状态
+    crawler_enabled = await crawler_config_service.is_enabled(session)
+    
     return {
-        "crawler": get_feature_info("crawler", settings.CRAWLER_ENABLED),
+        "crawler": get_feature_info("crawler", crawler_enabled),
         "memory": {
             "enabled": settings.MEMORY_ENABLED,
             "store_enabled": settings.MEMORY_STORE_ENABLED,

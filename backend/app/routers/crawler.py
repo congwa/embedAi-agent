@@ -7,10 +7,12 @@ import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.crawler_database import get_crawler_db_dep
+from app.core.database import get_db
 from app.core.errors import raise_service_unavailable
 from app.core.logging import get_logger
 from app.models.crawler import CrawlSite, CrawlTask
@@ -32,32 +34,99 @@ from app.schemas.crawler import (
     ExtractionConfig,
     RetryMode,
 )
-from app.services.crawler import CrawlerService
+from app.services.crawler import CrawlerService, crawler_config_service
 from app.services.crawler.utils import generate_site_id, normalize_domain
 
 logger = get_logger("router.crawler")
 router = APIRouter(prefix="/api/v1/crawler", tags=["crawler"])
 
 
-def check_crawler_enabled():
-    """检查爬取模块是否启用"""
-    if not settings.CRAWLER_ENABLED:
+async def check_crawler_enabled(session: AsyncSession):
+    """检查爬取模块是否启用（动态从数据库读取）"""
+    if not await crawler_config_service.is_enabled(session):
         raise_service_unavailable(
             service="crawler",
-            message="爬取模块未启用，请在 .env 中设置 CRAWLER_ENABLED=true",
+            message="爬虫模块未启用，请在设置中心启用",
         )
+
+
+async def require_crawler_enabled(
+    app_session: Annotated[AsyncSession, Depends(get_db)],
+) -> None:
+    """依赖注入：要求爬虫模块已启用"""
+    await check_crawler_enabled(app_session)
+
+
+# ==================== 配置管理 ====================
+
+
+class CrawlerConfigResponse(BaseModel):
+    """爬虫配置响应"""
+    enabled: bool
+    model: str | None
+    provider: str | None
+    max_depth: int
+    max_pages: int
+    default_delay: float
+    headless: bool
+    run_on_start: bool
+
+
+class CrawlerEnableRequest(BaseModel):
+    """启用爬虫请求"""
+    pass
+
+
+@router.get("/config", response_model=CrawlerConfigResponse)
+async def get_crawler_config(
+    app_session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """获取爬虫配置（无需启用也可查询）"""
+    config = await crawler_config_service.get_config(app_session)
+    return CrawlerConfigResponse(**config)
+
+
+@router.put("/config/enable", response_model=CrawlerConfigResponse)
+async def enable_crawler(
+    app_session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """启用爬虫模块
+    
+    - 设置数据库状态为 enabled
+    - 爬虫数据库已在启动时初始化
+    """
+    await crawler_config_service.set_enabled(app_session, True)
+    logger.info("爬虫模块已启用")
+    
+    config = await crawler_config_service.get_config(app_session)
+    return CrawlerConfigResponse(**config)
+
+
+@router.put("/config/disable", response_model=CrawlerConfigResponse)
+async def disable_crawler(
+    app_session: Annotated[AsyncSession, Depends(get_db)],
+):
+    """禁用爬虫模块
+    
+    - 设置数据库状态为 disabled
+    - 已爬取的数据保留
+    """
+    await crawler_config_service.set_enabled(app_session, False)
+    logger.info("爬虫模块已禁用")
+    
+    config = await crawler_config_service.get_config(app_session)
+    return CrawlerConfigResponse(**config)
 
 
 # ==================== 站点管理 ====================
 
 
-@router.post("/sites", response_model=CrawlSiteResponse)
+@router.post("/sites", response_model=CrawlSiteResponse, dependencies=[Depends(require_crawler_enabled)])
 async def create_site(
     site_data: CrawlSiteCreate,
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
 ):
     """创建站点配置"""
-    check_crawler_enabled()
 
     repo = CrawlSiteRepository(session)
 
@@ -114,26 +183,24 @@ async def create_site(
     return _site_to_response(site)
 
 
-@router.get("/sites", response_model=list[CrawlSiteResponse])
+@router.get("/sites", response_model=list[CrawlSiteResponse], dependencies=[Depends(require_crawler_enabled)])
 async def list_sites(
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
 ):
     """获取所有站点配置"""
-    check_crawler_enabled()
-
+    
     repo = CrawlSiteRepository(session)
     sites = await repo.get_all()
     return [_site_to_response(site) for site in sites]
 
 
-@router.get("/sites/{site_id}", response_model=CrawlSiteResponse)
+@router.get("/sites/{site_id}", response_model=CrawlSiteResponse, dependencies=[Depends(require_crawler_enabled)])
 async def get_site(
     site_id: str,
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
 ):
     """获取站点配置详情"""
-    check_crawler_enabled()
-
+    
     repo = CrawlSiteRepository(session)
     site = await repo.get_by_id(site_id)
     if not site:
@@ -144,15 +211,14 @@ async def get_site(
     return _site_to_response(site)
 
 
-@router.patch("/sites/{site_id}", response_model=CrawlSiteResponse)
+@router.patch("/sites/{site_id}", response_model=CrawlSiteResponse, dependencies=[Depends(require_crawler_enabled)])
 async def update_site(
     site_id: str,
     update_data: CrawlSiteUpdate,
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
 ):
     """更新站点配置"""
-    check_crawler_enabled()
-
+    
     repo = CrawlSiteRepository(session)
     site = await repo.get_by_id(site_id)
     if not site:
@@ -193,14 +259,13 @@ async def update_site(
     return _site_to_response(site)
 
 
-@router.delete("/sites/{site_id}")
+@router.delete("/sites/{site_id}", dependencies=[Depends(require_crawler_enabled)])
 async def delete_site(
     site_id: str,
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
 ):
     """删除站点配置"""
-    check_crawler_enabled()
-
+    
     repo = CrawlSiteRepository(session)
     site = await repo.get_by_id(site_id)
     if not site:
@@ -221,7 +286,7 @@ async def delete_site(
     return {"message": f"站点 {site_id} 已删除"}
 
 
-@router.post("/sites/{site_id}/retry", response_model=CrawlSiteRetryResponse)
+@router.post("/sites/{site_id}/retry", response_model=CrawlSiteRetryResponse, dependencies=[Depends(require_crawler_enabled)])
 async def retry_site(
     site_id: str,
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
@@ -235,8 +300,7 @@ async def retry_site(
             - incremental: 增量模式（默认），不清空页面，根据 content_hash 跳过未变化的页面
             - force: 强制模式，清空所有页面后重新爬取
     """
-    check_crawler_enabled()
-
+    
     site_repo = CrawlSiteRepository(session)
     site = await site_repo.get_by_id(site_id)
     if not site:
@@ -290,14 +354,13 @@ async def retry_site(
 # ==================== 任务管理 ====================
 
 
-@router.post("/tasks", response_model=CrawlTaskResponse)
+@router.post("/tasks", response_model=CrawlTaskResponse, dependencies=[Depends(require_crawler_enabled)])
 async def create_task(
     task_data: CrawlTaskCreate,
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
 ):
     """手动触发爬取任务"""
-    check_crawler_enabled()
-
+    
     # 检查站点是否存在
     site_repo = CrawlSiteRepository(session)
     site = await site_repo.get_by_id(task_data.site_id)
@@ -322,15 +385,14 @@ async def create_task(
     return _task_to_response(task)
 
 
-@router.get("/tasks", response_model=list[CrawlTaskResponse])
+@router.get("/tasks", response_model=list[CrawlTaskResponse], dependencies=[Depends(require_crawler_enabled)])
 async def list_tasks(
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
     site_id: str | None = None,
     limit: int = 20,
 ):
     """获取任务列表"""
-    check_crawler_enabled()
-
+    
     repo = CrawlTaskRepository(session)
     if site_id:
         tasks = await repo.get_tasks_by_site(site_id, limit=limit)
@@ -341,14 +403,13 @@ async def list_tasks(
     return [_task_to_response(task) for task in tasks]
 
 
-@router.get("/tasks/{task_id}", response_model=CrawlTaskResponse)
+@router.get("/tasks/{task_id}", response_model=CrawlTaskResponse, dependencies=[Depends(require_crawler_enabled)])
 async def get_task(
     task_id: int,
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
 ):
     """获取任务详情"""
-    check_crawler_enabled()
-
+    
     repo = CrawlTaskRepository(session)
     task = await repo.get_by_id(task_id)
     if not task:
@@ -359,7 +420,7 @@ async def get_task(
     return _task_to_response(task)
 
 
-@router.get("/tasks/{task_id}/pages", response_model=list[CrawlPageResponse])
+@router.get("/tasks/{task_id}/pages", response_model=list[CrawlPageResponse], dependencies=[Depends(require_crawler_enabled)])
 async def get_task_pages(
     task_id: int,
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
@@ -367,8 +428,7 @@ async def get_task_pages(
     offset: int = 0,
 ):
     """获取任务的页面列表"""
-    check_crawler_enabled()
-
+    
     repo = CrawlPageRepository(session)
     pages = await repo.get_pages_by_task(task_id, limit=limit, offset=offset)
     return [
@@ -389,7 +449,7 @@ async def get_task_pages(
     ]
 
 
-@router.post("/tasks/{task_id}/retry", response_model=CrawlTaskRetryResponse)
+@router.post("/tasks/{task_id}/retry", response_model=CrawlTaskRetryResponse, dependencies=[Depends(require_crawler_enabled)])
 async def retry_task(
     task_id: int,
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
@@ -403,8 +463,7 @@ async def retry_task(
             - incremental: 增量模式（默认），不清空页面，根据 content_hash 跳过未变化的页面
             - force: 强制模式，清空所有页面后重新爬取
     """
-    check_crawler_enabled()
-
+    
     task_repo = CrawlTaskRepository(session)
     original_task = await task_repo.get_by_id(task_id)
     if not original_task:
@@ -462,13 +521,12 @@ async def retry_task(
 # ==================== 统计与状态 ====================
 
 
-@router.get("/stats", response_model=CrawlStats)
+@router.get("/stats", response_model=CrawlStats, dependencies=[Depends(require_crawler_enabled)])
 async def get_stats(
     session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
 ):
     """获取爬取统计信息"""
-    check_crawler_enabled()
-
+    
     site_repo = CrawlSiteRepository(session)
     task_repo = CrawlTaskRepository(session)
     page_repo = CrawlPageRepository(session)

@@ -106,7 +106,7 @@ export default function AdminDashboardPage() {
             <Button variant="outline" size="sm" onClick={() => router.push("/admin/settings/mode")}>
               切换模式
             </Button>
-            <Button size="sm" onClick={() => router.push("/admin/workspace")}>
+            <Button size="sm" onClick={() => router.push(mode === "supervisor" ? "/admin/multi" : "/admin/single")}>
               进入工作空间
               <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
@@ -176,7 +176,7 @@ export default function AdminDashboardPage() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-zinc-500">默认 Agent</span>
                   <Link 
-                    href={`/admin/agents/${stats.agent_stats.default_agent_id}`}
+                    href={`/admin/single/agents/${stats.agent_stats.default_agent_id}`}
                     className="flex items-center gap-1 text-primary hover:underline"
                   >
                     {stats.agent_stats.default_agent_name}
@@ -211,7 +211,7 @@ export default function AdminDashboardPage() {
                   在 Supervisor 配置页面中启用
                 </p>
                 <Link 
-                  href="/admin/settings/supervisor"
+                  href="/admin/multi/routing"
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                 >
                   查看配置
@@ -237,7 +237,7 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
                 <Link 
-                  href="/admin/settings/supervisor"
+                  href="/admin/multi/routing"
                   className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
                 >
                   管理编排配置

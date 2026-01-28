@@ -262,21 +262,20 @@ export function ChatContent() {
                 <ThemedEmptyDescription className="text-center text-sm">
                   告诉我你想要什么，我来帮你找到最合适的商品
                 </ThemedEmptyDescription>
-                <div className="mt-6 flex flex-wrap justify-center gap-2">
-                  {(suggestedQuestions.welcome.length > 0
-                    ? suggestedQuestions.welcome
-                    : [{id: "1", question: "推荐一款降噪耳机"}, {id: "2", question: "有什么好的跑步鞋"}, {id: "3", question: "想买一台破壁机"}]
-                  ).map((item) => (
-                    <ThemedSuggestionButton
-                      key={item.id}
-                      className="px-3 py-1.5 text-xs"
-                      onClick={() => handleSuggestionClick(item.question, item.id)}
-                      disabled={isStreaming}
-                    >
-                      {item.question}
-                    </ThemedSuggestionButton>
-                  ))}
-                </div>
+                {suggestedQuestions.welcome.length > 0 && (
+                  <div className="mt-6 flex flex-wrap justify-center gap-2">
+                    {suggestedQuestions.welcome.map((item) => (
+                      <ThemedSuggestionButton
+                        key={item.id}
+                        className="px-3 py-1.5 text-xs"
+                        onClick={() => handleSuggestionClick(item.question, item.id)}
+                        disabled={isStreaming}
+                      >
+                        {item.question}
+                      </ThemedSuggestionButton>
+                    ))}
+                  </div>
+                )}
               </ThemedEmptyState>
             )}
 
@@ -292,7 +291,6 @@ export function ChatContent() {
       {/* 输入区域 */}
       <div className={cn(
         "z-10 shrink-0 px-3 pb-3 md:px-5 md:pb-5",
-        themeId === "default" && "bg-white dark:bg-zinc-900",
         themeId === "ethereal" && "chat-ethereal-input-area",
         themeId === "industrial" && "chat-industrial-input-area"
       )}>
@@ -326,6 +324,7 @@ export function ChatContent() {
             onSubmit={handleButtonClick}
             placeholder={themeId === "industrial" ? "INPUT QUERY..." : "描述你想要的商品..."}
             isLoading={isStreaming}
+            showToolbar={false}
             className={cn(
               "relative z-10 w-full shadow-sm",
               themeId === "ethereal" && "chat-ethereal-input-wrapper",

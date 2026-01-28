@@ -14,6 +14,7 @@ from app.core.crawler_database import get_crawler_db_dep
 from app.core.database import get_db
 from app.core.errors import raise_service_unavailable
 from app.core.logging import get_logger
+from app.services.crawler import crawler_config_service
 from app.models.conversation import Conversation, HandoffState
 from app.models.crawler import CrawlPage, CrawlSite, CrawlTask, CrawlTaskStatus
 from app.models.message import Message
@@ -284,7 +285,7 @@ async def get_dashboard_stats(
     total_crawl_tasks = 0
     crawl_success_rate = 0.0
 
-    if settings.CRAWLER_ENABLED:
+    if await crawler_config_service.is_enabled(session):
         total_crawl_sites = await crawler_session.scalar(select(func.count(CrawlSite.id)))
         total_crawl_tasks = await crawler_session.scalar(select(func.count(CrawlTask.id)))
 
@@ -522,13 +523,14 @@ async def list_users(
 @router.get("/crawl-tasks", response_model=PaginatedResponse[CrawlTaskListItem])
 async def list_crawl_tasks(
     crawler_session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
+    app_session: Annotated[AsyncSession, Depends(get_db)],
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     site_id: str | None = None,
     status: str | None = None,
 ):
     """获取爬取任务列表（从爬虫数据库 crawler.db）"""
-    if not settings.CRAWLER_ENABLED:
+    if not await crawler_config_service.is_enabled(app_session):
         raise_service_unavailable("crawler", "爬虫模块未启用")
 
     query = select(CrawlTask, CrawlSite.name.label("site_name")).outerjoin(
@@ -592,14 +594,15 @@ async def list_crawl_tasks(
 @router.get("/crawl-pages", response_model=PaginatedResponse[CrawlPageListItem])
 async def list_crawl_pages(
     crawler_session: Annotated[AsyncSession, Depends(get_crawler_db_dep)],
+    app_session: Annotated[AsyncSession, Depends(get_db)],
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     site_id: str | None = None,
     task_id: int | None = None,
     status: str | None = None,
 ):
-    """获取爬取页面列表（从爬虫数据库 crawler.db）"""
-    if not settings.CRAWLER_ENABLED:
+    """获取爬取页面列表（从爫虫数据库 crawler.db）"""
+    if not await crawler_config_service.is_enabled(app_session):
         raise_service_unavailable("crawler", "爬虫模块未启用")
 
     query = select(CrawlPage)

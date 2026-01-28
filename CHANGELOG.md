@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.13] - 2026-01-28
+
+### Added
+
+- **爬虫模块动态启用** (`backend/app/services/crawler/config_service.py`, `backend/app/routers/crawler.py`): 新增 `CrawlerConfigService` 配置服务，支持通过后台管理界面动态启用/禁用爬虫模块，无需修改 .env 配置文件。状态存储在数据库中，优先级高于环境变量。
+- **爬虫设置页面** (`frontend/app/admin/settings/crawler/page.tsx`): 新增爬虫模块设置页面，提供启用/禁用开关、配置信息展示、统计概览和快捷操作入口。
+
+### Changed
+
+- **爬虫启动逻辑优化** (`backend/app/main.py`): 应用启动时始终初始化爬虫数据库表结构，根据数据库中的启用状态决定是否执行调度任务，支持后续动态启用。
+- **爬虫路由动态检查** (`backend/app/routers/crawler.py`, `backend/app/routers/admin.py`): 所有爬虫 API 端点改为动态检查数据库中的启用状态，新增 `/api/v1/crawler/config`、`/config/enable`、`/config/disable` 配置管理接口。
+- **系统状态接口优化** (`backend/app/routers/system.py`): `/api/v1/system/features` 接口改为动态获取爬虫启用状态，前端可实时感知模块状态变化。
+- **爬虫管理页面优化** (`frontend/app/admin/crawler/page.tsx`): 未启用时显示友好的引导界面和启用按钮，替代原有的"请修改 .env"提示。
+- **FeatureGuard 组件增强** (`frontend/components/features/feature-guard.tsx`): 添加 `loading` 状态支持，避免页面闪动；添加功能设置页面跳转按钮。
+- **聊天输入框简化** (`frontend/components/features/chat/ChatRichInput.tsx`): 添加 `showToolbar` 属性，聊天页面隐藏格式工具栏，只保留发送按钮。
+- **聊天界面背景统一** (`frontend/components/features/chat/ChatContent.tsx`): 移除输入区域独立背景色，与聊天区域保持一致。
+- **推荐问题动态化** (`frontend/components/features/chat/ChatContent.tsx`): 移除前端写死的推荐问题 fallback，完全由后台 Agent 配置管理。
+- **模式指示器重构** (`frontend/components/admin/mode-indicator.tsx`): 下拉菜单改为只显示当前状态和配置入口，点击跳转到对应配置页面而不是直接切换；只有在"模式设置"页面才能真正切换模式（带确认弹窗）。
+- **路由分离** (`frontend/app/admin/single/page.tsx`, `frontend/app/admin/supervisor/page.tsx`): 单 Agent 和 Supervisor 使用独立路由，`/admin/workspace` 自动重定向到当前模式对应页面。
+- **侧边栏菜单重构** (`frontend/components/admin/admin-sidebar.tsx`): 按模式显示不同菜单内容，移除 ModeIndicator 组件，在底部添加模式切换按钮（带确认弹窗）。
+- **提示词 Markdown 渲染** (`frontend/app/globals.css`): 添加 `@tailwindcss/typography` 插件，修复提示词内容显示缺少 Markdown 样式的问题。
+
+---
+
 ## [0.1.12] - 2026-01-28
 
 ### Added

@@ -34,6 +34,7 @@ from app.scheduler.routers import router as scheduler_router
 from app.scheduler.tasks import CrawlSiteTask
 from app.services.agent.bootstrap import bootstrap_default_agents
 from app.services.agent.core.service import agent_service
+from app.services.crawler import crawler_config_service
 from app.services.crawler.site_initializer import init_config_sites
 from app.services.websocket.heartbeat import heartbeat_manager
 
@@ -111,12 +112,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning("默认 Agent 初始化失败", module="app", error=str(e))
 
-    # 初始化爬虫配置站点
-    if settings.CRAWLER_ENABLED:
-        # 初始化爬虫独立数据库
-        await init_crawler_db()
+    # 始终初始化爬虫数据库（表结构），以便后续可以动态启用
+    await init_crawler_db()
+    logger.info("爬虫数据库已初始化", module="app")
 
-        # 使用爬虫数据库会话初始化站点配置
+    # 从数据库获取爬虫启用状态（首次启动时从 .env 初始化）
+    from app.core.database import get_db_context
+    async with get_db_context() as app_session:
+        crawler_enabled = await crawler_config_service.is_enabled_with_init(app_session)
+
+    # 如果爬虫启用，初始化站点配置和调度任务
+    if crawler_enabled:
         async with get_crawler_db() as crawler_session:
             imported_site_ids = await init_config_sites(crawler_session)
 
@@ -128,7 +134,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 for site_id in imported_site_ids:
                     site = await site_repo.get_by_id(site_id)
                     if site and site.cron_expression:
-                        # 创建并注册该站点的定时任务
                         task = CrawlSiteTask(
                             site_id=site_id,
                             cron_expression=site.cron_expression,
@@ -139,6 +144,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             else:
                 # 如果没有配置站点，注册默认任务（兼容旧逻辑）
                 task_registry.register(CrawlSiteTask())
+        
+        logger.info("爬虫模块已启用", module="app")
 
     # 启动调度器（即使没有任务也启动，方便后续动态注册）
     await task_scheduler.start()

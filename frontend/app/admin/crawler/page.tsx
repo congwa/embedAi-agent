@@ -1,9 +1,17 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Globe, ListTodo, FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Globe, ListTodo, FileText, Power, Settings } from "lucide-react";
 import { PageHeader } from "@/components/admin";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { apiRequest } from "@/lib/api/client";
+
+interface CrawlerConfig {
+  enabled: boolean;
+}
 
 const crawlerModules = [
   {
@@ -27,6 +35,82 @@ const crawlerModules = [
 ];
 
 export default function CrawlerPage() {
+  const router = useRouter();
+  const [config, setConfig] = useState<CrawlerConfig | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isEnabling, setIsEnabling] = useState(false);
+
+  const loadConfig = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await apiRequest<CrawlerConfig>("/api/v1/crawler/config");
+      setConfig(data);
+    } catch {
+      setConfig(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadConfig();
+  }, [loadConfig]);
+
+  const handleEnable = async () => {
+    try {
+      setIsEnabling(true);
+      const data = await apiRequest<CrawlerConfig>("/api/v1/crawler/config/enable", {
+        method: "PUT",
+      });
+      setConfig(data);
+    } catch {
+      // 启用失败
+    } finally {
+      setIsEnabling(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-900 border-t-transparent dark:border-zinc-100" />
+      </div>
+    );
+  }
+
+  // 未启用状态
+  if (config && !config.enabled) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="爬虫管理"
+          description="管理站点配置、查看任务和页面数据"
+        />
+
+        <Card className="border-dashed">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800">
+              <Power className="h-8 w-8 text-zinc-400" />
+            </div>
+            <CardTitle className="text-xl">爬虫模块未启用</CardTitle>
+            <CardDescription className="mx-auto max-w-md">
+              启用爬虫模块后，您可以配置站点、执行爬取任务，并将网站数据自动导入到商品库中。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center gap-3 pb-8">
+            <Button onClick={handleEnable} disabled={isEnabling}>
+              {isEnabling ? "启用中..." : "立即启用"}
+            </Button>
+            <Button variant="outline" onClick={() => router.push("/admin/settings/crawler")}>
+              <Settings className="mr-2 h-4 w-4" />
+              查看设置
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
