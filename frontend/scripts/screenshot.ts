@@ -3,8 +3,8 @@
  * 使用 Playwright 对主要功能页面进行全屏截屏
  * 
  * 使用方法：
- * 1. 确保前后端服务已启动
- * 2. 运行：npx tsx .windsurf/skills/auto-screenshot/scripts/screenshot.ts
+ * 1. 确保前端服务已启动 (pnpm dev)
+ * 2. 在 frontend 目录运行：npx tsx scripts/screenshot.ts
  */
 
 import { chromium, Browser, Page } from 'playwright';
@@ -14,7 +14,7 @@ import * as path from 'path';
 // 截屏配置
 const CONFIG = {
   baseUrl: 'http://localhost:3000',
-  outputDir: './docs/screenshots',
+  outputDir: '../docs/screenshots',
   viewport: { width: 1920, height: 1080 },
   timeout: 30000,
 };
@@ -148,7 +148,7 @@ async function main() {
 ${PAGES.map(p => `| ${p.path} | ${p.description} | ![${p.name}](screenshots/${p.name}.png) |`).join('\n')}
 `;
     
-    fs.writeFileSync(path.join('./docs', 'SCREENSHOTS.md'), indexContent);
+    fs.writeFileSync(path.join('../docs', 'SCREENSHOTS.md'), indexContent);
     console.log('\n📝 已生成索引文件: docs/SCREENSHOTS.md');
     
   } catch (error) {
