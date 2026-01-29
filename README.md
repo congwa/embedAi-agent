@@ -597,15 +597,15 @@ Agent："抱歉，我需要更具体的信息才能回答。
 
 | 页面 | 截图 |
 |------|------|
-| 产品落地页 | ![落地页](http://qiniu.biomed168.com/pic/20260129165131706.avif) |
-| 用户聊天界面 | ![聊天界面](http://qiniu.biomed168.com/pic/20260129165131705.avif) |
-| 管理后台仪表盘 | ![仪表盘](http://qiniu.biomed168.com/pic/20260129165131704.avif) |
-| 快速配置向导 | ![快速配置](http://qiniu.biomed168.com/pic/20260129165131703.avif) |
-| 单 Agent 模式 | ![单 Agent](http://qiniu.biomed168.com/pic/20260129165131702.avif) |
-| 编排模式 | ![编排模式](http://qiniu.biomed168.com/pic/20260129165131701.avif) |
-| 技能管理 | ![技能管理](http://qiniu.biomed168.com/pic/20260129165131700.avif) |
-| 系统设置 | ![系统设置](http://qiniu.biomed168.com/pic/20260129165131699.avif) |
-| 客服工作台 | ![客服工作台](http://qiniu.biomed168.com/pic/20260129165131698.avif) |
+| 产品落地页 | ![落地页](http://qiniu.biomed168.com/pic/landing-page.avif) |
+| 用户聊天界面 | ![聊天界面](http://qiniu.biomed168.com/pic/chat-interface.avif) |
+| 管理后台仪表盘 | ![仪表盘](http://qiniu.biomed168.com/pic/admin-dashboard.avif) |
+| 快速配置向导 | ![快速配置](http://qiniu.biomed168.com/pic/quick-setup.avif) |
+| 单 Agent 模式 | ![单 Agent](http://qiniu.biomed168.com/pic/single-mode.avif) |
+| 编排模式 | ![编排模式](http://qiniu.biomed168.com/pic/multi-mode.avif) |
+| 技能管理 | ![技能管理](http://qiniu.biomed168.com/pic/skills-list.avif) |
+| 系统设置 | ![系统设置](http://qiniu.biomed168.com/pic/settings.avif) |
+| 客服工作台 | ![客服工作台](http://qiniu.biomed168.com/pic/support-workbench.avif) |
 
 > 💡 **提示**：您也可以在项目的 `docs/screenshots/` 文件夹中查看所有界面截图。
 
