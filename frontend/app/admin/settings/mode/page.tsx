@@ -217,13 +217,13 @@ export default function ModeSettingsPage() {
       <Card>
         <CardContent className="flex items-center justify-between p-4">
           <div>
-            <div className="font-medium">进入工作空间</div>
+            <div className="font-medium">进入配置</div>
             <div className="text-sm text-zinc-500">
-              在工作空间中配置和管理 {mode === "supervisor" ? "Supervisor 编排" : "Agent"}
+              {mode === "supervisor" ? "配置和管理 Supervisor 编排" : "配置和管理 Agent"}
             </div>
           </div>
-          <Button onClick={() => router.push("/admin/workspace")}>
-            进入工作空间
+          <Button onClick={() => router.push(mode === "supervisor" ? "/admin/multi" : "/admin/single")}>
+            进入配置
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         </CardContent>

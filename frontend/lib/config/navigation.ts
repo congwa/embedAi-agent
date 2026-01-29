@@ -59,16 +59,12 @@ export const singleModeMainNav: NavItem[] = [
     exact: true,
   },
   {
-    title: "单 Agent 工作空间",
+    title: "Agent 配置",
     href: "/admin/single",
     icon: Bot,
+    exact: true,
     highlight: true,
     highlightColor: "emerald",
-  },
-  {
-    title: "Quick Setup",
-    href: "/admin/quick-setup",
-    icon: Sparkles,
   },
 ];
 
@@ -139,9 +135,10 @@ export const multiModeMainNav: NavItem[] = [
     exact: true,
   },
   {
-    title: "编排中心",
+    title: "编排配置",
     href: "/admin/multi",
     icon: Network,
+    exact: true,
     highlight: true,
     highlightColor: "violet",
   },
@@ -149,6 +146,7 @@ export const multiModeMainNav: NavItem[] = [
     title: "路由策略",
     href: "/admin/multi/routing",
     icon: Route,
+    exact: true,
   },
   {
     title: "子 Agent 管理",
@@ -217,11 +215,13 @@ export const systemNavItems: NavItem[] = [
     title: "技能管理",
     href: "/admin/skills",
     icon: Wand2,
+    exact: true,
   },
   {
     title: "提示词管理",
     href: "/admin/prompts",
     icon: FileText,
+    exact: true,
   },
   {
     title: "爬虫管理",
@@ -237,16 +237,19 @@ export const systemNavItems: NavItem[] = [
     title: "会话管理",
     href: "/admin/conversations",
     icon: MessageSquare,
+    exact: true,
   },
   {
     title: "用户管理",
     href: "/admin/users",
     icon: Users,
+    exact: true,
   },
   {
     title: "设置中心",
     href: "/admin/settings",
     icon: Settings,
+    exact: true,
   },
 ];
 
@@ -255,7 +258,12 @@ export const systemNavItems: NavItem[] = [
  */
 export const singleModeFooterNav: NavItem[] = [
   {
-    title: "配置多 Agent 编排",
+    title: "快速配置",
+    href: "/admin/quick-setup",
+    icon: Sparkles,
+  },
+  {
+    title: "配置编排模式",
     href: "/admin/multi",
     icon: Network,
     badge: "预设",
@@ -269,7 +277,12 @@ export const singleModeFooterNav: NavItem[] = [
  */
 export const multiModeFooterNav: NavItem[] = [
   {
-    title: "配置单 Agent",
+    title: "快速配置",
+    href: "/admin/quick-setup",
+    icon: Sparkles,
+  },
+  {
+    title: "配置单 Agent 模式",
     href: "/admin/single",
     icon: Bot,
     badge: "预设",

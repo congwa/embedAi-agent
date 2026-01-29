@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { useModeStore } from "@/stores";
 
 /**
- * 工作空间重定向页面
- * 根据当前模式自动重定向到对应的工作空间
+ * 模式重定向页面
+ * 根据当前模式自动重定向到对应的配置页面
  */
 export default function WorkspacePage() {
   const router = useRouter();
@@ -17,9 +17,9 @@ export default function WorkspacePage() {
   }, [fetchModeState]);
 
   useEffect(() => {
-    // 根据模式重定向到对应的工作空间
+    // 根据模式重定向到对应的配置页面
     if (mode === "supervisor") {
-      router.replace("/admin/supervisor");
+      router.replace("/admin/multi");
     } else {
       router.replace("/admin/single");
     }

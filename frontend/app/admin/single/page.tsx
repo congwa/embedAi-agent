@@ -52,7 +52,7 @@ export default function SingleAgentWorkspacePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="单 Agent 工作空间"
+        title="Agent 配置"
         description="配置和管理当前激活的 Agent"
       />
 

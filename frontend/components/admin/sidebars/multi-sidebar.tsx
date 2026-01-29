@@ -39,7 +39,8 @@ import { useModeStore } from "@/stores";
 import { useSupportStats } from "@/hooks/use-support-stats";
 import { 
   multiModeMainNav, 
-  systemNavItems, 
+  systemNavItems,
+  multiModeFooterNav,
   type NavItem 
 } from "@/lib/config/navigation";
 
@@ -219,8 +220,14 @@ export function MultiAgentSidebar() {
             </ul>
           </nav>
 
-          {/* Footer - 只保留客服工作台 */}
-          <div className="border-t border-zinc-200 p-4 dark:border-zinc-800">
+          {/* Footer - 快速入口 + 客服工作台 */}
+          <div className="border-t border-zinc-200 p-4 space-y-1 dark:border-zinc-800">
+            {/* 底部导航入口 */}
+            {multiModeFooterNav.map((item) => (
+              <NavItemComponent key={item.href} item={item} pathname={pathname} />
+            ))}
+            
+            {/* 客服工作台 */}
             <Link
               href="/support"
               className="flex items-center justify-between rounded-lg px-3 py-2 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"

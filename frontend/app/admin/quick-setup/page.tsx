@@ -209,7 +209,7 @@ export default function QuickSetupPage() {
   if (error) {
     return (
       <div className="space-y-4">
-        <PageHeader title="Quick Setup" description="快捷配置中心" />
+        <PageHeader title="快速配置" description="一站式完成系统配置" />
         <div className="rounded-lg bg-red-50 p-4 text-red-600 dark:bg-red-900/20 dark:text-red-400 flex items-center gap-2">
           <AlertCircle className="h-5 w-5" />
           {error}
@@ -231,8 +231,8 @@ export default function QuickSetupPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <PageHeader
-          title="Quick Setup"
-          description="快捷配置中心 - 一站式完成系统配置"
+          title="快速配置"
+          description="一站式完成系统配置"
         />
         <Button variant="outline" size="sm" onClick={handleReset}>
           <RotateCcw className="mr-2 h-4 w-4" />

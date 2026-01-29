@@ -26,3 +26,7 @@ export type { PromptEditorProps } from "./prompt-editor";
 
 // 模式相关组件
 export { ModeIndicator } from "./mode-indicator";
+
+// Agent 详情布局
+export { AgentDetailLayout } from "./agent-detail-layout";
+export type { AgentDetailLayoutProps } from "./agent-detail-layout";

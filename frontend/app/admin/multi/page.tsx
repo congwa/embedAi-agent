@@ -26,7 +26,7 @@ export default function MultiAgentWorkspacePage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="多 Agent 编排中心"
+        title="编排配置"
         description="管理多个 Agent 的协作与智能路由"
       />
 

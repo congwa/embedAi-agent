@@ -53,16 +53,11 @@ const singleModeNavItems: NavItemConfig[] = [
     exact: true,
   },
   {
-    title: "单 Agent 工作空间",
+    title: "Agent 配置",
     href: "/admin/single",
     icon: Bot,
     highlight: true,
     highlightColor: "emerald",
-  },
-  {
-    title: "Quick Setup",
-    href: "/admin/quick-setup",
-    icon: Sparkles,
   },
 ];
 

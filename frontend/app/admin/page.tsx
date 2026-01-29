@@ -107,7 +107,7 @@ export default function AdminDashboardPage() {
               切换模式
             </Button>
             <Button size="sm" onClick={() => router.push(mode === "supervisor" ? "/admin/multi" : "/admin/single")}>
-              进入工作空间
+              进入配置
               <ChevronRight className="ml-1 h-4 w-4" />
             </Button>
           </div>
