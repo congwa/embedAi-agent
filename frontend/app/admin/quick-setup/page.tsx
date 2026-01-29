@@ -287,18 +287,18 @@ export default function QuickSetupPage() {
         </div>
       </div>
 
-      {/* Navigation Buttons */}
-      <div className="flex items-center justify-between border-t pt-4">
-        <Button
-          variant="outline"
-          onClick={handlePrev}
-          disabled={state.current_step === 0 || isActioning}
-        >
-          <ChevronLeft className="mr-2 h-4 w-4" />
-          上一步
-        </Button>
-        <div className="flex items-center gap-2">
-          {state.current_step < state.steps.length - 1 && (
+      {/* Navigation Buttons - 最后一步(summary)由 SummaryStep 自己管理导航 */}
+      {state.current_step < state.steps.length - 1 && (
+        <div className="flex items-center justify-between border-t pt-4">
+          <Button
+            variant="outline"
+            onClick={handlePrev}
+            disabled={state.current_step === 0 || isActioning}
+          >
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            上一步
+          </Button>
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               onClick={handleSkip}
@@ -306,23 +306,13 @@ export default function QuickSetupPage() {
             >
               跳过
             </Button>
-          )}
-          {state.current_step < state.steps.length - 1 ? (
             <Button onClick={handleNext} disabled={isActioning}>
               下一步
               <ChevronRight className="ml-2 h-4 w-4" />
             </Button>
-          ) : (
-            <Button
-              onClick={() => router.push("/admin")}
-              disabled={isActioning}
-            >
-              完成配置
-              <CheckCircle className="ml-2 h-4 w-4" />
-            </Button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import {
   Bot,
   Settings,
   RotateCcw,
+  ChevronLeft,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -227,15 +228,25 @@ export function SummaryStep({
       </Card>
 
       {/* 操作按钮 */}
-      <div className="flex items-center justify-between">
-        <Button
-          variant="outline"
-          onClick={() => onGoto(0)}
-          disabled={isLoading}
-        >
-          <RotateCcw className="mr-2 h-4 w-4" />
-          重新运行向导
-        </Button>
+      <div className="flex items-center justify-between border-t pt-4">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onGoto(state.current_step - 1)}
+            disabled={isLoading}
+          >
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            上一步
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => onGoto(0)}
+            disabled={isLoading}
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            重新运行向导
+          </Button>
+        </div>
         <Button onClick={handleFinish} disabled={isLoading}>
           完成配置
           <CheckCircle className="ml-2 h-4 w-4" />
