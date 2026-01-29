@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import type { EffectiveConfigResponse, ToolInfo, FilteredToolInfo } from "@/lib/api/agents";
 import { getToolNameLabel } from "@/lib/config/labels";
+import { ToolPopover } from "@/components/features/config";
 
 interface ToolsCardProps {
   tools: EffectiveConfigResponse["tools"];
@@ -61,40 +62,44 @@ export function ToolsCard({ tools }: ToolsCardProps) {
 function ToolItem({ tool }: { tool: ToolInfo }) {
   const toolLabel = getToolNameLabel(tool.name);
   return (
-    <div className="flex items-start justify-between rounded-md border p-3">
-      <div>
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-green-500" />
-          <span className="font-medium">{toolLabel.label}</span>
-          <span className="font-mono text-xs text-muted-foreground">({tool.name})</span>
-        </div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {toolLabel.desc || tool.description}
-        </p>
-        <div className="mt-1 flex flex-wrap gap-1">
-          {tool.categories.map((c, i) => (
-            <Badge key={i} variant="secondary" className="text-xs">
-              {c}
-            </Badge>
-          ))}
+    <ToolPopover tool={tool}>
+      <div className="flex items-start justify-between rounded-md border p-3 cursor-pointer transition-colors hover:bg-accent/50">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            <span className="font-medium">{toolLabel.label}</span>
+            <span className="font-mono text-xs text-muted-foreground">({tool.name})</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {toolLabel.desc || tool.description}
+          </p>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {tool.categories.map((c, i) => (
+              <Badge key={i} variant="secondary" className="text-xs">
+                {c}
+              </Badge>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </ToolPopover>
   );
 }
 
 function FilteredToolItem({ tool }: { tool: FilteredToolInfo }) {
   const toolLabel = getToolNameLabel(tool.name);
   return (
-    <div className="flex items-start justify-between rounded-md border border-dashed p-3 opacity-60">
-      <div>
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-red-500" />
-          <span className="font-medium">{toolLabel.label}</span>
-          <span className="font-mono text-xs text-muted-foreground">({tool.name})</span>
+    <ToolPopover tool={tool} filtered>
+      <div className="flex items-start justify-between rounded-md border border-dashed p-3 opacity-60 cursor-pointer transition-colors hover:bg-accent/50">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            <span className="font-medium">{toolLabel.label}</span>
+            <span className="font-mono text-xs text-muted-foreground">({tool.name})</span>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">{tool.reason}</p>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">{tool.reason}</p>
       </div>
-    </div>
+    </ToolPopover>
   );
 }

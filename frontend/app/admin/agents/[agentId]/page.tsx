@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, PromptViewer } from "@/components/admin";
 import { getModeLabel, getMiddlewareLabel, getToolCategoryLabel } from "@/lib/config/labels";
+import { InfoPopover } from "@/components/ui/info-popover";
 
 export default function AgentOverviewPage() {
   const params = useParams();
@@ -70,7 +71,17 @@ export default function AgentOverviewPage() {
               const info = getMiddlewareLabel(key);
               return (
                 <div key={key} className="flex justify-between">
-                  <span className="text-sm text-zinc-500">{info.label}</span>
+                  <InfoPopover
+                    trigger={
+                      <span className="text-sm text-zinc-500 cursor-pointer hover:text-zinc-700 dark:hover:text-zinc-300">
+                        {info.label}
+                      </span>
+                    }
+                    title={info.label}
+                    description={info.desc}
+                    icon={info.icon}
+                    status={value ? "enabled" : "disabled"}
+                  />
                   <StatusBadge enabled={!!value} />
                 </div>
               );
@@ -153,15 +164,36 @@ export default function AgentOverviewPage() {
                 const info = getToolCategoryLabel(cat);
                 const IconComponent = info.icon;
                 return (
-                  <div key={cat} className="flex items-center gap-3 p-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50">
-                    <div className="flex items-center justify-center w-7 h-7 rounded-md bg-white dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
-                      <IconComponent className="h-3.5 w-3.5" />
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium">{info.label}</span>
-                      {info.desc && <p className="text-xs text-zinc-400">{info.desc}</p>}
-                    </div>
-                  </div>
+                  <InfoPopover
+                    key={cat}
+                    trigger={
+                      <div className="flex items-center gap-3 p-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700/50 transition-colors">
+                        <div className="flex items-center justify-center w-7 h-7 rounded-md bg-white dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">
+                          <IconComponent className="h-3.5 w-3.5" />
+                        </div>
+                        <div>
+                          <span className="text-sm font-medium">{info.label}</span>
+                          {info.desc && <p className="text-xs text-zinc-400">{info.desc}</p>}
+                        </div>
+                      </div>
+                    }
+                    title={info.label}
+                    description={info.desc}
+                    icon={IconComponent}
+                    details={
+                      info.tools && info.tools.length > 0 ? (
+                        <div className="space-y-1">
+                          <div className="text-xs font-medium text-foreground mb-1">包含工具</div>
+                          {info.tools.map((tool: { name: string; desc: string }) => (
+                            <div key={tool.name} className="flex items-center gap-2 text-xs">
+                              <code className="bg-muted px-1 py-0.5 rounded text-xs">{tool.name}</code>
+                              <span className="text-muted-foreground">{tool.desc}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : undefined
+                    }
+                  />
                 );
               })}
             </div>

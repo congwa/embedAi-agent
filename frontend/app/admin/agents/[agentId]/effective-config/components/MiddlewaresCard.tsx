@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import type { EffectiveConfigResponse, MiddlewareInfo } from "@/lib/api/agents";
 import { getMiddlewarePipelineLabel } from "@/lib/config/labels";
+import { MiddlewarePopover } from "@/components/features/config";
 
 interface MiddlewaresCardProps {
   middlewares: EffectiveConfigResponse["middlewares"];
@@ -34,9 +35,11 @@ export function MiddlewaresCard({ middlewares }: MiddlewaresCardProps) {
         <div className="flex flex-wrap items-center gap-1 rounded-md bg-muted/50 p-3 text-xs">
           {middlewares.pipeline.map((m, i) => (
             <span key={m.name} className="flex items-center">
-              <Badge variant="outline">
-                {getMiddlewarePipelineLabel(m.name).label}
-              </Badge>
+              <MiddlewarePopover middleware={m}>
+                <Badge variant="outline" className="cursor-pointer hover:bg-accent">
+                  {getMiddlewarePipelineLabel(m.name).label}
+                </Badge>
+              </MiddlewarePopover>
               {i < middlewares.pipeline.length - 1 && (
                 <ArrowRight className="mx-1 h-3 w-3 text-muted-foreground" />
               )}
@@ -87,39 +90,41 @@ function MiddlewareItem({
   const pipelineLabel = getMiddlewarePipelineLabel(middleware.name);
 
   return (
-    <div className={`rounded-md border p-3 ${disabled ? "border-dashed opacity-60" : ""}`}>
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          {index && (
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-xs">
-              {index}
-            </span>
-          )}
-          <span className={`h-2 w-2 rounded-full ${disabled ? "bg-red-500" : "bg-green-500"}`} />
-          <span className="font-medium">{pipelineLabel.label}</span>
-          <Badge variant="outline" className="text-xs">
-            顺序: {middleware.order}
+    <MiddlewarePopover middleware={middleware} disabled={disabled}>
+      <div className={`rounded-md border p-3 cursor-pointer transition-colors hover:bg-accent/50 ${disabled ? "border-dashed opacity-60" : ""}`}>
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            {index && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-muted text-xs">
+                {index}
+              </span>
+            )}
+            <span className={`h-2 w-2 rounded-full ${disabled ? "bg-red-500" : "bg-green-500"}`} />
+            <span className="font-medium">{pipelineLabel.label}</span>
+            <Badge variant="outline" className="text-xs">
+              顺序: {middleware.order}
+            </Badge>
+          </div>
+          <Badge variant={disabled ? "destructive" : "default"} className="text-xs">
+            {disabled ? "禁用" : "启用"}
           </Badge>
         </div>
-        <Badge variant={disabled ? "destructive" : "default"} className="text-xs">
-          {disabled ? "禁用" : "启用"}
-        </Badge>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {pipelineLabel.desc}
+        </p>
+        {disabled && middleware.reason && (
+          <p className="mt-1 text-xs text-destructive">{middleware.reason}</p>
+        )}
+        {hasParams && !disabled && (
+          <div className="mt-2 rounded bg-muted/50 p-2 font-mono text-xs">
+            {Object.entries(middleware.params).map(([k, v]) => (
+              <div key={k}>
+                {k}: {JSON.stringify(v)}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {pipelineLabel.desc}
-      </p>
-      {disabled && middleware.reason && (
-        <p className="mt-1 text-xs text-destructive">{middleware.reason}</p>
-      )}
-      {hasParams && !disabled && (
-        <div className="mt-2 rounded bg-muted/50 p-2 font-mono text-xs">
-          {Object.entries(middleware.params).map(([k, v]) => (
-            <div key={k}>
-              {k}: {JSON.stringify(v)}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    </MiddlewarePopover>
   );
 }

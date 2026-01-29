@@ -14,10 +14,12 @@ import {
   Check,
   X,
   ChevronRight,
+  ChevronDown,
   Pencil,
 } from "lucide-react";
 import { PageHeader } from "@/components/admin";
-import { getAgentTypeLabel } from "@/lib/config/labels";
+import { getAgentTypeLabel, getMiddlewareLabel } from "@/lib/config/labels";
+import { InfoPopover } from "@/components/ui/info-popover";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,6 +91,33 @@ function ConfigItem({
         )}
       </div>
     </div>
+  );
+}
+
+function MiddlewareDefaultCard({
+  keyName,
+  enabled,
+  extra,
+}: {
+  keyName: string;
+  enabled: boolean;
+  extra?: string;
+}) {
+  const info = getMiddlewareLabel(keyName);
+  return (
+    <InfoPopover
+      trigger={
+        <div className="rounded-lg border p-4 cursor-pointer hover:bg-accent/50 transition-colors">
+          <div className="mb-2 text-sm font-medium">{info.label}</div>
+          <StatusBadge enabled={enabled} />
+          {extra && <div className="mt-2 text-xs text-zinc-500">{extra}</div>}
+        </div>
+      }
+      title={info.label}
+      description={info.desc}
+      icon={info.icon}
+      status={enabled ? "enabled" : "disabled"}
+    />
   );
 }
 
@@ -355,37 +384,25 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-lg border p-4">
-              <div className="mb-2 text-sm font-medium">TODO 规划</div>
-              <StatusBadge enabled={middlewareDefaults.todo_enabled} />
-            </div>
-            <div className="rounded-lg border p-4">
-              <div className="mb-2 text-sm font-medium">工具限制</div>
-              <StatusBadge enabled={middlewareDefaults.tool_limit_enabled} />
-              {middlewareDefaults.tool_limit_enabled && (
-                <div className="mt-2 text-xs text-zinc-500">
-                  单次限制: {middlewareDefaults.tool_limit_run ?? "无限制"}
-                </div>
-              )}
-            </div>
-            <div className="rounded-lg border p-4">
-              <div className="mb-2 text-sm font-medium">工具重试</div>
-              <StatusBadge enabled={middlewareDefaults.tool_retry_enabled} />
-              {middlewareDefaults.tool_retry_enabled && (
-                <div className="mt-2 text-xs text-zinc-500">
-                  最大重试: {middlewareDefaults.tool_retry_max_retries}
-                </div>
-              )}
-            </div>
-            <div className="rounded-lg border p-4">
-              <div className="mb-2 text-sm font-medium">上下文压缩</div>
-              <StatusBadge enabled={middlewareDefaults.summarization_enabled} />
-              {middlewareDefaults.summarization_enabled && (
-                <div className="mt-2 text-xs text-zinc-500">
-                  触发阈值: {middlewareDefaults.summarization_trigger_messages} 条
-                </div>
-              )}
-            </div>
+            <MiddlewareDefaultCard
+              keyName="todo_enabled"
+              enabled={middlewareDefaults.todo_enabled}
+            />
+            <MiddlewareDefaultCard
+              keyName="tool_limit_enabled"
+              enabled={middlewareDefaults.tool_limit_enabled}
+              extra={middlewareDefaults.tool_limit_enabled ? `单次限制: ${middlewareDefaults.tool_limit_run ?? "无限制"}` : undefined}
+            />
+            <MiddlewareDefaultCard
+              keyName="tool_retry_enabled"
+              enabled={middlewareDefaults.tool_retry_enabled}
+              extra={middlewareDefaults.tool_retry_enabled ? `最大重试: ${middlewareDefaults.tool_retry_max_retries}` : undefined}
+            />
+            <MiddlewareDefaultCard
+              keyName="summarization_enabled"
+              enabled={middlewareDefaults.summarization_enabled}
+              extra={middlewareDefaults.summarization_enabled ? `触发阈值: ${middlewareDefaults.summarization_trigger_messages} 条` : undefined}
+            />
           </div>
         </CardContent>
       </Card>
@@ -404,7 +421,7 @@ export default function SettingsPage() {
                 value={agent.id}
                 className="border rounded-lg px-4 data-[state=open]:bg-zinc-50 dark:data-[state=open]:bg-zinc-800/50"
               >
-                <AccordionTrigger className="hover:no-underline py-4">
+                <AccordionTrigger className="hover:no-underline py-4 w-full flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Bot className="h-4 w-4 text-zinc-500" />
                     <span className="font-medium">{agent.name}</span>
@@ -415,6 +432,7 @@ export default function SettingsPage() {
                       </Badge>
                     )}
                   </div>
+                  <ChevronDown className="h-4 w-4 text-zinc-400 transition-transform duration-200 group-data-[expanded]:rotate-180" />
                 </AccordionTrigger>
                 <AccordionContent>
                   <Table>
