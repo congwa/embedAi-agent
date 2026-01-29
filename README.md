@@ -597,15 +597,15 @@ Agent："抱歉，我需要更具体的信息才能回答。
 
 | 页面 | 截图 |
 |------|------|
-| 产品落地页 | ![落地页](docs/screenshots/landing-page.png) |
-| 用户聊天界面 | ![聊天界面](docs/screenshots/chat-interface.png) |
-| 管理后台仪表盘 | ![仪表盘](docs/screenshots/admin-dashboard.png) |
-| 快速配置向导 | ![快速配置](docs/screenshots/quick-setup.png) |
-| 单 Agent 模式 | ![单 Agent](docs/screenshots/single-mode.png) |
-| 编排模式 | ![编排模式](docs/screenshots/multi-mode.png) |
-| 技能管理 | ![技能管理](docs/screenshots/skills-list.png) |
-| 系统设置 | ![系统设置](docs/screenshots/settings.png) |
-| 客服工作台 | ![客服工作台](docs/screenshots/support-workbench.png) |
+| 产品落地页 | ![落地页](docs/screenshots/landing-page.avif) |
+| 用户聊天界面 | ![聊天界面](docs/screenshots/chat-interface.avif) |
+| 管理后台仪表盘 | ![仪表盘](docs/screenshots/admin-dashboard.avif) |
+| 快速配置向导 | ![快速配置](docs/screenshots/quick-setup.avif) |
+| 单 Agent 模式 | ![单 Agent](docs/screenshots/single-mode.avif) |
+| 编排模式 | ![编排模式](docs/screenshots/multi-mode.avif) |
+| 技能管理 | ![技能管理](docs/screenshots/skills-list.avif) |
+| 系统设置 | ![系统设置](docs/screenshots/settings.avif) |
+| 客服工作台 | ![客服工作台](docs/screenshots/support-workbench.avif) |
 
 </details>
 
