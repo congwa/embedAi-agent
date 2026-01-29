@@ -9,7 +9,8 @@
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/Python-3.13-green?logo=python)](https://www.python.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
-[![LangChain](https://img.shields.io/badge/LangChain-v1.1-orange)](https://langchain.com/)
+[![LangChain](https://img.shields.io/badge/LangChain-v1.2-orange)](https://langchain.com/)
+[![React](https://img.shields.io/badge/React-19-blue?logo=react)](https://react.dev/)
 
 </div>
 
@@ -176,41 +177,40 @@ graph TD
     Admin[管理员登录] --> Dashboard[管理后台首页]
     
     Dashboard --> QuickSetup{快速配置}
-    Dashboard --> AgentMgmt{Agent 管理}
-    Dashboard --> DataMgmt{数据管理}
-    Dashboard --> SupportMgmt{客服管理}
+    Dashboard --> ModeMgmt{模式管理}
     Dashboard --> SystemMgmt{系统管理}
+    Dashboard --> SupportMgmt{客服管理}
     
     QuickSetup[快速配置] --> QS1[选择 Agent 类型]
     QS1 --> QS2[配置知识源]
     QS2 --> QS3[设置开场白]
     QS3 --> QSComplete[Agent 创建完成]
     
-    AgentMgmt --> ListAgent[Agent 列表]
-    ListAgent --> CreateAgent[创建 Agent]
-    ListAgent --> EditAgent[编辑 Agent]
-    ListAgent --> ActivateAgent[激活 Agent]
+    ModeMgmt --> SingleMode[单 Agent 模式]
+    ModeMgmt --> MultiMode[编排模式]
     
-    EditAgent --> ConfigPrompt[配置提示词]
-    EditAgent --> ConfigTools[选择工具类别]
-    EditAgent --> ConfigMiddleware[中间件开关]
-    EditAgent --> ConfigMode[对话模式]
-    EditAgent --> ConfigMemory[记忆配置]
-    EditAgent --> ConfigGreeting[开场白设置]
-    EditAgent --> ConfigQuestions[推荐问题]
+    SingleMode --> AgentConfig[Agent 配置]
+    AgentConfig --> ConfigPrompt[配置提示词]
+    AgentConfig --> ConfigTools[选择工具类别]
+    AgentConfig --> ConfigMiddleware[中间件开关]
+    AgentConfig --> ConfigGreeting[开场白设置]
+    AgentConfig --> EffectiveConfig[运行态预览]
     
-    DataMgmt --> ProductMgmt[商品管理]
-    DataMgmt --> FAQMgmt[FAQ 管理]
-    DataMgmt --> KBMgmt[知识库管理]
-    DataMgmt --> CrawlerMgmt[爬虫管理]
+    MultiMode --> SupervisorConfig[Supervisor 配置]
+    MultiMode --> RoutingConfig[路由策略]
+    MultiMode --> SubAgentMgmt[子 Agent 管理]
     
-    ProductMgmt --> AddProduct[添加商品]
-    ProductMgmt --> ImportProduct[批量导入]
-    ProductMgmt --> EditProduct[编辑商品]
+    SystemMgmt --> AgentCenter[Agent 中心]
+    SystemMgmt --> SkillMgmt[技能管理]
+    SystemMgmt --> PromptMgmt[提示词管理]
+    SystemMgmt --> CrawlerMgmt[爬虫管理]
+    SystemMgmt --> ConvMgmt[会话管理]
+    SystemMgmt --> UserMgmt[用户管理]
+    SystemMgmt --> Settings[设置中心]
     
-    FAQMgmt --> AddFAQ[添加 FAQ]
-    FAQMgmt --> FAQStats[统计分析]
-    FAQMgmt --> FAQMerge[智能合并]
+    SkillMgmt --> CreateSkill[AI 生成技能]
+    SkillMgmt --> EditSkill[编辑技能]
+    SkillMgmt --> AssignSkill[分配给 Agent]
     
     CrawlerMgmt --> AddSite[添加站点]
     CrawlerMgmt --> ConfigCrawler[配置爬虫]
@@ -289,7 +289,7 @@ graph TD
     style QuickSetup fill:#fff4e1
 ```
 
-### 🎯 一站式引导详细流程
+### 🎯 快速配置详细流程
 
 ```mermaid
 graph TD
@@ -341,24 +341,13 @@ graph TD
     SelectTools --> SelectMiddleware[配置中间件]
     SelectMiddleware --> CustomReady[自定义配置完成]
     
-    DataReady --> Step3[步骤 3: 开场白与渠道]
+    DataReady --> Step3[步骤 3: 开场白设置]
     FAQReady --> Step3
     KBReady --> Step3
     CustomReady --> Step3
     
     Step3 --> GreetingConfig[配置开场白]
-    GreetingConfig --> SetTrigger[设置触发条件]
-    SetTrigger --> SetDelay[设置延迟时间]
-    SetDelay --> SetChannels[配置多渠道文案]
-    
-    SetChannels --> WebChannel[Web 渠道]
-    SetChannels --> EmbedChannel[嵌入组件渠道]
-    SetChannels --> SupportChannel[客服渠道]
-    
-    WebChannel --> QuestionConfig[配置推荐问题]
-    EmbedChannel --> QuestionConfig
-    SupportChannel --> QuestionConfig
-    
+    GreetingConfig --> QuestionConfig[配置推荐问题]
     QuestionConfig --> AddQuestions[添加快捷问题]
     AddQuestions --> Preview[预览效果]
     
@@ -577,10 +566,9 @@ Agent："抱歉，我需要更具体的信息才能回答。
 | 知识库 | 文档集合 | 上传文档并建立索引 |
 | 自定义 | 自选 | 可混合使用多种数据源 |
 
-#### 步骤 3：设置开场白和渠道
+#### 步骤 3：设置开场白
 
 - **开场白**：设置首次访问时的欢迎语
-- **渠道配置**：为不同渠道（Web/嵌入组件/小程序）定制消息
 - **推荐问题**：配置快捷问题按钮，引导用户提问
 
 **完成！** 配置完成后，Agent 立即可用，可以在对话界面测试效果。
@@ -592,12 +580,34 @@ Agent："抱歉，我需要更具体的信息才能回答。
 | 模块 | 功能 |
 |------|------|
 | **🎯 快速配置** | 可视化向导，3 步完成 Agent 配置（推荐新手使用） |
-| **🤖 Agent 管理** | 配置多个 Agent、设置提示词、选择对话模式 |
-| **📦 商品管理** | 添加、编辑、删除商品，支持批量导入 |
-| **📚 知识库管理** | 管理 FAQ 条目、上传文档、配置检索参数 |
-| **💬 对话管理** | 查看所有对话记录、用户信息、消息统计 |
-| **🕷️ 网站爬虫** | 自动从网站抓取商品信息（支持 SPA） |
-| **👨‍💼 客服支持** | 人工客服介入、企业微信通知、SLA 监控 |
+| **🤖 Agent 配置** | 单 Agent 模式配置，设置提示词、工具、中间件 |
+| **🔀 编排配置** | 多 Agent 编排模式，Supervisor 路由与子 Agent 管理 |
+| **🎭 技能管理** | AI 智能生成技能，动态注入 Agent |
+| **� 提示词管理** | 统一管理系统提示词模板 |
+| **🕷️ 爬虫管理** | 自动从网站抓取商品信息（支持 SPA） |
+| **💬 会话管理** | 查看所有对话记录、用户信息、消息统计 |
+| **� 用户管理** | 用户列表、画像查看 |
+| **⚙️ 设置中心** | LLM 配置、系统参数、模式切换 |
+| **👨‍💼 客服工作台** | 人工客服介入、企业微信通知、消息编辑 |
+
+### 📸 界面预览
+
+<details>
+<summary>点击展开查看界面截图</summary>
+
+| 页面 | 截图 |
+|------|------|
+| 产品落地页 | ![落地页](docs/screenshots/landing-page.png) |
+| 用户聊天界面 | ![聊天界面](docs/screenshots/chat-interface.png) |
+| 管理后台仪表盘 | ![仪表盘](docs/screenshots/admin-dashboard.png) |
+| 快速配置向导 | ![快速配置](docs/screenshots/quick-setup.png) |
+| 单 Agent 模式 | ![单 Agent](docs/screenshots/single-mode.png) |
+| 编排模式 | ![编排模式](docs/screenshots/multi-mode.png) |
+| 技能管理 | ![技能管理](docs/screenshots/skills-list.png) |
+| 系统设置 | ![系统设置](docs/screenshots/settings.png) |
+| 客服工作台 | ![客服工作台](docs/screenshots/support-workbench.png) |
+
+</details>
 
 ### 🔌 嵌入式组件
 
