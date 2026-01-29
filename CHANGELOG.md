@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.14] - 2026-01-29
+
+### 核心亮点
+
+本版本聚焦于**用户体验一致性**和**配置透明度**，让管理员更清晰地理解系统配置，同时简化日常操作路径。
+
+### Added
+
+- **Agent 运行态配置预览** (`frontend/app/admin/agents/[agentId]/effective-config/*`, `backend/app/services/agent/effective_config.py`): 新增「运行态预览」Tab，完整展示 Agent 最终生效的配置全貌——系统提示词、技能列表、工具清单、中间件链、知识源和策略配置。包含配置健康度检查和来源追踪，帮助管理员快速定位配置问题。
+
+- **Popover 说明组件体系** (`frontend/components/ui/info-popover.tsx`, `frontend/components/features/config/*`): 新增 `InfoPopover` 通用悬停说明组件，以及 `MiddlewarePopover`（中间件专用）和 `ToolPopover`（工具专用）业务组件。在配置界面中，鼠标悬停即可查看中间件工作原理、触发条件、工具分类说明等详细信息，降低配置学习成本。
+
+- **Agent 详情页共享布局** (`frontend/components/admin/agent-detail-layout.tsx`, `frontend/lib/config/agent-tabs.ts`): 创建统一的 `AgentDetailLayout` 组件和 `getAgentTabs` 配置函数，三个 Agent 配置路由（Agent 中心、单 Agent 模式、编排模式）共享相同的布局逻辑和 Tab 导航，代码量减少 80%。
+
+### Changed
+
+- **命名体系优化**: 删除模糊的"工作空间"概念，采用更直接的命名方式：
+  - "单 Agent 工作空间" → **Agent 配置**
+  - "编排中心" → **编排配置**
+  - "Quick Setup" → **快速配置**
+  - "进入工作空间" → **进入配置**
+
+- **导航结构调整**: 快速配置从主菜单移至底部入口区域，与日常高频操作分离，保持主菜单简洁。
+
+- **前端代码模块化** (`frontend/lib/timeline/*`, `frontend/types/*`): 
+  - `effective-config/page.tsx` 拆分为 7 个子组件（722 行 → 129 行）
+  - `timeline-utils.ts` 模块化重构（1001 行 → 9 行 + 5 个模块）
+  - 新增 `types/quick-setup.ts` 和 `types/effective-config.ts` 类型定义
+
+### Fixed
+
+- **快速设置重复按钮** (`frontend/app/admin/quick-setup/steps/summary-step.tsx`): 修复 Summary 步骤显示重复"完成配置"按钮的问题。
+
+---
+
 ## [0.1.13] - 2026-01-28
 
 ### Added
