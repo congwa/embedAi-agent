@@ -593,10 +593,10 @@ export default function LandingPage() {
                 { icon: Zap, title: "多 LLM 支持" },
                 { icon: BarChart3, title: "数据分析" },
                 { icon: Settings, title: "后台管理" },
-                { icon: Smartphone, title: "移动友好" },
-                { icon: Link2, title: "Webhook 推送" },
+                { icon: Bot, title: "多 Agent 编排" },
+                { icon: Sparkles, title: "技能系统" },
                 { icon: MessageSquare, title: "人工转接" },
-                { icon: Sparkles, title: "流式输出" },
+                { icon: Brain, title: "运行态预览" },
               ].map((item, i) => (
                 <motion.div
                   key={i}
