@@ -203,6 +203,41 @@ class Settings(BaseSettings):
     # - enabled: 规则开关
     AGENT_PII_DEFAULT_RULES: str = '[{"pii_type":"email","strategy":"redact","apply_to_input":true,"apply_to_output":true,"enabled":true},{"pii_type":"credit_card","strategy":"mask","apply_to_input":true,"apply_to_output":true,"enabled":true},{"pii_type":"phone_cn","strategy":"redact","detector":"1[3-9]\\\\d{9}","apply_to_input":true,"apply_to_output":true,"enabled":false}]'
 
+    # ========== Agent 模型重试中间件配置 ==========
+    # 模型调用失败时自动重试，应对网络抖动和 API 限流
+    AGENT_MODEL_RETRY_ENABLED: bool = False  # 是否启用 ModelRetryMiddleware
+    AGENT_MODEL_RETRY_MAX_RETRIES: int = 2  # 最大重试次数（0=不重试）
+    AGENT_MODEL_RETRY_BACKOFF_FACTOR: float = 2.0  # 指数退避因子（0=固定延迟）
+    AGENT_MODEL_RETRY_INITIAL_DELAY: float = 1.0  # 初始延迟（秒）
+    AGENT_MODEL_RETRY_MAX_DELAY: float = 60.0  # 最大延迟（秒）
+    AGENT_MODEL_RETRY_JITTER: bool = True  # 是否添加随机抖动（±25%）
+    AGENT_MODEL_RETRY_ON_FAILURE: str = "continue"  # 重试耗尽后行为: continue/error
+
+    # ========== Agent 模型降级中间件配置 ==========
+    # 主模型失败时自动切换备用模型，提高可用性
+    AGENT_MODEL_FALLBACK_ENABLED: bool = False  # 是否启用 ModelFallbackMiddleware
+    # 备选模型列表（JSON 数组），格式: ["provider:model_name", ...]
+    # 按优先级排序，主模型失败后依次尝试
+    AGENT_MODEL_FALLBACK_MODELS: str = "[]"
+
+    # ========== Agent 模型调用限制中间件配置 ==========
+    # 限制模型调用次数，防止死循环和成本失控
+    AGENT_MODEL_CALL_LIMIT_ENABLED: bool = False  # 是否启用 ModelCallLimitMiddleware
+    AGENT_MODEL_CALL_LIMIT_THREAD: int | None = None  # 线程累计限制（跨多次对话），留空不限制
+    AGENT_MODEL_CALL_LIMIT_RUN: int | None = 20  # 单次运行限制
+    AGENT_MODEL_CALL_LIMIT_EXIT_BEHAVIOR: str = "end"  # 超限行为: end/error
+
+    # ========== Agent 上下文编辑中间件配置 ==========
+    # 自动清理超长的工具输出，保持上下文可控
+    AGENT_CONTEXT_EDITING_ENABLED: bool = False  # 是否启用 ContextEditingMiddleware
+    AGENT_CONTEXT_EDITING_TOKEN_COUNT_METHOD: str = "approximate"  # Token 计数: approximate/model
+    AGENT_CONTEXT_EDITING_TRIGGER: int = 100000  # 触发清理的 token 阈值
+    AGENT_CONTEXT_EDITING_KEEP: int = 3  # 保留最近 N 个工具结果
+    AGENT_CONTEXT_EDITING_CLEAR_AT_LEAST: int = 0  # 每次至少清理的 token 数
+    AGENT_CONTEXT_EDITING_CLEAR_TOOL_INPUTS: bool = False  # 是否清理工具调用参数
+    AGENT_CONTEXT_EDITING_EXCLUDE_TOOLS: str = "[]"  # 不清理的工具名列表（JSON 数组）
+    AGENT_CONTEXT_EDITING_PLACEHOLDER: str = "[cleared]"  # 清理后的占位符
+
     # ========== Supervisor 多 Agent 编排配置 ==========
     # 全局开关（关闭后所有 Supervisor Agent 回退到单 Agent 模式）
     SUPERVISOR_ENABLED: bool = False

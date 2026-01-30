@@ -62,7 +62,11 @@ class MiddlewareSpec:
 # Order │ 名称                     │ 说明
 # ──────┼──────────────────────────┼────────────────────
 #   10  │ MemoryOrchestration      │ 记忆注入 + 异步写入
+#   15  │ PIIDetection             │ PII 检测（多规则）
 #   20  │ ResponseSanitization     │ 响应内容安全过滤
+#   25  │ ModelRetry               │ 模型调用重试（指数退避）
+#   26  │ ModelFallback            │ 模型降级（备选模型）
+#   27  │ ModelCallLimit           │ 模型调用限制（防死循环）
 #   30  │ SSE                      │ LLM 调用事件推送
 #   40  │ TodoList + TodoBroadcast │ 任务规划 + 广播
 #   50  │ SequentialToolExecution  │ 工具串行执行
@@ -70,6 +74,7 @@ class MiddlewareSpec:
 #   60  │ Logging                  │ 日志记录
 #   70  │ ToolRetry                │ 工具重试
 #   80  │ ToolCallLimit            │ 工具调用限制
+#   84  │ ContextEditing           │ 上下文编辑（工具结果清理）
 #   85  │ SlidingWindow            │ 滑动窗口裁剪
 #   90  │ Summarization            │ 上下文压缩摘要
 # ──────┴──────────────────────────┴────────────────────
@@ -216,6 +221,77 @@ def _get_middleware_specs(model: Any) -> list[MiddlewareSpec]:
         )
         return SummarizationBroadcastMiddleware(inner)
 
+    def _build_model_retry_middleware():
+        """构建模型重试中间件"""
+        from langchain.agents.middleware.model_retry import ModelRetryMiddleware
+
+        return ModelRetryMiddleware(
+            max_retries=settings.AGENT_MODEL_RETRY_MAX_RETRIES,
+            backoff_factor=settings.AGENT_MODEL_RETRY_BACKOFF_FACTOR,
+            initial_delay=settings.AGENT_MODEL_RETRY_INITIAL_DELAY,
+            max_delay=settings.AGENT_MODEL_RETRY_MAX_DELAY,
+            jitter=settings.AGENT_MODEL_RETRY_JITTER,
+            on_failure=settings.AGENT_MODEL_RETRY_ON_FAILURE,
+        )
+
+    def _build_model_fallback_middleware():
+        """构建模型降级中间件"""
+        import json
+        from langchain.agents.middleware.model_fallback import ModelFallbackMiddleware
+
+        try:
+            models = json.loads(settings.AGENT_MODEL_FALLBACK_MODELS)
+        except (json.JSONDecodeError, TypeError):
+            models = []
+
+        if not models:
+            return None
+
+        return ModelFallbackMiddleware(*models)
+
+    def _build_model_call_limit_middleware():
+        """构建模型调用限制中间件"""
+        from langchain.agents.middleware.model_call_limit import ModelCallLimitMiddleware
+
+        kwargs: dict[str, Any] = {"exit_behavior": settings.AGENT_MODEL_CALL_LIMIT_EXIT_BEHAVIOR}
+
+        if settings.AGENT_MODEL_CALL_LIMIT_THREAD is not None:
+            kwargs["thread_limit"] = settings.AGENT_MODEL_CALL_LIMIT_THREAD
+        if settings.AGENT_MODEL_CALL_LIMIT_RUN is not None:
+            kwargs["run_limit"] = settings.AGENT_MODEL_CALL_LIMIT_RUN
+
+        if "thread_limit" not in kwargs and "run_limit" not in kwargs:
+            return None
+
+        return ModelCallLimitMiddleware(**kwargs)
+
+    def _build_context_editing_middleware():
+        """构建上下文编辑中间件"""
+        import json
+        from langchain.agents.middleware.context_editing import (
+            ContextEditingMiddleware,
+            ClearToolUsesEdit,
+        )
+
+        try:
+            exclude_tools = json.loads(settings.AGENT_CONTEXT_EDITING_EXCLUDE_TOOLS)
+        except (json.JSONDecodeError, TypeError):
+            exclude_tools = []
+
+        clear_edit = ClearToolUsesEdit(
+            trigger=settings.AGENT_CONTEXT_EDITING_TRIGGER,
+            keep=settings.AGENT_CONTEXT_EDITING_KEEP,
+            clear_at_least=settings.AGENT_CONTEXT_EDITING_CLEAR_AT_LEAST,
+            clear_tool_inputs=settings.AGENT_CONTEXT_EDITING_CLEAR_TOOL_INPUTS,
+            exclude_tools=tuple(exclude_tools),
+            placeholder=settings.AGENT_CONTEXT_EDITING_PLACEHOLDER,
+        )
+
+        return ContextEditingMiddleware(
+            edits=[clear_edit],
+            token_count_method=settings.AGENT_CONTEXT_EDITING_TOKEN_COUNT_METHOD,
+        )
+
     # ========== 中间件规格列表（按 order 排序后依次构建） ==========
 
     return [
@@ -242,6 +318,27 @@ def _get_middleware_specs(model: Any) -> list[MiddlewareSpec]:
                 enabled=settings.RESPONSE_SANITIZATION_ENABLED,
                 custom_fallback_message=settings.RESPONSE_SANITIZATION_CUSTOM_MESSAGE,
             ),
+        ),
+        # Order 25: 模型重试（在 SSE 之前，应对网络抖动）
+        MiddlewareSpec(
+            name="ModelRetry",
+            order=25,
+            enabled=settings.AGENT_MODEL_RETRY_ENABLED,
+            factory=_build_model_retry_middleware,
+        ),
+        # Order 26: 模型降级（在模型重试之后）
+        MiddlewareSpec(
+            name="ModelFallback",
+            order=26,
+            enabled=settings.AGENT_MODEL_FALLBACK_ENABLED,
+            factory=_build_model_fallback_middleware,
+        ),
+        # Order 27: 模型调用限制（在模型降级之后）
+        MiddlewareSpec(
+            name="ModelCallLimit",
+            order=27,
+            enabled=settings.AGENT_MODEL_CALL_LIMIT_ENABLED,
+            factory=_build_model_call_limit_middleware,
         ),
         # Order 30: SSE 事件推送（llm.call.start/end）
         MiddlewareSpec(
@@ -296,6 +393,13 @@ def _get_middleware_specs(model: Any) -> list[MiddlewareSpec]:
             order=80,
             enabled=settings.AGENT_TOOL_LIMIT_ENABLED,
             factory=_build_tool_limit_middleware,
+        ),
+        # Order 84: 上下文编辑（工具结果清理）
+        MiddlewareSpec(
+            name="ContextEditing",
+            order=84,
+            enabled=settings.AGENT_CONTEXT_EDITING_ENABLED,
+            factory=_build_context_editing_middleware,
         ),
         # Order 85: 滑动窗口裁剪
         MiddlewareSpec(
@@ -444,6 +548,55 @@ def build_middlewares_for_agent(config: "AgentConfig", model: Any) -> list[Any]:
     ))
     logger.debug("✓ ResponseSanitization (order=20)", agent_id=config.agent_id)
 
+    # Order 25: 模型重试（支持 Agent 级配置）
+    if _is_enabled("model_retry_enabled", "AGENT_MODEL_RETRY_ENABLED"):
+        from langchain.agents.middleware.model_retry import ModelRetryMiddleware
+
+        middlewares.append(ModelRetryMiddleware(
+            max_retries=_get("model_retry_max_retries", settings.AGENT_MODEL_RETRY_MAX_RETRIES),
+            backoff_factor=_get("model_retry_backoff_factor", settings.AGENT_MODEL_RETRY_BACKOFF_FACTOR),
+            initial_delay=_get("model_retry_initial_delay", settings.AGENT_MODEL_RETRY_INITIAL_DELAY),
+            max_delay=_get("model_retry_max_delay", settings.AGENT_MODEL_RETRY_MAX_DELAY),
+            jitter=_get("model_retry_jitter", settings.AGENT_MODEL_RETRY_JITTER),
+            on_failure=_get("model_retry_on_failure", settings.AGENT_MODEL_RETRY_ON_FAILURE),
+        ))
+        logger.debug("✓ ModelRetry (order=25)", agent_id=config.agent_id)
+
+    # Order 26: 模型降级（支持 Agent 级配置）
+    if _is_enabled("model_fallback_enabled", "AGENT_MODEL_FALLBACK_ENABLED"):
+        import json
+        from langchain.agents.middleware.model_fallback import ModelFallbackMiddleware
+
+        fallback_models = _get("model_fallback_models", None)
+        if fallback_models is None:
+            try:
+                fallback_models = json.loads(settings.AGENT_MODEL_FALLBACK_MODELS)
+            except (json.JSONDecodeError, TypeError):
+                fallback_models = []
+
+        if fallback_models:
+            middlewares.append(ModelFallbackMiddleware(*fallback_models))
+            logger.debug(f"✓ ModelFallback (order=26, models={len(fallback_models)})", agent_id=config.agent_id)
+
+    # Order 27: 模型调用限制（支持 Agent 级配置）
+    if _is_enabled("model_call_limit_enabled", "AGENT_MODEL_CALL_LIMIT_ENABLED"):
+        from langchain.agents.middleware.model_call_limit import ModelCallLimitMiddleware
+
+        limit_kwargs: dict[str, Any] = {
+            "exit_behavior": _get("model_call_limit_exit_behavior", settings.AGENT_MODEL_CALL_LIMIT_EXIT_BEHAVIOR)
+        }
+        thread_limit = _get("model_call_limit_thread", settings.AGENT_MODEL_CALL_LIMIT_THREAD)
+        run_limit = _get("model_call_limit_run", settings.AGENT_MODEL_CALL_LIMIT_RUN)
+
+        if thread_limit is not None:
+            limit_kwargs["thread_limit"] = thread_limit
+        if run_limit is not None:
+            limit_kwargs["run_limit"] = run_limit
+
+        if "thread_limit" in limit_kwargs or "run_limit" in limit_kwargs:
+            middlewares.append(ModelCallLimitMiddleware(**limit_kwargs))
+            logger.debug("✓ ModelCallLimit (order=27)", agent_id=config.agent_id)
+
     # Order 30: SSE 事件推送
     middlewares.append(SSEMiddleware())
     logger.debug("✓ SSE (order=30)", agent_id=config.agent_id)
@@ -498,6 +651,36 @@ def build_middlewares_for_agent(config: "AgentConfig", model: Any) -> list[Any]:
         if "thread_limit" in limit_kwargs or "run_limit" in limit_kwargs:
             middlewares.append(ToolCallLimitMiddleware(**limit_kwargs))
             logger.debug("✓ ToolCallLimit (order=80)", agent_id=config.agent_id)
+
+    # Order 84: 上下文编辑（支持 Agent 级配置）
+    if _is_enabled("context_editing_enabled", "AGENT_CONTEXT_EDITING_ENABLED"):
+        import json
+        from langchain.agents.middleware.context_editing import (
+            ContextEditingMiddleware,
+            ClearToolUsesEdit,
+        )
+
+        exclude_tools = _get("context_editing_exclude_tools", None)
+        if exclude_tools is None:
+            try:
+                exclude_tools = json.loads(settings.AGENT_CONTEXT_EDITING_EXCLUDE_TOOLS)
+            except (json.JSONDecodeError, TypeError):
+                exclude_tools = []
+
+        clear_edit = ClearToolUsesEdit(
+            trigger=_get("context_editing_trigger", settings.AGENT_CONTEXT_EDITING_TRIGGER),
+            keep=_get("context_editing_keep", settings.AGENT_CONTEXT_EDITING_KEEP),
+            clear_at_least=_get("context_editing_clear_at_least", settings.AGENT_CONTEXT_EDITING_CLEAR_AT_LEAST),
+            clear_tool_inputs=_get("context_editing_clear_tool_inputs", settings.AGENT_CONTEXT_EDITING_CLEAR_TOOL_INPUTS),
+            exclude_tools=tuple(exclude_tools),
+            placeholder=_get("context_editing_placeholder", settings.AGENT_CONTEXT_EDITING_PLACEHOLDER),
+        )
+
+        middlewares.append(ContextEditingMiddleware(
+            edits=[clear_edit],
+            token_count_method=_get("context_editing_token_count_method", settings.AGENT_CONTEXT_EDITING_TOKEN_COUNT_METHOD),
+        ))
+        logger.debug("✓ ContextEditing (order=84)", agent_id=config.agent_id)
 
     # Order 85: 滑动窗口（支持 Agent 级配置）
     if _is_enabled("sliding_window_enabled", "AGENT_SLIDING_WINDOW_ENABLED"):

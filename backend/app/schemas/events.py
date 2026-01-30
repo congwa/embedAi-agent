@@ -93,6 +93,16 @@ class SkillEventType(StrEnum):
     SKILL_LOADED = "skill.loaded"  # 技能被加载（AI 主动调用）
 
 
+class MiddlewareEventType(StrEnum):
+    """中间件事件：模型重试、降级、限制等。"""
+
+    MODEL_RETRY_START = "model.retry.start"  # 模型重试开始
+    MODEL_RETRY_FAILED = "model.retry.failed"  # 模型重试失败（最终失败）
+    MODEL_FALLBACK = "model.fallback"  # 模型降级发生
+    MODEL_CALL_LIMIT_EXCEEDED = "model.call_limit.exceeded"  # 模型调用限制超限
+    CONTEXT_EDITED = "context.edited"  # 上下文编辑（工具结果清理）
+
+
 # ==================== 兼容旧代码的别名 ====================
 
 class NonLLMCallDomainEventType(StrEnum):
@@ -183,6 +193,13 @@ class StreamEventType(StrEnum):
     # ========== 技能事件 ==========
     SKILL_ACTIVATED = SkillEventType.SKILL_ACTIVATED.value
     SKILL_LOADED = SkillEventType.SKILL_LOADED.value
+
+    # ========== 中间件事件 ==========
+    MODEL_RETRY_START = MiddlewareEventType.MODEL_RETRY_START.value
+    MODEL_RETRY_FAILED = MiddlewareEventType.MODEL_RETRY_FAILED.value
+    MODEL_FALLBACK = MiddlewareEventType.MODEL_FALLBACK.value
+    MODEL_CALL_LIMIT_EXCEEDED = MiddlewareEventType.MODEL_CALL_LIMIT_EXCEEDED.value
+    CONTEXT_EDITED = MiddlewareEventType.CONTEXT_EDITED.value
 
 
 class MetaStartPayload(TypedDict):
@@ -318,3 +335,51 @@ class SkillLoadedPayload(TypedDict):
     skill_id: str  # 技能 ID
     skill_name: str  # 技能名称
     skill_category: str  # 技能分类
+
+
+# ========== 中间件事件 Payload ==========
+
+
+class ModelRetryStartPayload(TypedDict):
+    """模型重试开始事件 payload"""
+    attempt: int  # 当前重试次数（1-based）
+    max_retries: int  # 最大重试次数
+    delay_ms: int  # 等待延迟（毫秒）
+    error_type: str  # 触发重试的错误类型
+    error_message: NotRequired[str]  # 错误消息（可选，避免敏感信息）
+
+
+class ModelRetryFailedPayload(TypedDict):
+    """模型重试失败事件 payload"""
+    total_attempts: int  # 总尝试次数
+    final_error: str  # 最终错误
+    on_failure: str  # 失败处理方式: "continue" | "error"
+
+
+class ModelFallbackPayload(TypedDict):
+    """模型降级事件 payload"""
+    from_model: str  # 原模型
+    to_model: str  # 降级到的模型
+    fallback_index: int  # 第几个备选（1-based）
+    total_fallbacks: int  # 总备选数
+    error_type: str  # 触发降级的错误类型
+    error_message: NotRequired[str]  # 错误消息
+
+
+class ModelCallLimitExceededPayload(TypedDict):
+    """模型调用限制超限事件 payload"""
+    thread_count: NotRequired[int]  # 当前线程累计调用数
+    run_count: NotRequired[int]  # 当前运行调用数
+    thread_limit: NotRequired[int]  # 线程限制
+    run_limit: NotRequired[int]  # 运行限制
+    exceeded_type: str  # "thread" | "run" | "both"
+    exit_behavior: str  # "end" | "error"
+
+
+class ContextEditedPayload(TypedDict):
+    """上下文编辑事件 payload"""
+    strategy: str  # "clear_tool_uses"
+    tokens_before: NotRequired[int]  # 编辑前 token 数
+    tokens_after: NotRequired[int]  # 编辑后 token 数
+    tools_cleared: int  # 清理的工具结果数
+    kept: int  # 保留的工具结果数

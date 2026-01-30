@@ -175,6 +175,16 @@ export type SupervisorEventType =
  */
 export type SkillEventType = "skill.activated" | "skill.loaded";
 
+/**
+ * 中间件事件：模型重试、降级、限制等
+ */
+export type MiddlewareEventType =
+  | "model.retry.start"
+  | "model.retry.failed"
+  | "model.fallback"
+  | "model.call_limit.exceeded"
+  | "context.edited";
+
 /** 所有事件类型 */
 export type ChatEventType =
   | StreamLevelEventType
@@ -185,6 +195,7 @@ export type ChatEventType =
   | PostProcessEventType
   | SupportEventType
   | SupervisorEventType
+  | MiddlewareEventType
   | SkillEventType;
 
 // ==================== 事件类型判断函数 ====================
@@ -339,6 +350,48 @@ export interface SkillLoadedPayload {
   skill_category: string;
 }
 
+// ========== 中间件事件 Payload ==========
+
+export interface ModelRetryStartPayload {
+  attempt: number;
+  max_retries: number;
+  delay_ms: number;
+  error_type: string;
+  error_message?: string;
+}
+
+export interface ModelRetryFailedPayload {
+  total_attempts: number;
+  final_error: string;
+  on_failure: "continue" | "error";
+}
+
+export interface ModelFallbackPayload {
+  from_model: string;
+  to_model: string;
+  fallback_index: number;
+  total_fallbacks: number;
+  error_type: string;
+  error_message?: string;
+}
+
+export interface ModelCallLimitExceededPayload {
+  thread_count?: number;
+  run_count?: number;
+  thread_limit?: number;
+  run_limit?: number;
+  exceeded_type: "thread" | "run" | "both";
+  exit_behavior: "end" | "error";
+}
+
+export interface ContextEditedPayload {
+  strategy: string;
+  tokens_before?: number;
+  tokens_after?: number;
+  tools_cleared: number;
+  kept: number;
+}
+
 export type ChatEventPayload =
   | MetaStartPayload
   | TextDeltaPayload
@@ -349,6 +402,11 @@ export type ChatEventPayload =
   | ToolEndPayload
   | LlmCallStartPayload
   | LlmCallEndPayload
+  | ModelRetryStartPayload
+  | ModelRetryFailedPayload
+  | ModelFallbackPayload
+  | ModelCallLimitExceededPayload
+  | ContextEditedPayload
   | ErrorPayload
   | ContextSummarizedPayload
   | MemoryExtractionPayload
@@ -401,5 +459,11 @@ export type ChatEvent =
   // ========== 技能事件 ==========
   | (ChatEventBase & { type: "skill.activated"; payload: SkillActivatedPayload })
   | (ChatEventBase & { type: "skill.loaded"; payload: SkillLoadedPayload })
+  // ========== 中间件事件 ==========
+  | (ChatEventBase & { type: "model.retry.start"; payload: ModelRetryStartPayload })
+  | (ChatEventBase & { type: "model.retry.failed"; payload: ModelRetryFailedPayload })
+  | (ChatEventBase & { type: "model.fallback"; payload: ModelFallbackPayload })
+  | (ChatEventBase & { type: "model.call_limit.exceeded"; payload: ModelCallLimitExceededPayload })
+  | (ChatEventBase & { type: "context.edited"; payload: ContextEditedPayload })
   // ========== 兜底 ==========
   | (ChatEventBase & { type: ChatEventType; payload: Record<string, unknown> });

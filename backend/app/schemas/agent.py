@@ -186,6 +186,69 @@ class MiddlewareFlagsSchema(BaseModel):
         default=None, description="PII 检测规则列表"
     )
 
+    # ========== 模型重试配置 ==========
+    model_retry_enabled: bool | None = Field(default=None, description="模型重试总开关")
+    model_retry_max_retries: int | None = Field(
+        default=None, ge=0, le=10, description="最大重试次数（0=不重试）"
+    )
+    model_retry_backoff_factor: float | None = Field(
+        default=None, ge=0.0, le=5.0, description="指数退避因子（0=固定延迟）"
+    )
+    model_retry_initial_delay: float | None = Field(
+        default=None, ge=0.1, le=30.0, description="初始延迟（秒）"
+    )
+    model_retry_max_delay: float | None = Field(
+        default=None, ge=1.0, le=300.0, description="最大延迟（秒）"
+    )
+    model_retry_jitter: bool | None = Field(
+        default=None, description="是否添加随机抖动（±25%）"
+    )
+    model_retry_on_failure: Literal["continue", "error"] | None = Field(
+        default=None, description="重试耗尽后行为"
+    )
+
+    # ========== 模型降级配置 ==========
+    model_fallback_enabled: bool | None = Field(default=None, description="模型降级总开关")
+    model_fallback_models: list[str] | None = Field(
+        default=None, description="备选模型列表，格式: ['provider:model_name']"
+    )
+
+    # ========== 模型调用限制配置 ==========
+    model_call_limit_enabled: bool | None = Field(default=None, description="模型调用限制总开关")
+    model_call_limit_thread: int | None = Field(
+        default=None, ge=1, le=1000, description="线程累计限制（跨多次对话）"
+    )
+    model_call_limit_run: int | None = Field(
+        default=None, ge=1, le=100, description="单次运行限制"
+    )
+    model_call_limit_exit_behavior: Literal["end", "error"] | None = Field(
+        default=None, description="超限行为"
+    )
+
+    # ========== 上下文编辑配置 ==========
+    context_editing_enabled: bool | None = Field(default=None, description="上下文编辑总开关")
+    context_editing_token_count_method: Literal["approximate", "model"] | None = Field(
+        default=None, description="Token 计数方式"
+    )
+    context_editing_trigger: int | None = Field(
+        default=None, ge=1000, le=500000, description="触发清理的 token 阈值"
+    )
+    context_editing_keep: int | None = Field(
+        default=None, ge=0, le=20, description="保留最近 N 个工具结果"
+    )
+    context_editing_clear_at_least: int | None = Field(
+        default=None, ge=0, description="每次至少清理的 token 数"
+    )
+    context_editing_clear_tool_inputs: bool | None = Field(
+        default=None, description="是否清理工具调用参数"
+    )
+    context_editing_exclude_tools: list[str] | None = Field(
+        default=None, description="不清理的工具名列表"
+    )
+    context_editing_placeholder: str | None = Field(
+        default=None, max_length=50, description="清理后的占位符"
+    )
+
 
 class PIIRuleSchema(BaseModel):
     """PII 检测规则"""

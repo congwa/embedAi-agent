@@ -56,6 +56,35 @@ export interface MiddlewareFlags {
   // PII 检测配置
   pii_enabled?: boolean | null;
   pii_rules?: PIIRule[] | null;
+
+  // 模型重试配置
+  model_retry_enabled?: boolean | null;
+  model_retry_max_retries?: number | null;
+  model_retry_backoff_factor?: number | null;
+  model_retry_initial_delay?: number | null;
+  model_retry_max_delay?: number | null;
+  model_retry_jitter?: boolean | null;
+  model_retry_on_failure?: "continue" | "error" | null;
+
+  // 模型降级配置
+  model_fallback_enabled?: boolean | null;
+  model_fallback_models?: string[] | null;
+
+  // 模型调用限制配置
+  model_call_limit_enabled?: boolean | null;
+  model_call_limit_thread?: number | null;
+  model_call_limit_run?: number | null;
+  model_call_limit_exit_behavior?: "end" | "error" | null;
+
+  // 上下文编辑配置
+  context_editing_enabled?: boolean | null;
+  context_editing_token_count_method?: "approximate" | "model" | null;
+  context_editing_trigger?: number | null;
+  context_editing_keep?: number | null;
+  context_editing_clear_at_least?: number | null;
+  context_editing_clear_tool_inputs?: boolean | null;
+  context_editing_exclude_tools?: string[] | null;
+  context_editing_placeholder?: string | null;
 }
 
 // PII 检测规则
