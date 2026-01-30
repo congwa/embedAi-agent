@@ -19,7 +19,6 @@ class TestSkillInjectorAlwaysApply:
         result = injector.inject_always_apply_skills(
             system_prompt="原始提示词",
             agent_type="product",
-            mode="natural",
         )
 
         assert result == "原始提示词"
@@ -38,12 +37,11 @@ class TestSkillInjectorAlwaysApply:
         result = injector.inject_always_apply_skills(
             system_prompt="原始提示词",
             agent_type="product",
-            mode="natural",
         )
 
         assert "原始提示词" in result
         assert "已加载技能" in result
-        mock_registry.get_always_apply_skills.assert_called_once_with("product", "natural")
+        mock_registry.get_always_apply_skills.assert_called_once_with("product")
 
 
 class TestSkillInjectorMatchAndActivate:
@@ -62,7 +60,6 @@ class TestSkillInjectorMatchAndActivate:
         result = await injector.match_and_activate_skills(
             message="普通消息",
             agent_type="product",
-            mode="natural",
             emitter=mock_emitter,
         )
 
@@ -88,7 +85,6 @@ class TestSkillInjectorMatchAndActivate:
         result = await injector.match_and_activate_skills(
             message="帮我对比一下这两个商品",
             agent_type="product",
-            mode="natural",
             emitter=mock_emitter,
         )
 
@@ -129,7 +125,6 @@ class TestSkillInjectorMatchAndActivate:
         result = await injector.match_and_activate_skills(
             message="这是测试消息",
             agent_type="product",
-            mode="natural",
             emitter=mock_emitter,
         )
 

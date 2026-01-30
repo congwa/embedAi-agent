@@ -47,7 +47,6 @@ class SkillService:
             trigger_intents=data.trigger_intents,
             always_apply=data.always_apply,
             applicable_agents=data.applicable_agents,
-            applicable_modes=data.applicable_modes,
             author=author,
             is_system=is_system,
         )
@@ -231,8 +230,6 @@ class SkillService:
             # 检查适用范围
             if skill.applicable_agents and agent_type not in skill.applicable_agents:
                 continue
-            if skill.applicable_modes and mode not in skill.applicable_modes:
-                continue
 
             # always_apply 技能
             if skill.always_apply:
@@ -302,7 +299,6 @@ class SkillService:
                 trigger_intents=data.get("trigger_intents", []),
                 always_apply=data.get("always_apply", False),
                 applicable_agents=data.get("applicable_agents", []),
-                applicable_modes=data.get("applicable_modes", []),
                 is_system=True,
                 is_active=True,
             )

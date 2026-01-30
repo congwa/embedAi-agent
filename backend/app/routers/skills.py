@@ -153,7 +153,6 @@ async def refine_skill(
         "trigger_intents": skill.trigger_intents,
         "always_apply": skill.always_apply,
         "applicable_agents": skill.applicable_agents,
-        "applicable_modes": skill.applicable_modes,
     }
 
     generator = SkillGenerator()

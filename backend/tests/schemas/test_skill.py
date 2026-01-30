@@ -71,7 +71,6 @@ class TestSkillBase:
         assert skill.trigger_intents == []
         assert skill.always_apply is False
         assert skill.applicable_agents == []
-        assert skill.applicable_modes == []
 
     def test_all_categories(self):
         """测试所有分类"""
@@ -99,7 +98,6 @@ class TestSkillCreate:
             trigger_intents=["compare"],
             always_apply=False,
             applicable_agents=["product"],
-            applicable_modes=["natural", "strict"],
         )
         assert skill.name == "商品对比"
         assert "对比" in skill.trigger_keywords

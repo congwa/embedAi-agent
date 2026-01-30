@@ -67,7 +67,6 @@ class Skill(Base, TimestampMixin):
 
     # 适用范围
     applicable_agents: Mapped[list] = mapped_column(JSON, default=list)
-    applicable_modes: Mapped[list] = mapped_column(JSON, default=list)
 
     # 元数据
     version: Mapped[str] = mapped_column(String(20), default="1.0.0")

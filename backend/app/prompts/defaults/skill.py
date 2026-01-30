@@ -31,8 +31,7 @@ SKILL_PROMPTS: dict[str, dict] = {
     "trigger_keywords": ["关键词1", "关键词2", "..."],
     "trigger_intents": ["意图1", "意图2"],
     "always_apply": false,
-    "applicable_agents": ["product", "faq", "knowledge", "support"],
-    "applicable_modes": ["natural", "strict", "free"]
+    "applicable_agents": ["product", "faq", "knowledge", "support"]
 }}
 ```
 
@@ -40,7 +39,7 @@ SKILL_PROMPTS: dict[str, dict] = {
 1. name 简洁明了
 2. content 是高质量的提示词，能有效增强 Agent 能力
 3. trigger_keywords 覆盖用户可能的表达方式（至少5个）
-4. applicable_agents 和 applicable_modes 根据实际用途设置
+4. applicable_agents 根据实际用途设置
 5. 只输出 JSON，不要其他解释文字
 """,
     },

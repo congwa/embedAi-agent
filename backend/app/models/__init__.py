@@ -2,7 +2,6 @@
 
 from app.models.agent import (
     Agent,
-    AgentModeOverride,
     AgentStatus,
     AgentTool,
     AgentType,
@@ -22,7 +21,6 @@ from app.models.user import User
 
 __all__ = [
     "Agent",
-    "AgentModeOverride",
     "AgentStatus",
     "AgentTool",
     "AgentType",

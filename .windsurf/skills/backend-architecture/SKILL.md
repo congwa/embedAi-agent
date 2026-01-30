@@ -139,7 +139,6 @@ agent/
 | 60 | Logging | 日志记录 |
 | 85 | SlidingWindow | 滑动窗口裁剪 |
 | 90 | Summarization | 上下文压缩摘要 |
-| 100 | StrictMode | 严格模式检查 |
 
 #### 商品工具列表
 

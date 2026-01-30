@@ -338,7 +338,6 @@ class TestSkillServiceApplicable:
         mock_skill.is_active = True
         mock_skill.always_apply = True
         mock_skill.applicable_agents = ["product"]
-        mock_skill.applicable_modes = ["natural"]
         mock_skill.trigger_keywords = []
 
         mock_session = MagicMock()
@@ -347,7 +346,7 @@ class TestSkillServiceApplicable:
         mock_session.execute = AsyncMock(return_value=mock_result)
 
         service = SkillService(mock_session)
-        skills = await service.get_applicable_skills("product", "natural")
+        skills = await service.get_applicable_skills("product")
 
         assert len(skills) == 1
 
@@ -358,7 +357,6 @@ class TestSkillServiceApplicable:
         mock_skill.is_active = True
         mock_skill.always_apply = False
         mock_skill.applicable_agents = []
-        mock_skill.applicable_modes = []
         mock_skill.trigger_keywords = ["对比", "比较"]
 
         mock_session = MagicMock()
@@ -368,7 +366,7 @@ class TestSkillServiceApplicable:
 
         service = SkillService(mock_session)
         skills = await service.get_applicable_skills(
-            "product", "natural", "帮我对比这两个商品"
+            "product", "帮我对比这两个商品"
         )
 
         assert len(skills) == 1
@@ -380,7 +378,6 @@ class TestSkillServiceApplicable:
         mock_skill.is_active = True
         mock_skill.always_apply = True
         mock_skill.applicable_agents = ["faq"]  # 只适用于 faq
-        mock_skill.applicable_modes = []
         mock_skill.trigger_keywords = []
 
         mock_session = MagicMock()
@@ -389,7 +386,7 @@ class TestSkillServiceApplicable:
         mock_session.execute = AsyncMock(return_value=mock_result)
 
         service = SkillService(mock_session)
-        skills = await service.get_applicable_skills("product", "natural")
+        skills = await service.get_applicable_skills("product")
 
         assert len(skills) == 0  # product 不匹配
 

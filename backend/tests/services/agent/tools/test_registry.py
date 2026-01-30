@@ -17,7 +17,6 @@ class TestToolSpec:
         spec = ToolSpec(name="test_tool", tool=lambda: None)
         assert spec.name == "test_tool"
         assert spec.categories == []
-        assert spec.modes is None  # None 表示所有模式可用
         assert spec.enabled is True
 
     def test_custom_values(self):
@@ -26,12 +25,10 @@ class TestToolSpec:
             name="search",
             tool=lambda: None,
             categories=["search", "core"],
-            modes=["natural", "strict"],
             enabled=False,
         )
         assert spec.name == "search"
         assert spec.categories == ["search", "core"]
-        assert spec.modes == ["natural", "strict"]
         assert spec.enabled is False
 
     def test_callable_tool(self):
@@ -100,21 +97,6 @@ class TestGetTools:
             # StructuredTool 对象有 invoke 方法
             assert hasattr(tool, "invoke") or callable(tool)
 
-    def test_natural_mode(self):
-        """测试 natural 模式"""
-        tools = get_tools(mode="natural")
-        assert len(tools) > 0
-
-    def test_free_mode(self):
-        """测试 free 模式"""
-        tools = get_tools(mode="free")
-        assert isinstance(tools, list)
-
-    def test_strict_mode(self):
-        """测试 strict 模式"""
-        tools = get_tools(mode="strict")
-        assert isinstance(tools, list)
-
     def test_filter_by_categories_include(self):
         """测试按类别包含过滤"""
         tools = get_tools(categories=["search"])
@@ -165,15 +147,10 @@ class TestGetToolNames:
         assert "search_products" in names
         assert "get_product_details" in names
 
-    def test_natural_mode(self):
-        """测试 natural 模式"""
-        names = get_tool_names(mode="natural")
-        assert len(names) > 0
-
     def test_names_match_tools_count(self):
         """测试名称数量与工具数量一致"""
-        names = get_tool_names(mode="natural")
-        tools = get_tools(mode="natural")
+        names = get_tool_names()
+        tools = get_tools()
         assert len(names) == len(tools)
 
 

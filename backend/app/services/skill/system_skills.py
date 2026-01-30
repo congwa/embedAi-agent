@@ -31,7 +31,6 @@ SYSTEM_SKILLS = [
         "trigger_keywords": ["对比", "区别", "哪个好", "推荐哪个", "比较", "VS", "vs", "和...哪个"],
         "trigger_intents": ["compare", "recommendation"],
         "applicable_agents": ["product"],
-        "applicable_modes": ["natural", "strict"],
         "always_apply": False,
     },
     {
@@ -59,7 +58,6 @@ SYSTEM_SKILLS = [
         "trigger_keywords": [],
         "trigger_intents": ["faq", "question"],
         "applicable_agents": ["faq"],
-        "applicable_modes": ["natural", "strict"],
         "always_apply": True,
     },
     {
@@ -87,7 +85,6 @@ SYSTEM_SKILLS = [
         "trigger_keywords": [],
         "trigger_intents": ["search", "knowledge"],
         "applicable_agents": ["knowledge"],
-        "applicable_modes": ["natural", "strict"],
         "always_apply": True,
     },
     {
@@ -115,7 +112,6 @@ SYSTEM_SKILLS = [
         "trigger_keywords": ["人工", "客服", "投诉", "退款", "赔偿", "转人工"],
         "trigger_intents": ["handoff", "complaint"],
         "applicable_agents": ["support", "product", "faq"],
-        "applicable_modes": ["natural", "strict", "free"],
         "always_apply": False,
     },
     {
@@ -142,7 +138,6 @@ SYSTEM_SKILLS = [
         "trigger_keywords": [],
         "trigger_intents": [],
         "applicable_agents": ["product", "faq", "knowledge", "support"],
-        "applicable_modes": ["natural", "free"],
         "always_apply": True,
     },
 ]

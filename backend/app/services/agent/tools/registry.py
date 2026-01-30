@@ -1,10 +1,10 @@
-"""工具注册表 - 集中管理，支持按 Agent 配置/模式/类别过滤
+"""工具注册表 - 集中管理，支持按 Agent 配置/类别过滤
 
 使用方式：
     from app.services.agent.tools.registry import get_tools, get_tools_for_agent
 
     # 传统方式（兼容）
-    tools = get_tools(mode="natural")
+    tools = get_tools()
 
     # 基于 Agent 配置（推荐）
     from app.schemas.agent import AgentConfig
@@ -31,14 +31,12 @@ class ToolSpec:
         name: 工具名称（用于日志和过滤）
         tool: 工具函数
         categories: 工具类别（用于按类别过滤）
-        modes: 可用的聊天模式列表，None 表示所有模式可用
         enabled: 是否启用
     """
 
     name: str
     tool: Callable[..., Any]
     categories: list[str] = field(default_factory=list)
-    modes: list[str] | None = None  # None = 所有模式可用
     enabled: bool = True
 
 
@@ -162,14 +160,12 @@ def _get_tool_specs() -> list[ToolSpec]:
 
 
 def get_tools(
-    mode: str = "natural",
     categories: list[str] | None = None,
     exclude_categories: list[str] | None = None,
 ) -> list[Callable[..., Any]]:
     """获取工具列表（对外接口）
 
     Args:
-        mode: 聊天模式（natural/free/strict）
         categories: 只返回指定类别的工具（可选）
         exclude_categories: 排除指定类别的工具（可选）
 
@@ -194,10 +190,6 @@ def get_tools(
         if not spec.enabled:
             continue
 
-        # 模式过滤
-        if spec.modes is not None and mode not in spec.modes:
-            continue
-
         # 包含类别过滤
         if categories is not None:
             if not any(c in spec.categories for c in categories):
@@ -210,15 +202,12 @@ def get_tools(
 
         tools.append(spec.tool)
 
-    logger.debug(f"加载 {len(tools)} 个工具", mode=mode)
+    logger.debug(f"加载 {len(tools)} 个工具")
     return tools
 
 
-def get_tool_names(mode: str = "natural") -> list[str]:
+def get_tool_names() -> list[str]:
     """获取工具名称列表（用于日志/调试）
-
-    Args:
-        mode: 聊天模式
 
     Returns:
         工具名称列表
@@ -228,8 +217,6 @@ def get_tool_names(mode: str = "natural") -> list[str]:
 
     for spec in specs:
         if not spec.enabled:
-            continue
-        if spec.modes is not None and mode not in spec.modes:
             continue
         names.append(spec.name)
 
@@ -254,30 +241,25 @@ def get_tools_for_agent(config: "AgentConfig") -> list[Callable[..., Any]]:
 
     specs = _get_tool_specs()
     tools: list[Callable[..., Any]] = []
-    mode = config.mode
 
     for spec in specs:
         # 1. 检查是否启用
         if not spec.enabled:
             continue
 
-        # 2. 模式过滤
-        if spec.modes is not None and mode not in spec.modes:
-            continue
-
-        # 3. 工具类别过滤（如果配置了 tool_categories）
+        # 2. 工具类别过滤（如果配置了 tool_categories）
         if config.tool_categories:
             if not any(c in spec.categories for c in config.tool_categories):
                 continue
 
-        # 4. 工具白名单过滤（如果配置了 tool_whitelist）
+        # 3. 工具白名单过滤（如果配置了 tool_whitelist）
         if config.tool_whitelist is not None:
             if spec.name not in config.tool_whitelist:
                 continue
 
         tools.append(spec.tool)
 
-    # 5. 按 Agent 类型注入专用工具
+    # 4. 按 Agent 类型注入专用工具
     type_specific_tools = _get_type_specific_tools(config.type, config)
     tools.extend(type_specific_tools)
 
@@ -285,7 +267,6 @@ def get_tools_for_agent(config: "AgentConfig") -> list[Callable[..., Any]]:
         "为 Agent 加载工具",
         agent_id=config.agent_id,
         agent_type=config.type,
-        mode=mode,
         tool_count=len(tools),
     )
     return tools

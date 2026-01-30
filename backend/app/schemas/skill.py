@@ -37,10 +37,6 @@ class SkillBase(BaseModel):
         default_factory=list,
         description="适用的 Agent 类型",
     )
-    applicable_modes: list[str] = Field(
-        default_factory=list,
-        description="适用的模式",
-    )
 
 
 class SkillCreate(SkillBase):
@@ -60,7 +56,6 @@ class SkillUpdate(BaseModel):
     trigger_intents: list[str] | None = None
     always_apply: bool | None = None
     applicable_agents: list[str] | None = None
-    applicable_modes: list[str] | None = None
     is_active: bool | None = None
 
 

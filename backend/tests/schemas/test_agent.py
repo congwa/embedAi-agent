@@ -305,7 +305,6 @@ class TestAgentBase:
         )
         assert agent.name == "测试助手"
         assert agent.type == "product"
-        assert agent.mode_default == "natural"
         assert agent.status == "enabled"
         assert agent.is_default is False
 
@@ -316,13 +315,11 @@ class TestAgentBase:
             description="专业商品推荐",
             type="product",
             system_prompt="你是商品推荐专家。",
-            mode_default="strict",
             status="disabled",
             is_default=True,
-            is_supervisor=True,
         )
         assert agent.description == "专业商品推荐"
-        assert agent.is_supervisor is True
+        assert agent.is_default is True
 
     def test_name_length(self):
         """测试名称长度限制"""

@@ -63,7 +63,6 @@ class SkillGenerator:
                 trigger_intents=skill_data.get("trigger_intents", []),
                 always_apply=skill_data.get("always_apply", False),
                 applicable_agents=skill_data.get("applicable_agents", request.applicable_agents),
-                applicable_modes=skill_data.get("applicable_modes", ["natural"]),
             )
 
             # 生成建议
@@ -108,7 +107,6 @@ class SkillGenerator:
                 trigger_intents=refined_data.get("trigger_intents", []),
                 always_apply=refined_data.get("always_apply", False),
                 applicable_agents=refined_data.get("applicable_agents", []),
-                applicable_modes=refined_data.get("applicable_modes", []),
             )
 
             suggestions = self._generate_suggestions(skill)

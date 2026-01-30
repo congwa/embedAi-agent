@@ -63,11 +63,9 @@ class TestChatRequest:
             user_id="user_123",
             conversation_id="conv_456",
             message="推荐一款手机",
-            mode="strict",
             agent_id="agent_789",
         )
         assert request.message == "推荐一款手机"
-        assert request.mode == "strict"
         assert request.agent_id == "agent_789"
 
     def test_request_with_images(self):
@@ -101,39 +99,3 @@ class TestChatRequest:
         )
         assert request.has_images is False
 
-    def test_effective_mode_from_request(self):
-        """测试 effective_mode 使用请求中的 mode"""
-        request = ChatRequest(
-            user_id="user_123",
-            conversation_id="conv_456",
-            mode="free",
-        )
-        assert request.effective_mode == "free"
-
-    def test_effective_mode_default(self):
-        """测试 effective_mode 使用默认值"""
-        request = ChatRequest(
-            user_id="user_123",
-            conversation_id="conv_456",
-        )
-        # 默认 mode 为 None 时，使用配置或 "natural"
-        assert request.effective_mode in ("natural", "free", "strict")
-
-    def test_valid_modes(self):
-        """测试有效的聊天模式"""
-        for mode in ["natural", "free", "strict"]:
-            request = ChatRequest(
-                user_id="user_123",
-                conversation_id="conv_456",
-                mode=mode,
-            )
-            assert request.mode == mode
-
-    def test_invalid_mode(self):
-        """测试无效的聊天模式"""
-        with pytest.raises(ValidationError):
-            ChatRequest(
-                user_id="user_123",
-                conversation_id="conv_456",
-                mode="invalid_mode",
-            )

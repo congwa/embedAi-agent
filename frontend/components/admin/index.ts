@@ -30,3 +30,7 @@ export { ModeIndicator } from "./mode-indicator";
 // Agent 详情布局
 export { AgentDetailLayout } from "./agent-detail-layout";
 export type { AgentDetailLayoutProps } from "./agent-detail-layout";
+
+// Agent Overview 页面组件
+export { AgentOverviewPage } from "./AgentOverviewPage";
+export type { AgentOverviewPageProps } from "./AgentOverviewPage";
