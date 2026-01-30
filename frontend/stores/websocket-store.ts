@@ -113,8 +113,9 @@ export const useWebSocketStore = create<WebSocketState>()(
           }
         };
 
-        ws.onerror = (error) => {
-          console.error("[WebSocketStore] Error:", error);
+        ws.onerror = () => {
+          // WebSocket 错误通常在连接关闭时触发，不需要打印空错误
+          // 真正的连接问题会在 onclose 中处理重连
         };
       } catch (e) {
         console.error("[WebSocketStore] Failed to connect:", e);

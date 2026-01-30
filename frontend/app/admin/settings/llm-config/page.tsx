@@ -576,7 +576,7 @@ export default function LLMConfigPage() {
                     <Label htmlFor="full-model">聊天模型</Label>
                     <Input
                       id="full-model"
-                      placeholder="gpt-4o"
+                      placeholder="模型 ID"
                       value={fullForm.llm_chat_model}
                       onChange={(e) =>
                         setFullForm((prev) => ({ ...prev, llm_chat_model: e.target.value }))

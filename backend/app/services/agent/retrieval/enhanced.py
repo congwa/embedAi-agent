@@ -261,7 +261,12 @@ async def enhanced_search(
     )
 
     # 1. 向量相似度检索（检索更多结果以供后续过滤）
-    retriever = get_retriever(k=k * 2)
+    # 优先使用异步版本（支持数据库配置）
+    from app.services.agent.retrieval.product import get_retriever_async
+    retriever = await get_retriever_async(k=k * 2)
+    if retriever is None:
+        logger.warning("检索器不可用")
+        return []
     docs = retriever.invoke(query)
 
     if not docs:

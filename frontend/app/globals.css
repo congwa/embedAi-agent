@@ -160,3 +160,8 @@
   --white: #000;
   --black: #fff;
 }
+
+.user-message-content p {
+  margin-top: 0;
+  margin-bottom: 0;
+}

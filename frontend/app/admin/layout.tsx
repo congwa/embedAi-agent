@@ -1,4 +1,5 @@
-import { AdminSidebar } from "@/components/admin";
+import { SetupGuardProvider } from "@/components/providers/setup-guard-provider";
+import { AdminLayoutContent } from "@/components/admin/admin-layout-content";
 
 export default function AdminLayout({
   children,
@@ -6,9 +7,8 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-900">
-      <AdminSidebar />
-      <main className="ml-64 min-h-screen p-6">{children}</main>
-    </div>
+    <SetupGuardProvider>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </SetupGuardProvider>
   );
 }

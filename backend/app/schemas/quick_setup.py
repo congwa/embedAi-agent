@@ -21,6 +21,14 @@ class SetupStepStatus(StrEnum):
     SKIPPED = "skipped"  # 已跳过
 
 
+class SetupLevel(StrEnum):
+    """配置完成级别"""
+
+    NONE = "none"  # 未配置
+    ESSENTIAL = "essential"  # 已完成精简配置
+    FULL = "full"  # 已完成完整配置
+
+
 class ChecklistItemStatus(StrEnum):
     """检查项状态"""
 
@@ -73,11 +81,16 @@ class SetupStep(BaseModel):
 class QuickSetupState(BaseModel):
     """Quick Setup 状态"""
 
-    completed: bool = Field(default=False, description="是否已完成")
+    completed: bool = Field(default=False, description="是否已完成（兼容旧版）")
     current_step: int = Field(default=0, description="当前步骤索引")
     steps: list[SetupStep] = Field(default_factory=list, description="所有步骤")
     agent_id: str | None = Field(default=None, description="当前配置的 Agent ID")
     updated_at: datetime | None = Field(default=None, description="最后更新时间")
+    
+    # 双层配置新增字段
+    setup_level: SetupLevel = Field(default=SetupLevel.NONE, description="配置完成级别")
+    essential_completed: bool = Field(default=False, description="精简配置是否完成")
+    essential_data: dict[str, Any] | None = Field(default=None, description="精简配置数据")
 
 
 class QuickSetupStateUpdate(BaseModel):
@@ -87,6 +100,48 @@ class QuickSetupStateUpdate(BaseModel):
     current_step: int | None = Field(default=None)
     steps: list[SetupStep] | None = Field(default=None)
     agent_id: str | None = Field(default=None)
+    setup_level: SetupLevel | None = Field(default=None)
+    essential_completed: bool | None = Field(default=None)
+    essential_data: dict[str, Any] | None = Field(default=None)
+
+
+# ========== Essential Setup ==========
+
+
+class EssentialSetupRequest(BaseModel):
+    """精简配置请求"""
+
+    mode: Literal["single", "supervisor"] = Field(..., description="运行模式")
+    llm_provider: str = Field(..., description="LLM 提供商")
+    llm_api_key: str = Field(..., min_length=1, description="LLM API Key")
+    llm_model: str = Field(..., description="LLM 模型")
+    llm_base_url: str | None = Field(default=None, description="LLM Base URL（可选）")
+    # Embedding 配置
+    embedding_model: str = Field(..., description="Embedding 模型")
+    embedding_dimension: int = Field(default=1536, ge=1, description="Embedding 维度")
+    embedding_api_key: str | None = Field(default=None, description="Embedding API Key（不填则使用 LLM API Key）")
+    embedding_base_url: str | None = Field(default=None, description="Embedding Base URL（不填则使用 LLM Base URL）")
+    agent_type: Literal["product", "faq", "kb", "custom"] = Field(
+        default="product", description="Agent 类型"
+    )
+    agent_name: str | None = Field(default=None, max_length=100, description="Agent 名称（可选）")
+
+
+class EssentialSetupResponse(BaseModel):
+    """精简配置响应"""
+
+    success: bool = Field(..., description="是否成功")
+    agent_id: str | None = Field(default=None, description="创建的 Agent ID")
+    message: str = Field(..., description="结果消息")
+    state: QuickSetupState | None = Field(default=None, description="更新后的状态")
+
+
+class EssentialValidationResponse(BaseModel):
+    """精简配置验证响应"""
+
+    can_proceed: bool = Field(..., description="是否可以完成精简配置")
+    missing_items: list[str] = Field(default_factory=list, description="缺失的必需项")
+    warnings: list[str] = Field(default_factory=list, description="警告（非阻塞）")
 
 
 # ========== Agent Type Config ==========

@@ -102,47 +102,7 @@ export function LLMCallCluster({ item, isStreaming = false }: LLMCallClusterProp
 
   return (
     <div className="flex flex-col gap-3">
-      {/* 1. AI 回复内容 - 直接展示 */}
-      {contentItems.map((child) => renderNonProductSubItem(child, isStreaming))}
-
-      {/* 2. 商品推荐 - 直接展示，突出显示 */}
-      {productItems.length > 0 && (
-        <div className={cn(
-          "rounded-xl p-4",
-          themeId === "default" && "bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 border border-orange-100 dark:border-orange-800/30",
-          themeId === "ethereal" && "bg-[var(--chat-surface-secondary)] border border-[var(--chat-border-color)]",
-          themeId === "industrial" && "bg-[var(--chat-surface-secondary)] border border-[var(--chat-border-color)]"
-        )}>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">🛒</span>
-            <span className={cn(
-              "text-sm font-medium",
-              themeId === "default" && "text-orange-700 dark:text-orange-300",
-              themeId === "ethereal" && "text-[var(--chat-text-primary)]",
-              themeId === "industrial" && "text-[var(--chat-text-primary)] uppercase tracking-wider text-xs"
-            )}>
-              推荐商品
-            </span>
-          </div>
-          {productItems.map((child) => (
-            <TimelineProductsItem
-              key={child.id}
-              item={{
-                type: "assistant.products",
-                id: child.id,
-                turnId: "",
-                products: child.type === "products" ? child.products : [],
-                ts: child.ts,
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* 3. 其他项（todos、context_summarized 等） */}
-      {otherItems.map((child) => renderNonProductSubItem(child, isStreaming))}
-
-      {/* 4. 推理过程 - 默认折叠，可展开 */}
+      {/* 1. 推理过程 - 在回复上方展示（先思考后回复） */}
       {hasReasoning && (
         <div className={cn(
           "rounded-lg overflow-hidden",
@@ -186,6 +146,46 @@ export function LLMCallCluster({ item, isStreaming = false }: LLMCallClusterProp
           )}
         </div>
       )}
+
+      {/* 2. AI 回复内容 - 直接展示 */}
+      {contentItems.map((child) => renderNonProductSubItem(child, isStreaming))}
+
+      {/* 3. 商品推荐 - 直接展示，突出显示 */}
+      {productItems.length > 0 && (
+        <div className={cn(
+          "rounded-xl p-4",
+          themeId === "default" && "bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/10 dark:to-amber-900/10 border border-orange-100 dark:border-orange-800/30",
+          themeId === "ethereal" && "bg-[var(--chat-surface-secondary)] border border-[var(--chat-border-color)]",
+          themeId === "industrial" && "bg-[var(--chat-surface-secondary)] border border-[var(--chat-border-color)]"
+        )}>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">🛒</span>
+            <span className={cn(
+              "text-sm font-medium",
+              themeId === "default" && "text-orange-700 dark:text-orange-300",
+              themeId === "ethereal" && "text-[var(--chat-text-primary)]",
+              themeId === "industrial" && "text-[var(--chat-text-primary)] uppercase tracking-wider text-xs"
+            )}>
+              推荐商品
+            </span>
+          </div>
+          {productItems.map((child) => (
+            <TimelineProductsItem
+              key={child.id}
+              item={{
+                type: "assistant.products",
+                id: child.id,
+                turnId: "",
+                products: child.type === "products" ? child.products : [],
+                ts: child.ts,
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* 4. 其他项（todos、context_summarized 等） */}
+      {otherItems.map((child) => renderNonProductSubItem(child, isStreaming))}
     </div>
   );
 }

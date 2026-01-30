@@ -340,10 +340,21 @@ class AgentBase(BaseModel):
     greeting_config: GreetingConfigSchema | None = Field(default=None, description="开场白配置")
 
 
-class AgentCreate(AgentBase):
-    """创建智能体"""
+class AgentCreate(BaseModel):
+    """创建智能体 - system_prompt 可选，为空时使用默认值"""
 
-    pass
+    name: str = Field(..., min_length=1, max_length=100)
+    description: str | None = Field(default=None, max_length=500)
+    type: AgentTypeEnum = Field(default="product")
+    system_prompt: str | None = Field(default=None, min_length=1, description="系统提示词，为空时根据 type 使用默认值")
+    middleware_flags: dict[str, Any] | None = Field(default=None)
+    tool_policy: dict[str, Any] | None = Field(default=None)
+    tool_categories: list[str] | None = Field(default=None)
+    knowledge_config_id: str | None = Field(default=None)
+    response_format: str | None = Field(default=None)
+    status: AgentStatusEnum = Field(default="enabled")
+    is_default: bool = Field(default=False)
+    greeting_config: GreetingConfigSchema | None = Field(default=None, description="开场白配置")
 
 
 class AgentUpdate(BaseModel):

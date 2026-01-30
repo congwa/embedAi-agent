@@ -11,6 +11,7 @@ import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,10 +23,14 @@ from app.schemas.quick_setup import (
     AgentTypeConfig,
     AgentTypeConfigListResponse,
     ChecklistResponse,
+    EssentialSetupRequest,
+    EssentialSetupResponse,
+    EssentialValidationResponse,
     HealthCheckResponse,
     QuickSetupState,
     QuickSetupStateUpdate,
     ServiceHealthItem,
+    SetupLevel,
 )
 from app.services.quick_setup.checklist import get_checklist_service
 from app.services.quick_setup.configurators import get_all_configurators, get_configurator
@@ -141,6 +146,347 @@ async def get_current_mode() -> dict[str, str | None]:
     return {"mode": mode}
 
 
+# ========== Essential Setup ==========
+
+
+@router.post("/essential/complete", response_model=EssentialSetupResponse)
+async def complete_essential_setup(
+    data: EssentialSetupRequest,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """完成精简配置（最小可用配置）
+    
+    执行以下操作：
+    1. 设置运行模式（single/supervisor）
+    2. 验证 LLM API 连通性
+    3. 保存 LLM 配置到系统配置
+    4. 创建默认 Agent
+    5. 更新 Quick Setup 状态
+    """
+    import uuid
+    from app.services.system_config import SystemConfigService, SupervisorGlobalConfigService
+    from app.schemas.system_config import QuickConfigUpdate, PROVIDER_PRESETS, SupervisorGlobalConfigUpdate
+    from app.services.agent.core.config import DEFAULT_PROMPTS, DEFAULT_TOOL_CATEGORIES, DEFAULT_TOOL_POLICIES
+    
+    try:
+        state_manager = get_state_manager()
+        
+        # 1. 设置模式
+        state_manager.set_mode(data.mode)
+        
+        # 2. 验证 LLM API
+        llm_ok = await _validate_llm_api(
+            provider=data.llm_provider,
+            api_key=data.llm_api_key,
+            base_url=data.llm_base_url,
+        )
+        if not llm_ok:
+            return EssentialSetupResponse(
+                success=False,
+                message="LLM API 连接失败，请检查 API Key 和配置",
+            )
+        
+        # 3. 保存 LLM 配置到系统配置
+        config_service = SystemConfigService(db)
+        
+        # 确定 base_url
+        provider_urls = {
+            "openai": "https://api.openai.com/v1",
+            "siliconflow": "https://api.siliconflow.cn/v1",
+            "openrouter": "https://openrouter.ai/api/v1",
+            "deepseek": "https://api.deepseek.com/v1",
+            "anthropic": "https://api.anthropic.com/v1",
+        }
+        base_url = data.llm_base_url or provider_urls.get(data.llm_provider, settings.LLM_BASE_URL)
+        
+        # 获取 embedding 配置预设
+        preset = PROVIDER_PRESETS.get(data.llm_provider, PROVIDER_PRESETS.get("siliconflow", {}))
+        
+        # 使用完整配置更新（包含模型选择）
+        from app.schemas.system_config import FullConfigUpdate
+        
+        # Embedding 配置：不填则使用 LLM 的配置
+        embedding_api_key = data.embedding_api_key if data.embedding_api_key else None
+        embedding_base_url = data.embedding_base_url if data.embedding_base_url else None
+        
+        await config_service.update_full_config(FullConfigUpdate(
+            llm_provider=data.llm_provider,
+            llm_api_key=data.llm_api_key,
+            llm_base_url=base_url,
+            llm_chat_model=data.llm_model,
+            embedding_provider=data.llm_provider,
+            embedding_api_key=embedding_api_key,
+            embedding_base_url=embedding_base_url,
+            embedding_model=data.embedding_model,
+            embedding_dimension=data.embedding_dimension,
+            rerank_enabled=False,
+        ))
+        
+        logger.info(
+            "已保存 LLM 和 Embedding 配置",
+            provider=data.llm_provider,
+            llm_model=data.llm_model,
+            embedding_model=data.embedding_model,
+            base_url=base_url,
+        )
+        
+        # 2. 设置运行模式
+        supervisor_service = SupervisorGlobalConfigService(db)
+        await supervisor_service.update_config(
+            SupervisorGlobalConfigUpdate(enabled=(data.mode == "supervisor"))
+        )
+        
+        # 3. 创建默认 Agent
+        agent_name = data.agent_name or f"默认{_get_agent_type_name(data.agent_type)}助手"
+        system_prompt = DEFAULT_PROMPTS.get(data.agent_type, DEFAULT_PROMPTS.get("custom", ""))
+        tool_categories = DEFAULT_TOOL_CATEGORIES.get(data.agent_type)
+        tool_policy = DEFAULT_TOOL_POLICIES.get(data.agent_type)
+        
+        agent = Agent(
+            id=str(uuid.uuid4()),
+            name=agent_name,
+            description=f"通过快速配置创建的{_get_agent_type_name(data.agent_type)} Agent",
+            type=data.agent_type,
+            system_prompt=system_prompt,
+            tool_categories=tool_categories,
+            tool_policy=tool_policy,
+            status="enabled",
+            is_default=True,
+        )
+        
+        # 取消其他默认 Agent
+        await db.execute(
+            Agent.__table__.update().where(Agent.is_default == True).values(is_default=False)  # noqa: E712
+        )
+        
+        db.add(agent)
+        await db.commit()
+        
+        # 4. 更新 Quick Setup 状态
+        state_manager = get_state_manager()
+        essential_data = {
+            "mode": data.mode,
+            "llm_provider": data.llm_provider,
+            "llm_model": data.llm_model,
+            "agent_type": data.agent_type,
+            "agent_id": agent.id,
+        }
+        state = state_manager.complete_essential(agent.id, essential_data)
+        
+        logger.info(
+            "完成精简配置",
+            mode=data.mode,
+            agent_id=agent.id,
+            agent_type=data.agent_type,
+        )
+        
+        return EssentialSetupResponse(
+            success=True,
+            agent_id=agent.id,
+            message="精简配置完成，系统已可正常使用",
+            state=state,
+        )
+        
+    except Exception as e:
+        logger.error("精简配置失败", error=str(e))
+        return EssentialSetupResponse(
+            success=False,
+            message=f"配置失败: {str(e)}",
+        )
+
+
+@router.post("/essential/validate", response_model=EssentialValidationResponse)
+async def validate_essential_setup(data: EssentialSetupRequest):
+    """验证精简配置是否满足最小要求"""
+    missing_items: list[str] = []
+    warnings: list[str] = []
+    
+    # 检查必需项
+    if not data.mode:
+        missing_items.append("运行模式未选择")
+    
+    if not data.llm_api_key:
+        missing_items.append("LLM API Key 未配置")
+    
+    if not data.llm_model:
+        missing_items.append("LLM 模型未选择")
+    
+    # 验证 LLM 连通性
+    if data.llm_api_key and data.llm_model:
+        llm_ok = await _validate_llm_api(
+            provider=data.llm_provider,
+            api_key=data.llm_api_key,
+            base_url=data.llm_base_url,
+        )
+        if not llm_ok:
+            missing_items.append("LLM API 连接失败")
+    
+    # 警告项
+    if not data.agent_name:
+        warnings.append("未指定 Agent 名称，将使用默认名称")
+    
+    return EssentialValidationResponse(
+        can_proceed=len(missing_items) == 0,
+        missing_items=missing_items,
+        warnings=warnings,
+    )
+
+
+async def _validate_llm_api(
+    provider: str,
+    api_key: str,
+    base_url: str | None = None,
+) -> bool:
+    """验证 LLM API 连通性"""
+    try:
+        import httpx
+        
+        # 根据 provider 确定 base_url
+        if not base_url:
+            provider_urls = {
+                "openai": "https://api.openai.com/v1",
+                "siliconflow": "https://api.siliconflow.cn/v1",
+                "openrouter": "https://openrouter.ai/api/v1",
+                "deepseek": "https://api.deepseek.com/v1",
+            }
+            base_url = provider_urls.get(provider, settings.LLM_BASE_URL)
+        
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{base_url}/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            return response.status_code == 200
+    except Exception:
+        return False
+
+
+def _get_agent_type_name(agent_type: str) -> str:
+    """获取 Agent 类型中文名称"""
+    names = {
+        "product": "商品推荐",
+        "faq": "FAQ 问答",
+        "kb": "知识库",
+        "custom": "自定义",
+    }
+    return names.get(agent_type, "自定义")
+
+
+# ========== Models Discovery ==========
+
+
+@router.get("/providers")
+async def get_available_providers() -> list[dict[str, str]]:
+    """获取可用的 LLM 提供商列表"""
+    return [
+        {"id": "siliconflow", "name": "SiliconFlow", "base_url": "https://api.siliconflow.cn/v1"},
+        {"id": "openai", "name": "OpenAI", "base_url": "https://api.openai.com/v1"},
+        {"id": "deepseek", "name": "DeepSeek", "base_url": "https://api.deepseek.com/v1"},
+        {"id": "openrouter", "name": "OpenRouter", "base_url": "https://openrouter.ai/api/v1"},
+        {"id": "anthropic", "name": "Anthropic", "base_url": "https://api.anthropic.com/v1"},
+        {"id": "custom", "name": "自定义", "base_url": ""},
+    ]
+
+
+@router.get("/providers/{provider_id}/models")
+async def get_provider_models(provider_id: str) -> list[dict[str, Any]]:
+    """从 models.dev 获取指定提供商的模型列表
+    
+    返回格式：
+    [
+        {
+            "id": "moonshotai/Kimi-K2-Thinking",
+            "name": "Kimi K2 Thinking",
+            "reasoning": true,
+            "tool_call": true,
+            ...
+        }
+    ]
+    """
+    import httpx
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get("https://models.dev/api.json")
+            response.raise_for_status()
+            all_data = response.json()
+    except Exception as e:
+        logger.warning("获取 models.dev 失败", error=str(e))
+        # 返回默认模型列表
+        return _get_fallback_models(provider_id)
+    
+    if not isinstance(all_data, dict):
+        return _get_fallback_models(provider_id)
+    
+    provider_data = all_data.get(provider_id)
+    if not isinstance(provider_data, dict):
+        return _get_fallback_models(provider_id)
+    
+    models = provider_data.get("models")
+    if not isinstance(models, dict):
+        return _get_fallback_models(provider_id)
+    
+    result = []
+    for model_id, model_data in models.items():
+        if not isinstance(model_data, dict):
+            continue
+        model_name = model_data.get("name")
+        if not model_name:
+            continue
+        
+        result.append({
+            "id": model_name,
+            "name": _format_model_name(model_name),
+            "reasoning": model_data.get("reasoning", False),
+            "tool_call": model_data.get("tool_call", False),
+            "structured_output": model_data.get("structured_output", False),
+            "context_limit": (model_data.get("limit") or {}).get("context"),
+        })
+    
+    # 按名称排序
+    result.sort(key=lambda x: x["name"])
+    
+    logger.info("获取模型列表成功", provider_id=provider_id, count=len(result))
+    return result
+
+
+def _format_model_name(model_id: str) -> str:
+    """格式化模型名称为人类可读形式"""
+    # moonshotai/Kimi-K2-Thinking -> Kimi K2 Thinking
+    name = model_id.split("/")[-1]
+    name = name.replace("-", " ").replace("_", " ")
+    return name
+
+
+def _get_fallback_models(provider_id: str) -> list[dict[str, Any]]:
+    """当 models.dev 不可用时返回的默认模型列表"""
+    fallback = {
+        "siliconflow": [
+            {"id": "moonshotai/Kimi-K2-Thinking", "name": "Kimi K2 Thinking", "reasoning": True, "tool_call": True},
+            {"id": "Qwen/Qwen3-235B-A22B", "name": "Qwen3 235B", "reasoning": False, "tool_call": True},
+            {"id": "deepseek-ai/DeepSeek-V3", "name": "DeepSeek V3", "reasoning": False, "tool_call": True},
+        ],
+        "openai": [
+            {"id": "gpt-4o", "name": "GPT-4o", "reasoning": False, "tool_call": True},
+            {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "reasoning": False, "tool_call": True},
+            {"id": "o1", "name": "O1", "reasoning": True, "tool_call": False},
+        ],
+        "deepseek": [
+            {"id": "deepseek-chat", "name": "DeepSeek Chat", "reasoning": False, "tool_call": True},
+            {"id": "deepseek-reasoner", "name": "DeepSeek Reasoner", "reasoning": True, "tool_call": False},
+        ],
+        "openrouter": [
+            {"id": "anthropic/claude-3.5-sonnet", "name": "Claude 3.5 Sonnet", "reasoning": False, "tool_call": True},
+            {"id": "openai/gpt-4o", "name": "GPT-4o", "reasoning": False, "tool_call": True},
+        ],
+        "anthropic": [
+            {"id": "claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "reasoning": False, "tool_call": True},
+            {"id": "claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku", "reasoning": False, "tool_call": True},
+        ],
+    }
+    return fallback.get(provider_id, [])
+
+
 # ========== Checklist ==========
 
 
@@ -196,6 +542,49 @@ async def get_agent_type_defaults(agent_type: str) -> dict[str, Any]:
 
 
 # ========== Health Check ==========
+
+
+class QdrantCheckRequest(BaseModel):
+    """Qdrant 连接检查请求"""
+    host: str = Field(default="localhost")
+    port: int = Field(default=6333)
+
+
+class QdrantCheckResponse(BaseModel):
+    """Qdrant 连接检查响应"""
+    success: bool
+    message: str
+    latency_ms: float | None = None
+
+
+@router.post("/health/qdrant", response_model=QdrantCheckResponse)
+async def check_qdrant_connection(data: QdrantCheckRequest):
+    """检查 Qdrant 连接（支持自定义地址）"""
+    try:
+        import httpx
+        
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            url = f"http://{data.host}:{data.port}/collections"
+            start = asyncio.get_event_loop().time()
+            response = await client.get(url)
+            latency = (asyncio.get_event_loop().time() - start) * 1000
+            
+            if response.status_code == 200:
+                return QdrantCheckResponse(
+                    success=True,
+                    message=f"Qdrant 连接成功 ({data.host}:{data.port})",
+                    latency_ms=round(latency, 2),
+                )
+            else:
+                return QdrantCheckResponse(
+                    success=False,
+                    message=f"Qdrant 返回状态码 {response.status_code}",
+                )
+    except Exception as e:
+        return QdrantCheckResponse(
+            success=False,
+            message=f"无法连接 Qdrant: {str(e)}",
+        )
 
 
 @router.get("/health", response_model=HealthCheckResponse)

@@ -12,11 +12,19 @@ export function ChatApp() {
   const userId = useUserStore((s) => s.userId);
   const isUserLoading = useUserStore((s) => s.isLoading);
   const initUser = useUserStore((s) => s.initUser);
+  const loadConversations = useConversationStore((s) => s.loadConversations);
 
   // 初始化用户
   useEffect(() => {
     initUser();
   }, [initUser]);
+
+  // 用户加载完成后加载会话列表
+  useEffect(() => {
+    if (userId) {
+      loadConversations();
+    }
+  }, [userId, loadConversations]);
 
   // 加载中状态
   if (isUserLoading || !userId) {

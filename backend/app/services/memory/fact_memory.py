@@ -122,9 +122,27 @@ class FactMemoryService:
             self._initialized = False
 
     async def _get_memory_model(self):
-        """获取 Memory 专用模型"""
+        """获取 Memory 专用模型（优先使用数据库配置）"""
+        from app.core.llm import get_chat_model
+        from app.core.database import get_db_context
+        
+        # 尝试从数据库获取有效 LLM 配置
+        try:
+            from app.services.system_config import get_effective_llm_config
+            async with get_db_context() as session:
+                llm_config = await get_effective_llm_config(session)
+                if llm_config.api_key:
+                    return get_chat_model(
+                        model=llm_config.chat_model,
+                        provider=llm_config.provider,
+                        api_key=llm_config.api_key,
+                        base_url=llm_config.base_url,
+                    )
+        except Exception as e:
+            logger.warning("获取数据库 LLM 配置失败，使用默认配置", error=str(e))
+        
+        # 回退到默认配置
         from app.core.llm import get_memory_model
-
         return get_memory_model()
 
     async def extract_facts(

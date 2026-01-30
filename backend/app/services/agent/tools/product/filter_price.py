@@ -67,7 +67,7 @@ class FilterByPriceResponse(BaseModel):
 
 
 @tool
-def filter_by_price(
+async def filter_by_price(
     runtime: ToolRuntime,
     min_price: Annotated[float | None, Field(default=None, description="最低价格（元）")] = None,
     max_price: Annotated[float | None, Field(default=None, description="最高价格（元）")] = None,
@@ -132,8 +132,11 @@ def filter_by_price(
 
         logger.debug(f"│ 价格查询: {query}")
 
-        # 检索商品（检索更多以供过滤）
-        retriever = get_retriever(k=20)
+        # 检索商品（检索更多以供过滤）- 使用异步版本支持数据库配置
+        from app.services.agent.retrieval.product import get_retriever_async
+        retriever = await get_retriever_async(k=20)
+        if retriever is None:
+            return json.dumps({"error": "检索器不可用，请稍后重试"}, ensure_ascii=False)
         docs = retriever.invoke(query)
 
         logger.debug(f"│ 检索到 {len(docs)} 个文档")

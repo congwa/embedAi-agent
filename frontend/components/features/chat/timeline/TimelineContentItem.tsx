@@ -18,8 +18,8 @@ export function TimelineContentItem({ item }: TimelineContentItemProps) {
   return (
     <MessageContent
       className={cn(
-        "prose flex-1 rounded-lg bg-transparent p-0",
-        themeId === "default" && "text-zinc-900 dark:text-zinc-100",
+        "prose dark:prose-invert flex-1 rounded-lg bg-transparent p-0",
+        themeId === "default" && "text-zinc-900 dark:text-zinc-100 prose-strong:text-zinc-900 dark:prose-strong:text-white",
         themeId === "ethereal" && "chat-ethereal-ai-msg text-[var(--chat-text-ai)]",
         themeId === "industrial" && "chat-industrial-ai-msg text-[var(--chat-text-ai)] font-mono"
       )}

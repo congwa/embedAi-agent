@@ -63,7 +63,7 @@ async def build_agent(
         编译后的 LangGraph Agent
     """
     # 单 Agent 模式
-    return await _build_single_agent(config, checkpointer, use_structured_output)
+    return await _build_single_agent(config, checkpointer, use_structured_output, session)
 
 
 async def build_supervisor_from_global_config(
@@ -99,10 +99,21 @@ async def _build_single_agent(
     config: AgentConfig,
     checkpointer: BaseCheckpointSaver,
     use_structured_output: bool = False,
+    session: "AsyncSession | None" = None,
 ) -> CompiledStateGraph:
     """构建单个 Agent 实例（内部函数）"""
-    # 1. 获取 LLM
-    model = get_chat_model()
+    # 1. 获取 LLM（优先使用数据库配置）
+    if session:
+        from app.services.system_config import get_effective_llm_config
+        llm_config = await get_effective_llm_config(session)
+        model = get_chat_model(
+            model=llm_config.chat_model,
+            provider=llm_config.provider,
+            api_key=llm_config.api_key,
+            base_url=llm_config.base_url,
+        )
+    else:
+        model = get_chat_model()
 
     # 2. 获取系统提示词
     system_prompt = config.system_prompt
@@ -208,8 +219,15 @@ async def build_supervisor_agent_from_config(
     if not supervisor_config.sub_agents:
         raise ValueError("Supervisor 无子 Agent 配置")
 
-    # 1. 获取 LLM
-    model = get_chat_model()
+    # 1. 获取 LLM（使用数据库配置）
+    from app.services.system_config import get_effective_llm_config
+    llm_config = await get_effective_llm_config(session)
+    model = get_chat_model(
+        model=llm_config.chat_model,
+        provider=llm_config.provider,
+        api_key=llm_config.api_key,
+        base_url=llm_config.base_url,
+    )
 
     # 2. 构建子 Agent 列表
     sub_agents_compiled = []

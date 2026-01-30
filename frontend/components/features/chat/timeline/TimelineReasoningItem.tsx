@@ -1,11 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningTrigger,
-} from "@/components/prompt-kit/reasoning";
+import { Markdown } from "@/components/prompt-kit/markdown";
+import { cn } from "@/lib/utils";
 import type { ReasoningItem } from "@/hooks/use-timeline-reducer";
 
 interface TimelineReasoningItemProps {
@@ -15,24 +11,16 @@ interface TimelineReasoningItemProps {
 
 export function TimelineReasoningItem({
   item,
-  isStreaming,
 }: TimelineReasoningItemProps) {
-  const [isOpen, setIsOpen] = useState(item.isOpen);
-
-  // 如果 item.isOpen 变化（比如 final 时关闭），同步更新
-  // 但不覆盖用户手动操作
-  const effectiveOpen = isOpen;
+  // 直接展示推理内容，不再套折叠（外层 AI 思考过程已经是折叠块了）
+  if (!item.text) return null;
 
   return (
-    <Reasoning
-      isStreaming={isStreaming}
-      open={effectiveOpen}
-      onOpenChange={setIsOpen}
-    >
-      <ReasoningTrigger>推理过程</ReasoningTrigger>
-      <ReasoningContent className="mt-2" markdown>
-        {item.text}
-      </ReasoningContent>
-    </Reasoning>
+    <div className={cn(
+      "prose dark:prose-invert prose-sm max-w-none",
+      "text-zinc-600 dark:text-zinc-400"
+    )}>
+      <Markdown>{item.text}</Markdown>
+    </div>
   );
 }

@@ -43,9 +43,19 @@ export function timelineReducer(state: TimelineState, event: ChatEvent): Timelin
       const newTurnId = payload.assistant_message_id;
 
       if (newTurnId && newTurnId !== oldTurnId) {
-        const timeline = state.timeline.map((item) =>
-          item.turnId === oldTurnId ? { ...item, turnId: newTurnId } : item
-        );
+        const oldWaitingId = `waiting-${oldTurnId}`;
+        const newWaitingId = `waiting-${newTurnId}`;
+        
+        const timeline = state.timeline.map((item) => {
+          if (item.turnId === oldTurnId) {
+            // 更新 turnId，如果是 waiting 项还要更新 id
+            if (item.type === "waiting" && item.id === oldWaitingId) {
+              return { ...item, id: newWaitingId, turnId: newTurnId };
+            }
+            return { ...item, turnId: newTurnId };
+          }
+          return item;
+        });
         const indexById: Record<string, number> = {};
         timeline.forEach((item, i) => {
           indexById[item.id] = i;

@@ -442,9 +442,29 @@ class KnowledgeGraphManager:
 
         try:
             llm_start = time.perf_counter()
-            from app.core.llm import get_memory_model
-
-            model = get_memory_model()
+            
+            # 优先使用数据库 LLM 配置
+            model = None
+            try:
+                from app.core.llm import get_chat_model
+                from app.core.database import get_db_context
+                from app.services.system_config import get_effective_llm_config
+                
+                async with get_db_context() as session:
+                    llm_config = await get_effective_llm_config(session)
+                    if llm_config.api_key:
+                        model = get_chat_model(
+                            model=llm_config.chat_model,
+                            provider=llm_config.provider,
+                            api_key=llm_config.api_key,
+                            base_url=llm_config.base_url,
+                        )
+            except Exception as e:
+                logger.warning("获取数据库 LLM 配置失败，使用默认配置", error=str(e))
+            
+            if model is None:
+                from app.core.llm import get_memory_model
+                model = get_memory_model()
 
             recent_messages = messages[-10:]
             conversation = "\n".join(

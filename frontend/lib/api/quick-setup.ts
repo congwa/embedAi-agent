@@ -16,12 +16,17 @@ export interface SetupStep {
   data: Record<string, unknown> | null;
 }
 
+export type SetupLevel = "none" | "essential" | "full";
+
 export interface QuickSetupState {
   completed: boolean;
   current_step: number;
   steps: SetupStep[];
   agent_id: string | null;
   updated_at: string | null;
+  setup_level: SetupLevel;
+  essential_completed: boolean;
+  essential_data: Record<string, unknown> | null;
 }
 
 export interface ChecklistItem {
@@ -115,6 +120,36 @@ export interface QuickStats {
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
+}
+
+// ========== Essential Setup Types ==========
+
+export interface EssentialSetupRequest {
+  mode: "single" | "supervisor";
+  llm_provider: string;
+  llm_api_key: string;
+  llm_model: string;
+  llm_base_url?: string;
+  // Embedding 配置
+  embedding_model: string;
+  embedding_dimension: number;  // 嵌入维度
+  embedding_api_key?: string;  // 不填则使用 LLM API Key
+  embedding_base_url?: string; // 不填则使用 LLM Base URL
+  agent_type: "product" | "faq" | "kb" | "custom";
+  agent_name?: string;
+}
+
+export interface EssentialSetupResponse {
+  success: boolean;
+  agent_id: string | null;
+  message: string;
+  state: QuickSetupState | null;
+}
+
+export interface EssentialValidationResponse {
+  can_proceed: boolean;
+  missing_items: string[];
+  warnings: string[];
 }
 
 // ========== State API ==========
@@ -259,4 +294,75 @@ export async function validateStep(
       body: JSON.stringify(data),
     }
   );
+}
+
+// ========== Essential Setup API ==========
+
+export async function completeEssentialSetup(
+  data: EssentialSetupRequest
+): Promise<EssentialSetupResponse> {
+  return apiRequest<EssentialSetupResponse>(
+    "/api/v1/admin/quick-setup/essential/complete",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export async function validateEssentialSetup(
+  data: EssentialSetupRequest
+): Promise<EssentialValidationResponse> {
+  return apiRequest<EssentialValidationResponse>(
+    "/api/v1/admin/quick-setup/essential/validate",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+// ========== Models Discovery API ==========
+
+export interface LLMProvider {
+  id: string;
+  name: string;
+  base_url: string;
+}
+
+export interface LLMModel {
+  id: string;
+  name: string;
+  reasoning: boolean;
+  tool_call: boolean;
+  structured_output?: boolean;
+  context_limit?: number;
+}
+
+export async function getProviders(): Promise<LLMProvider[]> {
+  return apiRequest<LLMProvider[]>("/api/v1/admin/quick-setup/providers");
+}
+
+export async function getProviderModels(providerId: string): Promise<LLMModel[]> {
+  return apiRequest<LLMModel[]>(`/api/v1/admin/quick-setup/providers/${providerId}/models`);
+}
+
+// ========== Health Check API ==========
+
+export interface QdrantCheckRequest {
+  host: string;
+  port: number;
+}
+
+export interface QdrantCheckResponse {
+  success: boolean;
+  message: string;
+  latency_ms: number | null;
+}
+
+export async function checkQdrantConnection(data: QdrantCheckRequest): Promise<QdrantCheckResponse> {
+  return apiRequest<QdrantCheckResponse>("/api/v1/admin/quick-setup/health/qdrant", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
 }

@@ -113,21 +113,38 @@ async def create_agent(
     db: AsyncSession = Depends(get_db_session),
 ):
     """创建 Agent"""
+    from app.services.agent.core.config import DEFAULT_PROMPTS, DEFAULT_TOOL_CATEGORIES, DEFAULT_TOOL_POLICIES
+
     # 如果设为默认，先取消其他默认
     if data.is_default:
         await db.execute(
             Agent.__table__.update().where(Agent.is_default == True).values(is_default=False)  # noqa: E712
         )
 
+    # 如果 system_prompt 为空，使用默认值
+    system_prompt = data.system_prompt
+    if not system_prompt:
+        system_prompt = DEFAULT_PROMPTS.get(data.type, DEFAULT_PROMPTS.get("custom", ""))
+
+    # 如果 tool_categories 为空，使用默认值
+    tool_categories = data.tool_categories
+    if tool_categories is None:
+        tool_categories = DEFAULT_TOOL_CATEGORIES.get(data.type)
+
+    # 如果 tool_policy 为空，使用默认值
+    tool_policy = data.tool_policy
+    if tool_policy is None:
+        tool_policy = DEFAULT_TOOL_POLICIES.get(data.type)
+
     agent = Agent(
         id=str(uuid.uuid4()),
         name=data.name,
         description=data.description,
         type=data.type,
-        system_prompt=data.system_prompt,
+        system_prompt=system_prompt,
         middleware_flags=data.middleware_flags,
-        tool_policy=data.tool_policy,
-        tool_categories=data.tool_categories,
+        tool_policy=tool_policy,
+        tool_categories=tool_categories,
         knowledge_config_id=data.knowledge_config_id,
         response_format=data.response_format,
         status=data.status,

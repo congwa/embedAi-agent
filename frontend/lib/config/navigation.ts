@@ -17,6 +17,7 @@ import {
   FileText,
   Globe,
   MessageSquare,
+  MessageCircle,
   Users,
   Wand2,
   Sparkles,
@@ -258,6 +259,13 @@ export const systemNavItems: NavItem[] = [
  */
 export const singleModeFooterNav: NavItem[] = [
   {
+    title: "测试聊天",
+    href: "/chat",
+    icon: MessageCircle,
+    highlight: true,
+    highlightColor: "blue",
+  },
+  {
     title: "快速配置",
     href: "/admin/quick-setup",
     icon: Sparkles,
@@ -276,6 +284,13 @@ export const singleModeFooterNav: NavItem[] = [
  * 多 Agent 模式 - 底部入口（配置单 Agent）
  */
 export const multiModeFooterNav: NavItem[] = [
+  {
+    title: "测试聊天",
+    href: "/chat",
+    icon: MessageCircle,
+    highlight: true,
+    highlightColor: "blue",
+  },
   {
     title: "快速配置",
     href: "/admin/quick-setup",

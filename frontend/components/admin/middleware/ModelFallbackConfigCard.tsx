@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { ChevronDown, ChevronUp, Plus, Trash2, Loader2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,16 +14,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { getProviders, getProviderModels, type LLMProvider, type LLMModel } from "@/lib/api/quick-setup";
 
-const PRESET_MODELS = [
-  { value: "openai:gpt-4o", label: "GPT-4o", provider: "openai" },
-  { value: "openai:gpt-4o-mini", label: "GPT-4o Mini", provider: "openai" },
-  { value: "openai:gpt-3.5-turbo", label: "GPT-3.5 Turbo", provider: "openai" },
-  { value: "anthropic:claude-sonnet-4-5-20250929", label: "Claude Sonnet 4.5", provider: "anthropic" },
-  { value: "anthropic:claude-3-haiku-20240307", label: "Claude 3 Haiku", provider: "anthropic" },
-  { value: "deepseek:deepseek-chat", label: "DeepSeek Chat", provider: "deepseek" },
-  { value: "deepseek:deepseek-reasoner", label: "DeepSeek Reasoner", provider: "deepseek" },
-];
+interface PresetModel {
+  value: string;
+  label: string;
+  provider: string;
+}
 
 interface ModelFallbackConfigCardProps {
   enabled: boolean;
@@ -40,6 +37,43 @@ export function ModelFallbackConfigCard({
 }: ModelFallbackConfigCardProps) {
   const [isAdding, setIsAdding] = useState(false);
   const [customModel, setCustomModel] = useState("");
+  const [presetModels, setPresetModels] = useState<PresetModel[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+
+  // 动态加载模型列表
+  useEffect(() => {
+    async function loadModels() {
+      setIsLoadingModels(true);
+      try {
+        const providers = await getProviders();
+        const allModels: PresetModel[] = [];
+        
+        // 只加载主要提供商的模型
+        const mainProviders = providers.filter(p => 
+          ["openai", "anthropic", "deepseek", "siliconflow"].includes(p.id)
+        );
+        
+        for (const provider of mainProviders) {
+          const providerModels = await getProviderModels(provider.id);
+          for (const model of providerModels.slice(0, 5)) { // 每个提供商最多5个
+            allModels.push({
+              value: `${provider.id}:${model.id}`,
+              label: model.name,
+              provider: provider.id,
+            });
+          }
+        }
+        
+        setPresetModels(allModels);
+      } catch (error) {
+        console.error("Failed to load models:", error);
+      } finally {
+        setIsLoadingModels(false);
+      }
+    }
+    
+    loadModels();
+  }, []);
 
   const handleAddModel = (model: string) => {
     if (model && !models.includes(model)) {
@@ -60,7 +94,7 @@ export function ModelFallbackConfigCard({
     onModelsChange(newModels);
   };
 
-  const availablePresets = PRESET_MODELS.filter((m) => !models.includes(m.value));
+  const availablePresets = presetModels.filter((m) => !models.includes(m.value));
 
   return (
     <Card>
@@ -136,17 +170,21 @@ export function ModelFallbackConfigCard({
           {/* 添加模型 */}
           {!isAdding ? (
             <div className="flex flex-wrap gap-2">
-              {availablePresets.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={isLoadingModels}>
+                    {isLoadingModels ? (
+                      <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                    ) : (
                       <Plus className="h-3 w-3 mr-1" />
-                      添加预设模型
-                      <ChevronDown className="h-3 w-3 ml-1" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start">
-                    {availablePresets.map((preset) => (
+                    )}
+                    添加预设模型
+                    <ChevronDown className="h-3 w-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="max-h-[300px] overflow-y-auto">
+                  {availablePresets.length > 0 ? (
+                    availablePresets.map((preset: PresetModel) => (
                       <DropdownMenuItem
                         key={preset.value}
                         onClick={() => handleAddModel(preset.value)}
@@ -156,10 +194,14 @@ export function ModelFallbackConfigCard({
                         </span>
                         <span>{preset.label}</span>
                       </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
+                    ))
+                  ) : (
+                    <div className="px-2 py-1 text-sm text-muted-foreground">
+                      {isLoadingModels ? "加载中..." : "没有更多可用模型"}
+                    </div>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button variant="outline" size="sm" onClick={() => setIsAdding(true)}>
                 <Plus className="h-3 w-3 mr-1" />
                 自定义模型
@@ -168,7 +210,7 @@ export function ModelFallbackConfigCard({
           ) : (
             <div className="flex gap-2">
               <Input
-                placeholder="provider:model_name（如 openai:gpt-4o）"
+                placeholder="provider:model_name"
                 value={customModel}
                 onChange={(e) => setCustomModel(e.target.value)}
                 onKeyDown={(e) => {

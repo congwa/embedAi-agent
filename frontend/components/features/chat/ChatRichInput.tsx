@@ -129,7 +129,7 @@ export function ChatRichInput({
       />
       
       <div className={cn(
-        "flex items-center px-2 py-1.5 border-t border-[var(--chat-border-color)]",
+        "flex items-center px-2 py-1.5",
         showToolbar ? "justify-between" : "justify-end"
       )}>
         {showToolbar && (

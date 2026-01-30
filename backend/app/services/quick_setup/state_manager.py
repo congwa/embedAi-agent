@@ -15,6 +15,7 @@ from app.core.logging import get_logger
 from app.schemas.quick_setup import (
     QuickSetupState,
     QuickSetupStateUpdate,
+    SetupLevel,
     SetupStep,
     SetupStepStatus,
 )
@@ -163,6 +164,9 @@ class QuickSetupStateManager:
                     for step in data["steps"]:
                         if isinstance(step.get("status"), str):
                             step["status"] = SetupStepStatus(step["status"])
+                # 转换 setup_level 枚举
+                if isinstance(data.get("setup_level"), str):
+                    data["setup_level"] = SetupLevel(data["setup_level"])
                 return QuickSetupState.model_validate(data)
             except Exception as e:
                 logger.warning("加载 Quick Setup 状态失败，使用默认状态", error=str(e))
@@ -332,6 +336,78 @@ class QuickSetupStateManager:
         if mode_step and mode_step.data:
             return mode_step.data.get("mode")
         return None
+
+    def complete_essential(self, agent_id: str, essential_data: dict[str, Any]) -> QuickSetupState:
+        """完成精简配置
+        
+        Args:
+            agent_id: 创建的 Agent ID
+            essential_data: 精简配置数据（mode, llm_provider, llm_model, agent_type）
+        
+        Returns:
+            更新后的状态
+        """
+        state = self.get_state()
+        
+        # 更新状态
+        state.essential_completed = True
+        state.essential_data = essential_data
+        state.setup_level = SetupLevel.ESSENTIAL
+        state.agent_id = agent_id
+        state.completed = True  # 兼容旧版：精简配置完成即可使用
+        
+        # 标记基础步骤为已完成，并设置 current_step 到 system 步骤
+        system_step_index = 0
+        for i, step in enumerate(state.steps):
+            if step.key in ("welcome", "mode"):
+                step.status = SetupStepStatus.COMPLETED
+                if step.key == "mode":
+                    step.data = {"mode": essential_data.get("mode")}
+            elif step.key == "system":
+                system_step_index = i
+        
+        # 设置当前步骤到 system（完整配置的第一步）
+        state.current_step = system_step_index
+        
+        self._save_state(state)
+        logger.info(
+            "完成精简配置",
+            agent_id=agent_id,
+            setup_level=state.setup_level,
+            current_step=state.current_step,
+        )
+        return state
+
+    def upgrade_to_full(self) -> QuickSetupState:
+        """升级到完整配置模式
+        
+        从精简配置状态进入完整配置流程
+        """
+        state = self.get_state()
+        
+        if not state.essential_completed:
+            logger.warning("尝试升级到完整配置但精简配置未完成")
+            return state
+        
+        # 设置当前步骤到 system（完整配置的第一个非必需步骤）
+        for i, step in enumerate(state.steps):
+            if step.key == "system":
+                state.current_step = i
+                step.status = SetupStepStatus.IN_PROGRESS
+                break
+        
+        self._save_state(state)
+        logger.info("升级到完整配置模式", current_step=state.current_step)
+        return state
+
+    def complete_full(self) -> QuickSetupState:
+        """完成完整配置"""
+        state = self.get_state()
+        state.setup_level = SetupLevel.FULL
+        state.completed = True
+        self._save_state(state)
+        logger.info("完成完整配置")
+        return state
 
 
 # 全局实例

@@ -149,18 +149,31 @@ export const useChatStore = create<ChatState>()(
         return;
       }
 
+      const isNewConversation = !conversationId;
       if (!conversationId) {
+        // 设置跳过标志，防止 subscription 自动加载消息覆盖我们的 timeline
+        setSkipNextLoad(true);
         const conversation = await useConversationStore.getState().createNewConversation();
-        if (!conversation) return;
+        if (!conversation) {
+          setSkipNextLoad(false);
+          return;
+        }
         conversationId = conversation.id;
       }
 
       set({ error: null });
 
       const userMessageId = crypto.randomUUID();
-      set((state) => ({
-        timelineState: addUserMessage(state.timelineState, userMessageId, content.trim(), images),
-      }));
+      
+      // 如果是新会话，清空 timeline 并同时添加用户消息（原子操作）
+      if (isNewConversation) {
+        const freshState = createInitialState();
+        set({ timelineState: addUserMessage(freshState, userMessageId, content.trim(), images) });
+      } else {
+        set((state) => ({
+          timelineState: addUserMessage(state.timelineState, userMessageId, content.trim(), images),
+        }));
+      }
 
       const assistantTurnId = crypto.randomUUID();
       set((state) => ({
@@ -288,11 +301,22 @@ export const useChatStore = create<ChatState>()(
 
 // 订阅 ConversationStore，会话切换时加载消息
 let prevConversationId: string | null = null;
+let skipNextLoad = false; // 标志位：跳过下次加载（新会话创建时）
+
+export function setSkipNextLoad(skip: boolean) {
+  skipNextLoad = skip;
+}
+
 useConversationStore.subscribe((state) => {
   const conversationId = state.currentConversationId;
   if (conversationId !== prevConversationId) {
     prevConversationId = conversationId;
     if (conversationId) {
+      // 如果设置了跳过标志，不加载消息（新会话创建时由 sendMessage 处理）
+      if (skipNextLoad) {
+        skipNextLoad = false;
+        return;
+      }
       useChatStore.getState().loadMessages(conversationId);
     } else {
       useChatStore.getState().clearMessages();

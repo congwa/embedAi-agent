@@ -89,14 +89,21 @@ class ToolCallRepository(BaseRepository[ToolCall]):
                 - status: 状态（可选，默认 pending）
                 - output: 工具输出（可选）
         """
+        import json
+        
         created = []
         for tc_data in tool_calls_data:
+            # tool_output 需要是字符串，如果是 dict 则序列化为 JSON
+            output = tc_data.get("output")
+            if output is not None and not isinstance(output, str):
+                output = json.dumps(output, ensure_ascii=False)
+            
             tool_call = ToolCall(
                 message_id=message_id,
                 tool_call_id=tc_data.get("tool_call_id"),
                 tool_name=tc_data.get("name", "unknown"),
                 tool_input=tc_data.get("input", {}),
-                tool_output=tc_data.get("output"),
+                tool_output=output,
                 status=tc_data.get("status", "pending"),
                 duration_ms=tc_data.get("duration_ms"),
             )

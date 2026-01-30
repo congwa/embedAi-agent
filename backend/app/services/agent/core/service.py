@@ -216,12 +216,14 @@ class AgentService:
             # 获取 checkpointer
             checkpointer = await self._get_checkpointer()
 
-            # 构建 Agent
-            agent = await build_agent(
-                config=config,
-                checkpointer=checkpointer,
-                use_structured_output=use_structured_output,
-            )
+            # 构建 Agent（使用数据库 session 获取 LLM 配置）
+            async with get_db_context() as session:
+                agent = await build_agent(
+                    config=config,
+                    checkpointer=checkpointer,
+                    use_structured_output=use_structured_output,
+                    session=session,
+                )
 
             self._agents[cache_key] = agent
             logger.info(

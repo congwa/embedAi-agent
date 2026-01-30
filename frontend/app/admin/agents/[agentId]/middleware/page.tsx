@@ -256,7 +256,7 @@ export default function MiddlewareConfigPage() {
             <div className="space-y-2">
               <Label className="text-xs text-zinc-500">摘要模型（留空使用主模型）</Label>
               <Input
-                placeholder="如：gpt-4o-mini"
+                placeholder="如：provider:model_name"
                 value={getStringValue("summarization_model")}
                 onChange={(e) => handleChange("summarization_model", e.target.value || null)}
               />
