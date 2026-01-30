@@ -1,7 +1,12 @@
 "use client";
 
-import { Bot, Network } from "lucide-react";
+import { Bot, Network, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 
 interface ModeSelectStepProps {
   value: "single" | "supervisor";
@@ -39,16 +44,20 @@ export function ModeSelectStep({ value, onChange }: ModeSelectStepProps) {
           const isSelected = value === mode.id;
 
           return (
-            <button
-              key={mode.id}
-              onClick={() => onChange(mode.id)}
-              className={cn(
-                "relative p-6 rounded-2xl border-2 text-left transition-all duration-200",
-                isSelected
-                  ? "border-violet-500 bg-violet-500/10 shadow-lg shadow-violet-500/10"
-                  : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 hover:bg-zinc-900"
-              )}
-            >
+            <HoverCard key={mode.id}>
+              <HoverCardTrigger asChild>
+                <button
+                  onClick={() => onChange(mode.id)}
+                  disabled={mode.id === "supervisor"}
+                  className={cn(
+                    "relative p-6 rounded-2xl border-2 text-left transition-all duration-200",
+                    isSelected
+                      ? "border-violet-500 bg-violet-500/10 shadow-lg shadow-violet-500/10"
+                      : mode.id === "supervisor"
+                      ? "border-zinc-800 bg-zinc-900/50 opacity-60 cursor-not-allowed"
+                      : "border-zinc-800 bg-zinc-900/50 hover:border-zinc-700 hover:bg-zinc-900"
+                  )}
+                >
               {mode.recommended && (
                 <span className="absolute -top-2.5 right-4 px-2.5 py-0.5 text-xs font-medium bg-emerald-500 text-white rounded-full">
                   推荐
@@ -82,7 +91,27 @@ export function ModeSelectStep({ value, onChange }: ModeSelectStepProps) {
                   </svg>
                 </div>
               )}
-            </button>
+                </button>
+              </HoverCardTrigger>
+              {mode.id === "supervisor" && (
+                <HoverCardContent className="w-80 bg-zinc-900 border-zinc-800 text-zinc-200">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Info className="h-4 w-4 text-amber-400" />
+                      <h4 className="font-medium text-white">多 Agent 编排暂不支持快速设置</h4>
+                    </div>
+                    <p className="text-sm text-zinc-400">
+                      多 Agent 编排需要深入了解系统架构和各 Agent 的职责划分。
+                      建议先使用单 Agent 模式熟悉系统，后续在完整配置中设置多 Agent 编排。
+                    </p>
+                    <div className="text-xs text-zinc-500">
+                      • 单 Agent 模式适合快速上手和大多数场景<br/>
+                      • 多 Agent 编排可在完整配置中设置
+                    </div>
+                  </div>
+                </HoverCardContent>
+              )}
+            </HoverCard>
           );
         })}
       </div>

@@ -48,6 +48,9 @@ interface ChatState {
 
   _handleEvent: (event: ChatEvent) => void;
   _reset: () => void;
+  // WebSocket 消息处理
+  addSupportEvent: (message: string, operator?: string) => void;
+  addHumanAgentMessage: (content: string, operator?: string) => void;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -295,6 +298,35 @@ export const useChatStore = create<ChatState>()(
         currentAgentId: null,
         currentAgentName: null,
       });
+    },
+
+    // WebSocket 消息处理
+    addSupportEvent: (message: string, operator?: string) => {
+      const now = Date.now();
+      const event: ChatEvent = {
+        v: 1,
+        id: crypto.randomUUID(),
+        seq: now,
+        ts: now,
+        conversation_id: useConversationStore.getState().currentConversationId || "",
+        type: "support.handoff_started",
+        payload: { message, operator },
+      };
+      get()._handleEvent(event);
+    },
+
+    addHumanAgentMessage: (content: string, operator?: string) => {
+      const now = Date.now();
+      const event: ChatEvent = {
+        v: 1,
+        id: crypto.randomUUID(),
+        seq: now,
+        ts: now,
+        conversation_id: useConversationStore.getState().currentConversationId || "",
+        type: "support.human_message",
+        payload: { content, operator, message_id: crypto.randomUUID() },
+      };
+      get()._handleEvent(event);
     },
   }))
 );

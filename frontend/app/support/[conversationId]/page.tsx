@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useSupportWebSocket } from "@/hooks/use-support-websocket";
+import { useSupportWebSocket } from "@/hooks/use-websocket";
+import { useSupportStore } from "@/stores";
 import {
   getConversationDetail,
   startHandoff,
@@ -58,20 +59,41 @@ export default function SupportChatPage() {
   const conversationId = params.conversationId as string;
   
   // 简单的 agentId（实际应从认证获取）
+  // 注意：这里不要添加 agent_ 前缀，WebSocketManager 会自动添加
   const [agentId] = useState(() => {
     if (typeof window !== "undefined") {
       let id = localStorage.getItem("support_agent_id");
       if (!id) {
-        id = `agent_${Math.random().toString(36).slice(2, 10)}`;
+        id = Math.random().toString(36).slice(2, 10);
+        localStorage.setItem("support_agent_id", id);
+      }
+      // 如果旧数据有 agent_ 前缀，去掉它
+      if (id.startsWith("agent_")) {
+        id = id.slice(6);
         localStorage.setItem("support_agent_id", id);
       }
       return id;
     }
-    return "agent_default";
+    return "default";
   });
 
   const [conversation, setConversation] = useState<ConversationDetailResponse | null>(null);
-  const [messages, setMessages] = useState<SupportMessage[]>([]);
+  
+  // 使用 SupportStore 管理消息和状态
+  const messages = useSupportStore((s) => s.messages);
+  const setMessages = useSupportStore((s) => s.setMessages);
+  const addMessage = useSupportStore((s) => s.addMessage);
+  const storeWithdrawMessage = useSupportStore((s) => s.withdrawMessage);
+  const storeEditMessage = useSupportStore((s) => s.editMessage);
+  const storeDeleteMessages = useSupportStore((s) => s.deleteMessages);
+  const updateConversationState = useSupportStore((s) => s.updateConversationState);
+  const setHandoffState = useSupportStore((s) => s.setHandoffState);
+  const setConnected = useSupportStore((s) => s.setConnected);
+  const setUserTyping = useSupportStore((s) => s.setUserTyping);
+  const storeUserTyping = useSupportStore((s) => s.userTyping);
+  const storeHandoffState = useSupportStore((s) => s.handoffState);
+  const storeUserOnline = useSupportStore((s) => s.userOnline);
+  const setStoreConversationId = useSupportStore((s) => s.setConversationId);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,51 +119,35 @@ export default function SupportChatPage() {
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [withdrawingMessage, setWithdrawingMessage] = useState<SupportMessage | null>(null);
 
-  // WebSocket 消息回调
+  // 初始化 Store 的 conversationId
+  useEffect(() => {
+    setStoreConversationId(conversationId);
+  }, [conversationId, setStoreConversationId]);
+
+  // WebSocket 消息回调 - 使用 SupportStore
   const handleNewMessage = useCallback((message: SupportMessage) => {
-    setMessages((prev) => {
-      // 去重
-      if (prev.some((m) => m.id === message.id)) return prev;
-      return [...prev, message];
-    });
-  }, []);
+    addMessage(message);
+  }, [addMessage]);
 
-  // 本地状态（覆盖 WebSocket 的状态，用于保底）
-  const [localHandoffState, setLocalHandoffState] = useState<"ai" | "pending" | "human" | null>(null);
-
-  // WebSocket 状态变更回调
+  // WebSocket 状态变更回调 - 使用 SupportStore
   const handleStateChange = useCallback((state: ConversationState) => {
-    console.log("State changed:", state);
-    // 同步到本地状态
-    setLocalHandoffState(state.handoff_state);
-  }, []);
+    updateConversationState(state);
+  }, [updateConversationState]);
 
-  // 消息撤回回调
+  // 消息撤回回调 - 使用 SupportStore
   const handleMessageWithdrawn = useCallback((payload: MessageWithdrawnPayload) => {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === payload.message_id
-          ? { ...msg, is_withdrawn: true, withdrawn_at: payload.withdrawn_at, withdrawn_by: payload.withdrawn_by }
-          : msg
-      )
-    );
-  }, []);
+    storeWithdrawMessage(payload.message_id, payload.withdrawn_at, payload.withdrawn_by);
+  }, [storeWithdrawMessage]);
 
-  // 消息编辑回调
+  // 消息编辑回调 - 使用 SupportStore
   const handleMessageEdited = useCallback((payload: MessageEditedPayload) => {
-    setMessages((prev) =>
-      prev.map((msg) =>
-        msg.id === payload.message_id
-          ? { ...msg, content: payload.new_content, is_edited: true, edited_at: payload.edited_at, edited_by: payload.edited_by }
-          : msg
-      )
-    );
-  }, []);
+    storeEditMessage(payload.message_id, payload.new_content, payload.edited_at, payload.edited_by);
+  }, [storeEditMessage]);
 
-  // 消息删除回调
+  // 消息删除回调 - 使用 SupportStore
   const handleMessagesDeleted = useCallback((payload: MessagesDeletedPayload) => {
-    setMessages((prev) => prev.filter((msg) => !payload.message_ids.includes(msg.id)));
-  }, []);
+    storeDeleteMessages(payload.message_ids);
+  }, [storeDeleteMessages]);
 
   // WebSocket 连接
   const {
@@ -163,8 +169,8 @@ export default function SupportChatPage() {
     onMessagesDeleted: handleMessagesDeleted,
   });
 
-  // 有效的 handoff 状态（优先使用本地状态，其次使用 WebSocket 状态）
-  const effectiveHandoffState = localHandoffState ?? conversationState.handoff_state;
+  // 有效的 handoff 状态（使用 Store 状态）
+  const effectiveHandoffState = storeHandoffState;
 
   // 加载会话详情和历史消息
   useEffect(() => {
@@ -174,9 +180,12 @@ export default function SupportChatPage() {
         const data = await getConversationDetail(conversationId);
         setConversation(data);
         
-        // 初始化本地状态（从后端获取最新状态）
+        // 初始化 Store 状态（从后端获取最新状态）
         if (data.handoff_state) {
-          setLocalHandoffState(data.handoff_state as "ai" | "pending" | "human");
+          setHandoffState(
+            data.handoff_state as "ai" | "pending" | "human",
+            data.handoff_operator ?? null
+          );
         }
         
         // 转换历史消息格式（包含图片信息）
@@ -211,7 +220,8 @@ export default function SupportChatPage() {
     if (conversationId) {
       loadConversation();
     }
-  }, [conversationId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId, setHandoffState, setMessages]);
 
   // FAQ 相关操作
   const handleAddToFAQ = useCallback((userContent: string, assistantContent: string) => {
@@ -313,7 +323,7 @@ export default function SupportChatPage() {
         filename: img.filename || undefined,
       })) : undefined,
     };
-    setMessages((prev) => [...prev, localMessage]);
+    addMessage(localMessage);
     setInputValue("");
     setPendingImages([]);
   }, [inputValue, pendingImages, effectiveHandoffState, sendMessage, agentId]);
@@ -324,7 +334,7 @@ export default function SupportChatPage() {
       const result = await startHandoff(conversationId, agentId, "客服主动接入");
       if (result.success) {
         // 使用 API 返回的最新状态（保底机制），等待服务器广播
-        setLocalHandoffState(result.handoff_state || "human");
+        setHandoffState(result.handoff_state || "human", agentId);
       } else if (result.error) {
         setError(result.error);
       }
@@ -339,7 +349,7 @@ export default function SupportChatPage() {
       const result = await endHandoff(conversationId, agentId, "客服结束服务");
       if (result.success) {
         // 使用 API 返回的最新状态（保底机制），等待服务器广播
-        setLocalHandoffState(result.handoff_state || "ai");
+        setHandoffState(result.handoff_state || "ai", null);
       } else if (result.error) {
         setError(result.error);
       }

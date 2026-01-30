@@ -5,7 +5,7 @@ import { MessageCircle, X, Trash2, Minus, AlertCircle, ArrowUp, Square, Headphon
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import "./embed.css";
-import { useUserWebSocket, type SupportMessage, type ConversationState } from "./useUserWebSocket";
+import { useEmbedWebSocket, type SupportMessage, type ConversationState } from "./useWebSocket";
 import { EmbedRichInput } from "./EmbedRichInput";
 
 interface EmbedConfig {
@@ -144,7 +144,7 @@ export function EmbedWidget({ config }: EmbedWidgetProps) {
     sendMessage: wsSendMessage,
     setTyping: wsSetTyping,
     requestHandoff,
-  } = useUserWebSocket({
+  } = useEmbedWebSocket({
     conversationId,
     userId,
     wsBaseUrl,

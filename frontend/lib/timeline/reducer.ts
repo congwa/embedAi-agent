@@ -30,11 +30,130 @@ import {
   removeWaitingItem,
 } from "./helpers";
 
+/** 处理 support.* 事件（不依赖 turnId） */
+function handleSupportEvent(
+  state: TimelineState,
+  event: ChatEvent,
+  turnId: string,
+  now: number
+): TimelineState {
+  switch (event.type) {
+    case "support.handoff_started":
+    case "support.handoff_ended":
+    case "support.human_message":
+    case "support.human_mode":
+    case "support.connected": {
+      const eventType = event.type.replace("support.", "") as SupportEventItem["eventType"];
+      const payload = event.payload as {
+        message?: string;
+        content?: string;
+        operator?: string;
+        message_id?: string;
+      };
+      const item: SupportEventItem = {
+        type: "support.event",
+        id: `support:${event.seq || crypto.randomUUID()}`,
+        turnId,
+        eventType,
+        message: payload?.message,
+        content: payload?.content,
+        operator: payload?.operator,
+        messageId: payload?.message_id,
+        ts: now,
+      };
+      return insertItem(state, item);
+    }
+
+    case "support.ping":
+      return state;
+
+    case "support.message_withdrawn": {
+      const payload = event.payload as {
+        message_id: string;
+        withdrawn_by: string;
+        withdrawn_at: string;
+      };
+      const msgIndex = state.indexById[payload.message_id];
+      if (msgIndex !== undefined) {
+        const timeline = [...state.timeline];
+        const item = timeline[msgIndex];
+        if (item.type === "user.message") {
+          timeline[msgIndex] = {
+            ...item,
+            isWithdrawn: true,
+            withdrawnAt: payload.withdrawn_at,
+            withdrawnBy: payload.withdrawn_by,
+          };
+          return { ...state, timeline };
+        }
+      }
+      return state;
+    }
+
+    case "support.message_edited": {
+      const payload = event.payload as {
+        message_id: string;
+        new_content: string;
+        edited_by: string;
+        edited_at: string;
+        deleted_message_ids?: string[];
+      };
+      let newState = state;
+      const msgIndex = state.indexById[payload.message_id];
+      if (msgIndex !== undefined) {
+        const timeline = [...newState.timeline];
+        const item = timeline[msgIndex];
+        if (item.type === "user.message") {
+          timeline[msgIndex] = {
+            ...item,
+            content: payload.new_content,
+            isEdited: true,
+            editedAt: payload.edited_at,
+            editedBy: payload.edited_by,
+          };
+          newState = { ...newState, timeline };
+        }
+      }
+      if (payload.deleted_message_ids && payload.deleted_message_ids.length > 0) {
+        const deletedSet = new Set(payload.deleted_message_ids);
+        const timeline = newState.timeline.filter((item) => !deletedSet.has(item.id));
+        const indexById: Record<string, number> = {};
+        timeline.forEach((item, i) => {
+          indexById[item.id] = i;
+        });
+        newState = { ...newState, timeline, indexById };
+      }
+      return newState;
+    }
+
+    case "support.messages_deleted": {
+      const payload = event.payload as { message_ids: string[] };
+      if (!payload.message_ids || payload.message_ids.length === 0) return state;
+      const deletedSet = new Set(payload.message_ids);
+      const timeline = state.timeline.filter((item) => !deletedSet.has(item.id));
+      const indexById: Record<string, number> = {};
+      timeline.forEach((item, i) => {
+        indexById[item.id] = i;
+      });
+      return { ...state, timeline, indexById };
+    }
+
+    default:
+      return state;
+  }
+}
+
 export function timelineReducer(state: TimelineState, event: ChatEvent): TimelineState {
   const turnId = state.activeTurn.turnId;
-  if (!turnId) return state;
-
   const now = Date.now();
+
+  // support.* 事件不依赖 turnId，始终处理
+  if (event.type.startsWith("support.")) {
+    return handleSupportEvent(state, event, turnId || `ws-${now}`, now);
+  }
+
+  // 其他事件需要 turnId
+  if (!turnId) return state;
 
   switch (event.type) {
     case "meta.start": {
@@ -167,105 +286,7 @@ export function timelineReducer(state: TimelineState, event: ChatEvent): Timelin
       return insertItem(state, item);
     }
 
-    case "support.handoff_started":
-    case "support.handoff_ended":
-    case "support.human_message":
-    case "support.human_mode":
-    case "support.connected": {
-      const eventType = event.type.replace("support.", "") as SupportEventItem["eventType"];
-      const payload = event.payload as {
-        message?: string;
-        content?: string;
-        operator?: string;
-        message_id?: string;
-      };
-      const item: SupportEventItem = {
-        type: "support.event",
-        id: `support:${event.seq || crypto.randomUUID()}`,
-        turnId,
-        eventType,
-        message: payload?.message,
-        content: payload?.content,
-        operator: payload?.operator,
-        messageId: payload?.message_id,
-        ts: now,
-      };
-      return insertItem(state, item);
-    }
-
-    case "support.ping":
-      return state;
-
-    case "support.message_withdrawn": {
-      const payload = event.payload as {
-        message_id: string;
-        withdrawn_by: string;
-        withdrawn_at: string;
-      };
-      const msgIndex = state.indexById[payload.message_id];
-      if (msgIndex !== undefined) {
-        const timeline = [...state.timeline];
-        const item = timeline[msgIndex];
-        if (item.type === "user.message") {
-          timeline[msgIndex] = {
-            ...item,
-            isWithdrawn: true,
-            withdrawnAt: payload.withdrawn_at,
-            withdrawnBy: payload.withdrawn_by,
-          };
-          return { ...state, timeline };
-        }
-      }
-      return state;
-    }
-
-    case "support.message_edited": {
-      const payload = event.payload as {
-        message_id: string;
-        new_content: string;
-        edited_by: string;
-        edited_at: string;
-        deleted_message_ids?: string[];
-      };
-      let newState = state;
-      const msgIndex = state.indexById[payload.message_id];
-      if (msgIndex !== undefined) {
-        const timeline = [...newState.timeline];
-        const item = timeline[msgIndex];
-        if (item.type === "user.message") {
-          timeline[msgIndex] = {
-            ...item,
-            content: payload.new_content,
-            isEdited: true,
-            editedAt: payload.edited_at,
-            editedBy: payload.edited_by,
-          };
-          newState = { ...newState, timeline };
-        }
-      }
-      if (payload.deleted_message_ids && payload.deleted_message_ids.length > 0) {
-        const deletedSet = new Set(payload.deleted_message_ids);
-        const timeline = newState.timeline.filter((item) => !deletedSet.has(item.id));
-        const indexById: Record<string, number> = {};
-        timeline.forEach((item, i) => {
-          indexById[item.id] = i;
-        });
-        newState = { ...newState, timeline, indexById };
-      }
-      return newState;
-    }
-
-    case "support.messages_deleted": {
-      const payload = event.payload as { message_ids: string[] };
-      if (!payload.message_ids || payload.message_ids.length === 0) return state;
-      const deletedSet = new Set(payload.message_ids);
-      const timeline = state.timeline.filter((item) => !deletedSet.has(item.id));
-      const indexById: Record<string, number> = {};
-      timeline.forEach((item, i) => {
-        indexById[item.id] = i;
-      });
-      return { ...state, timeline, indexById };
-    }
+    // support.* 事件已在 handleSupportEvent 中处理（在 switch 之前）
 
     case "error": {
       const payload = event.payload as { message?: string };

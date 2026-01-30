@@ -24,7 +24,6 @@ from app.services.agent.core.service import agent_service
 from app.services.chat_stream import ChatStreamOrchestrator
 from app.services.conversation import ConversationService
 from app.services.streaming.sse import encode_sse
-from app.services.support.gateway import support_gateway
 from app.services.support.handoff import HandoffService
 
 router = APIRouter(prefix="/api/v1", tags=["chat"])
@@ -125,19 +124,6 @@ async def chat(
             conversation_id=request_data.conversation_id,
         )
         await ws_manager.send_to_role(request_data.conversation_id, WSRole.AGENT, server_msg)
-
-        # 同时通过 support_gateway 发送（兼容 SSE 模式）
-        await support_gateway.send_to_agents(
-            request_data.conversation_id,
-            {
-                "type": "support.user_message",
-                "payload": {
-                    "message_id": user_message_id,
-                    "content": request_data.message,
-                    "user_id": request_data.user_id,
-                },
-            },
-        )
 
         async def human_mode_response() -> AsyncGenerator[str, None]:
             """人工模式响应 - 立即返回确认，不保持连接"""

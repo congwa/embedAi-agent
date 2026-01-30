@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { useUserStore, useConversationStore, useChatStore } from "@/stores";
+import { useUserStore, useConversationStore, useChatStore, useRealtimeStore } from "@/stores";
+import { useUserWebSocket } from "@/hooks/use-websocket";
+import type { SupportMessage, ConversationState } from "@/types/websocket";
 import { ChatSidebar } from "./ChatSidebar";
 import { ChatContent } from "./ChatContent";
 import { ChatThemeProvider } from "./themes";
@@ -13,6 +15,65 @@ export function ChatApp() {
   const isUserLoading = useUserStore((s) => s.isLoading);
   const initUser = useUserStore((s) => s.initUser);
   const loadConversations = useConversationStore((s) => s.loadConversations);
+  const currentConversationId = useConversationStore((s) => s.currentConversationId);
+  const addSupportEvent = useChatStore((s) => s.addSupportEvent);
+  const addHumanAgentMessage = useChatStore((s) => s.addHumanAgentMessage);
+  
+  // Realtime Store
+  const setConnected = useRealtimeStore((s) => s.setConnected);
+  const setHandoffState = useRealtimeStore((s) => s.setHandoffState);
+  const setAgentOnline = useRealtimeStore((s) => s.setAgentOnline);
+  const setAgentTyping = useRealtimeStore((s) => s.setAgentTyping);
+  const setUnreadCount = useRealtimeStore((s) => s.setUnreadCount);
+  const resetRealtime = useRealtimeStore((s) => s.reset);
+
+  // WebSocket 回调
+  const handleWsMessage = useCallback((message: SupportMessage) => {
+    if (message.role === "human_agent") {
+      addHumanAgentMessage(message.content, message.operator);
+    }
+  }, [addHumanAgentMessage]);
+
+  const handleStateChange = useCallback((state: ConversationState) => {
+    // 更新 Realtime Store
+    setHandoffState(state.handoff_state, state.operator);
+    setAgentOnline(state.agent_online ?? false, state.peer_last_online_at);
+    if (state.unread_count !== undefined) {
+      setUnreadCount(state.unread_count);
+    }
+    
+    // 添加 timeline 事件
+    if (state.handoff_state === "human" && state.operator) {
+      addSupportEvent(`客服 ${state.operator} 已接入会话`);
+    } else if (state.handoff_state === "ai") {
+      addSupportEvent("客服已结束服务，已切换回 AI 模式");
+    }
+  }, [addSupportEvent, setHandoffState, setAgentOnline, setUnreadCount]);
+
+  // WebSocket 连接
+  const { isConnected, connectionId, conversationState, agentTyping } = useUserWebSocket({
+    conversationId: currentConversationId,
+    userId,
+    onMessage: handleWsMessage,
+    onStateChange: handleStateChange,
+    enabled: !!currentConversationId && !!userId,
+  });
+
+  // 同步 WebSocket 状态到 Store
+  useEffect(() => {
+    setConnected(isConnected, connectionId);
+  }, [isConnected, connectionId, setConnected]);
+
+  useEffect(() => {
+    setAgentTyping(agentTyping);
+  }, [agentTyping, setAgentTyping]);
+
+  // 会话切换时重置状态
+  useEffect(() => {
+    if (!currentConversationId) {
+      resetRealtime();
+    }
+  }, [currentConversationId, resetRealtime]);
 
   // 初始化用户
   useEffect(() => {

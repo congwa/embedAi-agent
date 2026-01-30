@@ -5,8 +5,9 @@
 export { useUserStore } from "./user-store";
 export { useConversationStore } from "./conversation-store";
 export { useChatStore } from "./chat-store";
-export { useWebSocketStore } from "./websocket-store";
 export { useAgentStore, type Agent } from "./agent-store";
+export { useRealtimeStore, type RealtimeState } from "./realtime-store";
+export { useSupportStore, type SupportState } from "./support-store";
 export {
   useSystemStore,
   type SystemFeatures,

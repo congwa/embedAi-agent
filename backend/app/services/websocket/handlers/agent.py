@@ -21,8 +21,6 @@ async def handle_agent_send_message(
     """处理客服发送消息（支持图片）"""
     from datetime import datetime
 
-    from app.services.support.gateway import support_gateway
-
     content = payload.get("content", "")
     images = payload.get("images")  # 图片列表
 
@@ -45,26 +43,7 @@ async def handle_agent_send_message(
         )
 
         if message:
-            # 构建推送 payload
-            push_payload: dict[str, Any] = {
-                "message_id": message.id,
-                "content": content,
-                "operator": conn.identity,
-                "created_at": message.created_at.isoformat(),
-            }
-            if images:
-                push_payload["images"] = images
-
-            # 通过 support_gateway 发送给用户（SSE 订阅者）
-            sse_sent = await support_gateway.send_to_user(
-                conn.conversation_id,
-                {
-                    "type": "support.human_message",
-                    "payload": push_payload,
-                },
-            )
-
-            # 同时通过 WebSocket 发送给用户（如果有 WebSocket 连接）
+            # 通过 WebSocket 发送给用户
             ws_payload: dict[str, Any] = {
                 "message_id": message.id,
                 "role": "human_agent",
@@ -84,15 +63,14 @@ async def handle_agent_send_message(
             )
             ws_sent = await ws_manager.send_to_role(conn.conversation_id, WSRole.USER, server_msg)
 
-            # 如果任一渠道成功送达，更新消息状态
-            if sse_sent > 0 or ws_sent > 0:
+            # 如果成功送达，更新消息状态
+            if ws_sent > 0:
                 await services.message_repo.mark_as_delivered([message.id])
                 logger.info(
                     "客服消息已送达用户",
                     conn_id=conn.id,
                     conversation_id=conn.conversation_id,
                     message_id=message.id,
-                    sse_sent=sse_sent,
                     ws_sent=ws_sent,
                     has_images=bool(images),
                 )
@@ -336,8 +314,6 @@ async def handle_agent_withdraw_message(
     """处理客服撤回消息"""
     from datetime import datetime, timedelta
 
-    from app.services.support.gateway import support_gateway
-
     message_id = payload.get("message_id")
     reason = payload.get("reason", "")
 
@@ -413,15 +389,6 @@ async def handle_agent_withdraw_message(
             )
             ws_sent = await ws_manager.send_to_role(conn.conversation_id, WSRole.USER, user_msg)
 
-            # 通过 SSE 也发送一份
-            await support_gateway.send_to_user(
-                conn.conversation_id,
-                {
-                    "type": "support.message_withdrawn",
-                    "payload": withdrawn_payload,
-                },
-            )
-
             # 通知其他客服端
             await ws_manager.broadcast_to_conversation(
                 conn.conversation_id,
@@ -447,8 +414,6 @@ async def handle_agent_edit_message(
 ) -> None:
     """处理客服编辑消息"""
     from datetime import datetime, timedelta
-
-    from app.services.support.gateway import support_gateway
 
     message_id = payload.get("message_id")
     new_content = payload.get("new_content", "").strip()
@@ -555,15 +520,6 @@ async def handle_agent_edit_message(
         )
         ws_sent = await ws_manager.send_to_role(conn.conversation_id, WSRole.USER, user_msg)
 
-        # 通过 SSE 也发送一份
-        await support_gateway.send_to_user(
-            conn.conversation_id,
-            {
-                "type": "support.message_edited",
-                "payload": edited_payload,
-            },
-        )
-
         # 如果有删除的消息，额外通知
         if deleted_message_ids:
             deleted_msg = build_server_message(
@@ -575,16 +531,6 @@ async def handle_agent_edit_message(
                 conversation_id=conn.conversation_id,
             )
             await ws_manager.send_to_role(conn.conversation_id, WSRole.USER, deleted_msg)
-            await support_gateway.send_to_user(
-                conn.conversation_id,
-                {
-                    "type": "support.messages_deleted",
-                    "payload": {
-                        "message_ids": deleted_message_ids,
-                        "reason": "edit_regenerate",
-                    },
-                },
-            )
 
         # 通知其他客服端
         await ws_manager.broadcast_to_conversation(

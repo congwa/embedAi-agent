@@ -28,7 +28,6 @@ from app.schemas.support import (
     SupportStatsResponse,
 )
 from app.schemas.websocket import WSAction, WSRole
-from app.services.support.gateway import support_gateway
 from app.services.support.handoff import HandoffService
 from app.services.support.heat_score import get_conversations_with_heat, get_support_stats
 from app.services.websocket.handlers.base import build_server_message
@@ -68,24 +67,11 @@ async def start_handoff(
         )
         ws_sent = await ws_manager.send_to_role(conversation_id, WSRole.USER, ws_msg)
 
-        # 同时尝试 SSE 推送（兼容旧客户端）
-        sse_sent = await support_gateway.send_to_user(
-            conversation_id,
-            {
-                "type": "support.handoff_started",
-                "payload": {
-                    "operator": request.operator,
-                    "message": "客服已上线，正在为您服务",
-                },
-            },
-        )
-
         logger.info(
             "客服介入通知已发送",
             conversation_id=conversation_id,
             operator=request.operator,
             ws_sent=ws_sent,
-            sse_sent=sse_sent,
         )
 
     return HandoffResponse(**result)
@@ -121,23 +107,11 @@ async def end_handoff(
         )
         ws_sent = await ws_manager.send_to_role(conversation_id, WSRole.USER, ws_msg)
 
-        # 同时尝试 SSE 推送（兼容旧客户端）
-        sse_sent = await support_gateway.send_to_user(
-            conversation_id,
-            {
-                "type": "support.handoff_ended",
-                "payload": {
-                    "message": "人工客服已结束服务，您可以继续与智能助手对话",
-                },
-            },
-        )
-
         logger.info(
             "客服结束通知已发送",
             conversation_id=conversation_id,
             operator=request.operator,
             ws_sent=ws_sent,
-            sse_sent=sse_sent,
         )
 
     return HandoffResponse(**result)
@@ -206,23 +180,26 @@ async def send_human_message(
             error="发送失败：会话不存在或未在人工模式",
         )
 
-    # 构建推送 payload
-    push_payload = {
+    # 通过 WebSocket 发送给用户
+    from datetime import datetime
+    ws_payload = {
         "message_id": message.id,
+        "role": "human_agent",
         "content": message.content,
-        "operator": request.operator,
         "created_at": message.created_at.isoformat(),
+        "operator": request.operator,
+        "is_delivered": True,
+        "delivered_at": datetime.now().isoformat(),
     }
     if images_data:
-        push_payload["images"] = images_data
+        ws_payload["images"] = images_data
 
-    await support_gateway.send_to_user(
-        conversation_id,
-        {
-            "type": "support.human_message",
-            "payload": push_payload,
-        },
+    ws_msg = build_server_message(
+        action=WSAction.SERVER_MESSAGE,
+        payload=ws_payload,
+        conversation_id=conversation_id,
     )
+    await ws_manager.send_to_role(conversation_id, WSRole.USER, ws_msg)
 
     return HumanMessageResponse(
         success=True,
@@ -296,70 +273,10 @@ async def get_stats(
     return SupportStatsResponse(**stats)
 
 
-@router.get("/stream/{conversation_id}")
-async def agent_stream(
-    conversation_id: str,
-    agent_id: str,
-    db: AsyncSession = Depends(get_db_session),
-):
-    """客服端 SSE 连接
-    
-    客服订阅会话消息流，接收用户消息和系统事件。
-    """
-    service = HandoffService(db)
-    conversation = await service.get_conversation(conversation_id)
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="会话不存在")
-
-    async def event_generator() -> AsyncGenerator[str, None]:
-        async for event in support_gateway.subscribe_agent(conversation_id, agent_id):
-            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
 @router.get("/connections/{conversation_id}")
 async def get_connections(conversation_id: str):
-    """获取会话的连接数统计"""
-    return support_gateway.get_connection_count(conversation_id)
-
-
-@router.get("/user-stream/{conversation_id}")
-async def user_stream(
-    conversation_id: str,
-    user_id: str,
-    db: AsyncSession = Depends(get_db_session),
-):
-    """用户端 SSE 连接 - 接收客服消息
-    
-    用户订阅会话消息流，接收客服消息和系统事件。
-    此连接应在进入人工模式时建立，独立于发送消息的请求。
-    """
-    service = HandoffService(db)
-    conversation = await service.get_conversation(conversation_id)
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="会话不存在")
-
-    async def event_generator() -> AsyncGenerator[str, None]:
-        async for event in support_gateway.subscribe_user(conversation_id, user_id):
-            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    """获取会话的 WebSocket 连接数统计"""
+    conns = ws_manager.get_connections_by_conversation(conversation_id)
+    user_count = sum(1 for c in conns if c.role.value == "user")
+    agent_count = sum(1 for c in conns if c.role.value == "agent")
+    return {"user": user_count, "agent": agent_count, "total": len(conns)}
