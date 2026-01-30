@@ -62,7 +62,6 @@ class SkillRegistry:
     def get_skills_for_agent(
         self,
         agent_type: str,
-        mode: str,
     ) -> list["Skill"]:
         """获取 Agent 可用的技能列表"""
         matched = []
@@ -70,15 +69,12 @@ class SkillRegistry:
             # 检查适用范围
             if skill.applicable_agents and agent_type not in skill.applicable_agents:
                 continue
-            if skill.applicable_modes and mode not in skill.applicable_modes:
-                continue
             matched.append(skill)
         return matched
 
     def get_always_apply_skills(
         self,
         agent_type: str,
-        mode: str,
     ) -> list["Skill"]:
         """获取始终应用的技能"""
         matched = []
@@ -87,15 +83,12 @@ class SkillRegistry:
                 continue
             if skill.applicable_agents and agent_type not in skill.applicable_agents:
                 continue
-            if skill.applicable_modes and mode not in skill.applicable_modes:
-                continue
             matched.append(skill)
         return matched
 
     def match_skills(
         self,
         agent_type: str,
-        mode: str,
         message: str,
     ) -> list["Skill"]:
         """匹配适用的技能（基于关键词）"""
@@ -105,8 +98,6 @@ class SkillRegistry:
         for skill in self._skills.values():
             # 检查适用范围
             if skill.applicable_agents and agent_type not in skill.applicable_agents:
-                continue
-            if skill.applicable_modes and mode not in skill.applicable_modes:
                 continue
 
             # always_apply 技能

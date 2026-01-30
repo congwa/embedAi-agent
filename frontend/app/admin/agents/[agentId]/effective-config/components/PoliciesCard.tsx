@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { EffectiveConfigResponse } from "@/lib/api/agents";
-import { getModeLabel, getPolicyFieldLabel, getConfigSourceLabel } from "@/lib/config/labels";
+import { getPolicyFieldLabel, getConfigSourceLabel } from "@/lib/config/labels";
 
 interface PoliciesCardProps {
   policies: EffectiveConfigResponse["policies"];
@@ -21,14 +21,6 @@ export function PoliciesCard({ policies }: PoliciesCardProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* 回答模式 */}
-        <div>
-          <span className="text-sm text-muted-foreground">回答模式:</span>
-          <Badge className="ml-2">{getModeLabel(policies.mode)}</Badge>
-        </div>
-
-        <Separator />
-
         {/* 工具策略 */}
         {policies.tool_policy && (
           <div className="space-y-2">

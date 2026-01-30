@@ -32,7 +32,6 @@ from app.services.agent.core.config import (
     DEFAULT_TOOL_POLICIES,
     AgentConfigLoader,
 )
-from app.services.agent.core.factory import MODE_PROMPT_SUFFIX
 from app.services.agent.tools.registry import _get_tool_specs
 from app.services.skill.registry import skill_registry
 
@@ -54,7 +53,6 @@ class EffectiveConfigBuilder:
     async def build(
         self,
         agent: "Agent",
-        mode: str | None = None,
         include_filtered: bool = True,
         test_message: str | None = None,
     ) -> EffectiveConfigResponse:
@@ -62,36 +60,32 @@ class EffectiveConfigBuilder:
 
         Args:
             agent: Agent 实例
-            mode: 指定模式，默认使用 agent.mode_default
             include_filtered: 是否包含被过滤的工具/中间件
             test_message: 测试消息，用于预测技能触发
 
         Returns:
             完整的运行态配置响应
         """
-        effective_mode = mode or agent.mode_default
-
         # 获取 AgentConfig（用于工具和中间件构建）
-        agent_config = await self._config_loader.load_config(agent.id, effective_mode)
+        agent_config = await self._config_loader.load_config(agent.id)
 
         # 计算配置版本
         import hashlib
         config_version = hashlib.md5(f"{agent.id}:{agent.updated_at}".encode()).hexdigest()[:16]
 
         # 构建各模块配置
-        system_prompt = self._build_system_prompt(agent, effective_mode)
-        skills = self._build_skills(agent.type, effective_mode, test_message)
+        system_prompt = self._build_system_prompt(agent)
+        skills = self._build_skills(agent.type, test_message)
         tools = self._build_tools(agent_config, include_filtered) if agent_config else EffectiveTools(enabled=[], filtered=[])
         middlewares = self._build_middlewares(agent_config, include_filtered) if agent_config else EffectiveMiddlewares(pipeline=[], disabled=[])
         knowledge = self._build_knowledge(agent)
-        policies = self._build_policies(agent, effective_mode)
+        policies = self._build_policies(agent)
         health = self._build_health(system_prompt, skills, tools, middlewares, knowledge)
 
         return EffectiveConfigResponse(
             agent_id=agent.id,
             name=agent.name,
             type=agent.type,
-            mode=effective_mode,
             config_version=agent_config.config_version if agent_config else config_version,
             generated_at=datetime.now(timezone.utc),
             system_prompt=system_prompt,
@@ -103,7 +97,7 @@ class EffectiveConfigBuilder:
             health=health,
         )
 
-    def _build_system_prompt(self, agent: "Agent", mode: str) -> EffectiveSystemPrompt:
+    def _build_system_prompt(self, agent: "Agent") -> EffectiveSystemPrompt:
         """构建系统提示词信息"""
         layers: list[PromptLayer] = []
 
@@ -124,19 +118,8 @@ class EffectiveConfigBuilder:
             )
         )
 
-        # Layer 2: 模式后缀
-        mode_suffix = MODE_PROMPT_SUFFIX.get(mode, "")
-        layers.append(
-            PromptLayer(
-                name="mode_suffix",
-                source=f"agent.mode.{mode}",
-                char_count=len(mode_suffix),
-                content=mode_suffix,
-            )
-        )
-
-        # Layer 3: 技能注入（always_apply）
-        always_apply_skills = skill_registry.get_always_apply_skills(agent.type, mode)
+        # Layer 2: 技能注入（always_apply）
+        always_apply_skills = skill_registry.get_always_apply_skills(agent.type)
         skill_context = skill_registry.build_skill_context(always_apply_skills)
         skill_ids = [s.id for s in always_apply_skills]
 
@@ -152,8 +135,6 @@ class EffectiveConfigBuilder:
 
         # 最终内容
         final_content = base_content
-        if mode_suffix:
-            final_content = final_content + mode_suffix
         if skill_context:
             final_content = final_content + "\n\n" + skill_context
 
@@ -166,7 +147,6 @@ class EffectiveConfigBuilder:
     def _build_skills(
         self,
         agent_type: str,
-        mode: str,
         test_message: str | None,
     ) -> EffectiveSkills:
         """构建技能信息"""
@@ -175,7 +155,7 @@ class EffectiveConfigBuilder:
         triggered_ids: list[str] = []
 
         # 获取所有可用技能
-        all_skills = skill_registry.get_skills_for_agent(agent_type, mode)
+        all_skills = skill_registry.get_skills_for_agent(agent_type)
 
         for skill in all_skills:
             info = SkillInfo(
@@ -194,7 +174,7 @@ class EffectiveConfigBuilder:
 
         # 测试消息触发
         if test_message:
-            matched = skill_registry.match_skills(agent_type, mode, test_message)
+            matched = skill_registry.match_skills(agent_type, test_message)
             triggered_ids = [s.id for s in matched if not s.always_apply]
 
         return EffectiveSkills(
@@ -213,7 +193,6 @@ class EffectiveConfigBuilder:
         filtered: list[FilteredToolInfo] = []
 
         all_specs = _get_tool_specs()
-        mode = config.mode
 
         for spec in all_specs:
             sources: list[str] = []
@@ -222,8 +201,6 @@ class EffectiveConfigBuilder:
             # 检查是否启用
             if not spec.enabled:
                 filter_reason = "工具已禁用 (enabled=false)"
-            elif spec.modes is not None and mode not in spec.modes:
-                filter_reason = f"模式不匹配 (需要 {spec.modes}, 当前 {mode})"
             elif config.tool_categories:
                 if any(c in spec.categories for c in config.tool_categories):
                     sources.append(f"类别匹配 ({', '.join(set(spec.categories) & set(config.tool_categories))})")
@@ -284,7 +261,6 @@ class EffectiveConfigBuilder:
         disabled: list[MiddlewareInfo] = []
 
         flags = config.middleware_flags
-        mode = config.mode
 
         # 中间件定义列表
         middleware_defs = [
@@ -396,14 +372,6 @@ class EffectiveConfigBuilder:
                     "keep_messages": self._get_value(flags, "summarization_keep_messages", settings.AGENT_SUMMARIZATION_KEEP_MESSAGES),
                 },
             },
-            {
-                "name": "StrictMode",
-                "order": 100,
-                "check": lambda: mode == "strict" or self._is_enabled(flags, "strict_mode_enabled", "AGENT_STRICT_MODE_ENABLED"),
-                "flag_key": "strict_mode_enabled",
-                "settings_key": None,
-                "params": {},
-            },
         ]
 
         for mdef in middleware_defs:
@@ -450,7 +418,7 @@ class EffectiveConfigBuilder:
             data_version=kc.data_version,
         )
 
-    def _build_policies(self, agent: "Agent", mode: str) -> EffectivePolicies:
+    def _build_policies(self, agent: "Agent") -> EffectivePolicies:
         """构建策略信息"""
         # 工具策略
         default_policy = DEFAULT_TOOL_POLICIES.get(agent.type, {})
@@ -486,7 +454,6 @@ class EffectiveConfigBuilder:
             ("summarization_enabled", "AGENT_SUMMARIZATION_ENABLED"),
             ("noise_filter_enabled", "AGENT_NOISE_FILTER_ENABLED"),
             ("tool_retry_enabled", "AGENT_TOOL_RETRY_ENABLED"),
-            ("strict_mode_enabled", None),
         ]
 
         for flag_key, settings_key in flag_keys:
@@ -497,14 +464,8 @@ class EffectiveConfigBuilder:
                     value=getattr(settings, settings_key, False),
                     source="settings",
                 )
-            elif flag_key == "strict_mode_enabled":
-                middleware_flags[flag_key] = PolicyValue(
-                    value=mode == "strict",
-                    source="mode",
-                )
 
         return EffectivePolicies(
-            mode=mode,
             tool_policy=tool_policy,
             middleware_flags=middleware_flags,
         )

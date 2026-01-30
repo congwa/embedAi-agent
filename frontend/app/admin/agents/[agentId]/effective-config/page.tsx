@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { RefreshCw, Copy, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getAgentEffectiveConfig, type EffectiveConfigResponse } from "@/lib/api/agents";
-import { getModeLabel } from "@/lib/config/labels";
 import {
   HealthCard,
   SystemPromptCard,
@@ -75,7 +74,7 @@ export default function EffectiveConfigPage() {
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">运行态配置预览</h2>
           <p className="text-sm text-muted-foreground">
-            版本: {config.config_version} · 模式: {getModeLabel(config.mode)} · 生成于{" "}
+            版本: {config.config_version} · 生成于{" "}
             {new Date(config.generated_at).toLocaleString()}
           </p>
         </div>

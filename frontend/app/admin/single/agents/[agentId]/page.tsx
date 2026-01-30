@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, PromptViewer } from "@/components/admin";
-import { getModeLabel, getMiddlewareLabel, getToolCategoryLabel } from "@/lib/config/labels";
+import { getMiddlewareLabel, getToolCategoryLabel } from "@/lib/config/labels";
 
 export default function SingleAgentOverviewPage() {
   const params = useParams();
@@ -43,10 +43,6 @@ export default function SingleAgentOverviewPage() {
           <div className="flex justify-between">
             <span className="text-sm text-zinc-500">Agent ID</span>
             <code className="text-xs">{agent.id}</code>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-sm text-zinc-500">默认模式</span>
-            <Badge variant="outline">{getModeLabel(agent.mode_default)}</Badge>
           </div>
           <div className="flex justify-between">
             <span className="text-sm text-zinc-500">响应格式</span>

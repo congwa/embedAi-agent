@@ -111,13 +111,6 @@ class Agent(Base, TimestampMixin):
     # 系统提示词
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # 默认回答策略模式
-    mode_default: Mapped[str] = mapped_column(
-        String(20),
-        default="natural",
-        nullable=False,
-    )
-
     # 中间件开关（JSON，覆盖默认配置）
     # 格式: {"todo_enabled": true, "summarization_enabled": false, ...}
     middleware_flags: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
@@ -294,24 +287,3 @@ class SuggestedQuestion(Base, TimestampMixin):
     agent: Mapped["Agent"] = relationship("Agent", back_populates="suggested_questions")
 
 
-class AgentModeOverride(Base):
-    """Agent 模式覆盖表（可选）
-
-    允许为同一 Agent 的不同 mode 配置不同的提示词/策略。
-    """
-
-    __tablename__ = "agent_mode_overrides"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    agent_id: Mapped[str] = mapped_column(
-        String(36),
-        ForeignKey("agents.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    mode: Mapped[str] = mapped_column(String(20), nullable=False)
-
-    # 覆盖配置
-    system_prompt_override: Mapped[str | None] = mapped_column(Text, nullable=True)
-    tool_policy_override: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
-    middleware_overrides: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)

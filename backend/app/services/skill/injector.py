@@ -25,19 +25,17 @@ class SkillInjector:
         self,
         system_prompt: str,
         agent_type: str,
-        mode: str,
     ) -> str:
         """注入 always_apply 技能到 system prompt（静默，无事件）
 
         Args:
             system_prompt: 原始系统提示词
             agent_type: Agent 类型
-            mode: 回答模式
 
         Returns:
             注入技能后的系统提示词
         """
-        skills = self.registry.get_always_apply_skills(agent_type, mode)
+        skills = self.registry.get_always_apply_skills(agent_type)
         if not skills:
             return system_prompt
 
@@ -45,7 +43,6 @@ class SkillInjector:
         logger.debug(
             "注入 always_apply 技能",
             agent_type=agent_type,
-            mode=mode,
             skill_count=len(skills),
             skill_names=[s.name for s in skills],
         )
@@ -55,7 +52,6 @@ class SkillInjector:
         self,
         message: str,
         agent_type: str,
-        mode: str,
         emitter: "DomainEmitter",
     ) -> list["Skill"]:
         """匹配关键词并激活技能，发送事件
@@ -63,13 +59,12 @@ class SkillInjector:
         Args:
             message: 用户消息
             agent_type: Agent 类型
-            mode: 回答模式
             emitter: 事件发射器
 
         Returns:
             被激活的技能列表（不含 always_apply）
         """
-        matched = self.registry.match_skills(agent_type, mode, message)
+        matched = self.registry.match_skills(agent_type, message)
 
         # 过滤掉 always_apply（已静默注入）
         triggered = [s for s in matched if not s.always_apply]

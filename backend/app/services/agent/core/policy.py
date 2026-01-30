@@ -1,6 +1,6 @@
 """工具调用策略配置
 
-定义不同聊天模式下的工具调用策略，替代硬编码的提示词约束。
+定义工具调用策略，替代硬编码的提示词约束。
 """
 
 from dataclasses import dataclass
@@ -27,29 +27,12 @@ class ToolPolicy:
     description: str = ""
 
 
-# 预定义的策略
-NATURAL_POLICY = ToolPolicy(
-    min_tool_calls=0, allow_direct_answer=True, description="自然模式：不强制工具调用，允许自由对话"
-)
-
-FREE_POLICY = ToolPolicy(
-    min_tool_calls=0, allow_direct_answer=True, description="自由模式：完全自由对话，不使用工具"
-)
-
-STRICT_POLICY = ToolPolicy(
-    min_tool_calls=1,
-    fallback_tool="guide_user",
-    allow_direct_answer=False,
-    clarification_tool="guide_user",
-    description="严格模式：必须调用工具，无工具时使用 guide_user",
+# 默认策略：不强制工具调用，允许自由对话
+DEFAULT_POLICY = ToolPolicy(
+    min_tool_calls=0, allow_direct_answer=True, description="默认策略：不强制工具调用，允许自由对话"
 )
 
 
-def get_policy(mode: str) -> ToolPolicy:
-    """根据聊天模式获取对应的工具策略"""
-    policies = {
-        "natural": NATURAL_POLICY,
-        "free": FREE_POLICY,
-        "strict": STRICT_POLICY,
-    }
-    return policies.get(mode, NATURAL_POLICY)
+def get_policy() -> ToolPolicy:
+    """获取默认工具策略"""
+    return DEFAULT_POLICY

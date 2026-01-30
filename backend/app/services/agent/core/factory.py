@@ -24,15 +24,6 @@ if TYPE_CHECKING:
 logger = get_logger("agent.factory")
 
 
-# ========== 模式策略提示词后缀 ==========
-# 从 prompts 模块获取模式后缀
-from app.prompts.registry import get_default_prompt_content
-
-MODE_PROMPT_SUFFIX: dict[str, str] = {
-    "natural": "",  # 默认模式无额外约束
-    "free": get_default_prompt_content("agent.mode.free") or "",
-    "strict": get_default_prompt_content("agent.mode.strict") or "",
-}
 
 
 def get_response_format_for_type(agent_type: str) -> type | None:
@@ -107,11 +98,8 @@ async def _build_single_agent(
     # 1. 获取 LLM
     model = get_chat_model()
 
-    # 2. 构建完整 system prompt（基础 + 模式后缀）
+    # 2. 获取系统提示词
     system_prompt = config.system_prompt
-    mode_suffix = MODE_PROMPT_SUFFIX.get(config.mode, "")
-    if mode_suffix:
-        system_prompt = system_prompt + mode_suffix
 
     # 3. 获取工具列表
     tools = get_tools_for_agent(config)
@@ -148,7 +136,6 @@ async def _build_single_agent(
             "构建 Agent 实例",
             agent_id=config.agent_id,
             agent_type=config.type,
-            mode=config.mode,
             tool_count=len(tools),
             middleware_count=len(middlewares) if middlewares else 0,
         )

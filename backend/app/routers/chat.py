@@ -197,7 +197,6 @@ async def chat(
                 user_message=request_data.message,
                 user_message_id=user_message_id,
                 assistant_message_id=assistant_message_id,
-                mode=request_data.effective_mode,
                 agent_id=request_data.agent_id,
                 images=request_data.images,
                 db=None,  # 不传递 session，让工具自行创建短事务

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.logging import get_logger
-from app.models.agent import Agent, AgentModeOverride, AgentType
+from app.models.agent import Agent, AgentType
 from app.schemas.agent import (
     AgentConfig,
     KnowledgeConfigResponse,
@@ -105,21 +105,11 @@ class AgentConfigLoader:
         result = await self._session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_mode_override(self, agent_id: str, mode: str) -> AgentModeOverride | None:
-        """获取模式覆盖配置"""
-        stmt = select(AgentModeOverride).where(
-            AgentModeOverride.agent_id == agent_id,
-            AgentModeOverride.mode == mode,
-        )
-        result = await self._session.execute(stmt)
-        return result.scalar_one_or_none()
-
-    async def load_config(self, agent_id: str, mode: str = "natural") -> AgentConfig | None:
+    async def load_config(self, agent_id: str) -> AgentConfig | None:
         """加载完整的 Agent 配置
 
         Args:
             agent_id: Agent ID
-            mode: 回答策略模式
 
         Returns:
             运行时 AgentConfig，或 None（未找到）
@@ -133,18 +123,13 @@ class AgentConfigLoader:
             logger.warning("Agent 已禁用", agent_id=agent_id)
             return None
 
-        # 加载模式覆盖
-        mode_override = await self.get_mode_override(agent_id, mode)
-
         # 构建配置
-        config = self._build_config(agent, mode, mode_override)
+        config = self._build_config(agent)
 
         logger.debug(
             "加载 Agent 配置",
             agent_id=agent_id,
             agent_type=agent.type,
-            mode=mode,
-            has_override=mode_override is not None,
         )
 
         return config
@@ -152,16 +137,12 @@ class AgentConfigLoader:
     def _build_config(
         self,
         agent: Agent,
-        mode: str,
-        mode_override: AgentModeOverride | None,
     ) -> AgentConfig:
         """构建运行时配置"""
         agent_type = agent.type
 
-        # 1. System Prompt：优先 mode_override > agent > 默认
-        if mode_override and mode_override.system_prompt_override:
-            system_prompt = mode_override.system_prompt_override
-        elif agent.system_prompt:
+        # 1. System Prompt：agent > 默认
+        if agent.system_prompt:
             system_prompt = agent.system_prompt
         else:
             system_prompt = DEFAULT_PROMPTS.get(agent_type, DEFAULT_PROMPTS["custom"])
@@ -176,21 +157,17 @@ class AgentConfigLoader:
         if agent.tools:
             tool_whitelist = [t.tool_name for t in agent.tools if t.enabled]
 
-        # 4. 工具策略：mode_override > agent > 默认
+        # 4. 工具策略：agent > 默认
         tool_policy_dict: dict[str, Any] = DEFAULT_TOOL_POLICIES.get(agent_type, {}).copy()
         if agent.tool_policy:
             tool_policy_dict.update(agent.tool_policy)
-        if mode_override and mode_override.tool_policy_override:
-            tool_policy_dict.update(mode_override.tool_policy_override)
 
         tool_policy = ToolPolicySchema(**tool_policy_dict) if tool_policy_dict else None
 
-        # 5. 中间件配置：mode_override > agent
+        # 5. 中间件配置
         middleware_dict: dict[str, Any] = {}
         if agent.middleware_flags:
             middleware_dict.update(agent.middleware_flags)
-        if mode_override and mode_override.middleware_overrides:
-            middleware_dict.update(mode_override.middleware_overrides)
 
         middleware_flags = MiddlewareFlagsSchema(**middleware_dict) if middleware_dict else None
 
@@ -216,14 +193,13 @@ class AgentConfigLoader:
             )
 
         # 7. 计算配置版本（用于缓存失效）
-        config_version = self._compute_version(agent, mode_override)
+        config_version = self._compute_version(agent)
 
         return AgentConfig(
             agent_id=agent.id,
             name=agent.name,
             type=agent_type,
             system_prompt=system_prompt,
-            mode=mode,
             tool_categories=tool_categories,
             tool_whitelist=tool_whitelist,
             tool_policy=tool_policy,
@@ -236,7 +212,6 @@ class AgentConfigLoader:
     def _compute_version(
         self,
         agent: Agent,
-        mode_override: AgentModeOverride | None,
     ) -> str:
         """计算配置版本哈希"""
         parts = [
@@ -246,8 +221,6 @@ class AgentConfigLoader:
         if agent.knowledge_config:
             parts.append(agent.knowledge_config.data_version or "")
             parts.append(str(agent.knowledge_config.updated_at.timestamp()))
-        if mode_override:
-            parts.append(str(mode_override.id))
 
         content = "|".join(parts)
         return hashlib.md5(content.encode()).hexdigest()[:16]
@@ -271,7 +244,6 @@ async def get_or_create_default_agent(session: AsyncSession) -> str:
         description="默认商品推荐智能体",
         type=AgentType.PRODUCT.value,
         system_prompt=DEFAULT_PROMPTS["product"],
-        mode_default="natural",
         tool_categories=DEFAULT_TOOL_CATEGORIES["product"],
         status="enabled",
         is_default=True,

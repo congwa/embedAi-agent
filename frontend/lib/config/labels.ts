@@ -118,23 +118,6 @@ export function getToolCategoryLabel(category: string): ToolCategoryInfo {
   );
 }
 
-// ========== 聊天模式 ==========
-
-export interface ModeInfo {
-  label: string;
-  desc: string;
-}
-
-export const MODE_LABELS: Record<string, ModeInfo> = {
-  natural: { label: "自然模式", desc: "平衡准确性和自然度" },
-  free: { label: "自由模式", desc: "更灵活的回答风格" },
-  strict: { label: "严格模式", desc: "严格基于知识库回答" },
-};
-
-export function getModeLabel(mode: string): string {
-  return MODE_LABELS[mode]?.label || mode;
-}
-
 // ========== 中间件配置 ==========
 
 export interface MiddlewareInfo {
@@ -380,19 +363,6 @@ export const MIDDLEWARE_PIPELINE_LABELS: Record<string, MiddlewarePipelineInfoEx
       "用摘要替换详细历史",
     ],
   },
-  StrictMode: {
-    label: "严格模式",
-    desc: "强制基于工具返回内容回答",
-    icon: Gauge,
-    details: [
-      "拦截模型响应",
-      "检查是否调用了工具获取数据",
-      "未调用工具 → 返回引导消息",
-      "已调用工具 → 正常放行",
-    ],
-    triggerCondition: "mode = strict",
-    note: "此中间件控制行为约束（必须调用工具），与 LangChain structured output strict（输出格式约束）是互补关系，非替代",
-  },
 };
 
 export function getMiddlewarePipelineLabel(name: string): MiddlewarePipelineInfoExtended {
@@ -408,7 +378,6 @@ export interface PromptLayerInfo {
 
 export const PROMPT_LAYER_LABELS: Record<string, PromptLayerInfo> = {
   base: { label: "基础提示词", desc: "Agent 的核心系统提示词" },
-  mode_suffix: { label: "模式后缀", desc: "根据回答模式追加的指令" },
   skill_injection: { label: "技能注入", desc: "始终生效技能的内容注入" },
 };
 
@@ -436,7 +405,6 @@ export const POLICY_FIELD_LABELS: Record<string, PolicyFieldInfo> = {
   summarization_enabled: { label: "上下文压缩", desc: "压缩长对话" },
   noise_filter_enabled: { label: "噪音过滤", desc: "过滤冗余信息" },
   tool_retry_enabled: { label: "工具重试", desc: "失败时自动重试" },
-  strict_mode_enabled: { label: "严格模式", desc: "严格基于工具回答" },
 };
 
 export function getPolicyFieldLabel(field: string): PolicyFieldInfo {
@@ -449,7 +417,6 @@ export const CONFIG_SOURCE_LABELS: Record<string, string> = {
   agent: "Agent 配置",
   settings: "全局设置",
   default: "系统默认",
-  mode: "回答模式",
 };
 
 export function getConfigSourceLabel(source: string): string {

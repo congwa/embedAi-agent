@@ -76,11 +76,10 @@ class MiddlewareSpec:
 # ──────┴──────────────────────────┴────────────────────
 
 
-def _get_middleware_specs(mode: str, model: Any) -> list[MiddlewareSpec]:
+def _get_middleware_specs(model: Any) -> list[MiddlewareSpec]:
     """获取中间件规格列表
 
     Args:
-        mode: 聊天模式（natural/free/strict）
         model: LLM 模型实例（部分中间件需要）
 
     Returns:
@@ -97,7 +96,6 @@ def _get_middleware_specs(mode: str, model: Any) -> list[MiddlewareSpec]:
     from app.services.agent.middleware.response_sanitization import ResponseSanitizationMiddleware
     from app.services.agent.middleware.sequential_tools import SequentialToolExecutionMiddleware
     from app.services.agent.middleware.sliding_window import SlidingWindowMiddleware
-    from app.services.agent.middleware.strict_mode import StrictModeMiddleware
     from app.services.agent.middleware.summarization_broadcast import (
         SummarizationBroadcastMiddleware,
     )
@@ -181,12 +179,6 @@ def _get_middleware_specs(mode: str, model: Any) -> list[MiddlewareSpec]:
             trim_tokens_to_summarize=settings.AGENT_SUMMARIZATION_TRIM_TOKENS,
         )
         return SummarizationBroadcastMiddleware(inner)
-
-    def _build_strict_mode_middleware():
-        """构建严格模式中间件"""
-        from app.services.agent.core.policy import get_policy
-
-        return StrictModeMiddleware(policy=get_policy(mode))
 
     # ========== 中间件规格列表（按 order 排序后依次构建） ==========
 
@@ -276,27 +268,19 @@ def _get_middleware_specs(mode: str, model: Any) -> list[MiddlewareSpec]:
             enabled=settings.AGENT_SUMMARIZATION_ENABLED,
             factory=_build_summarization_middleware,
         ),
-        # Order 100: 严格模式检查（最后执行）
-        MiddlewareSpec(
-            name="StrictMode",
-            order=100,
-            enabled=mode == "strict",
-            factory=_build_strict_mode_middleware,
-        ),
     ]
 
 
-def build_middlewares(mode: str, model: Any) -> list[Any]:
+def build_middlewares(model: Any) -> list[Any]:
     """构建中间件链（对外接口）
 
     Args:
-        mode: 聊天模式（natural/free/strict）
         model: LLM 模型实例
 
     Returns:
         中间件实例列表（按 order 排序）
     """
-    specs = _get_middleware_specs(mode, model)
+    specs = _get_middleware_specs(model)
     middlewares: list[Any] = []
 
     for spec in sorted(specs, key=lambda s: s.order):
@@ -343,14 +327,12 @@ def build_middlewares_for_agent(config: "AgentConfig", model: Any) -> list[Any]:
     from app.services.agent.middleware.response_sanitization import ResponseSanitizationMiddleware
     from app.services.agent.middleware.sequential_tools import SequentialToolExecutionMiddleware
     from app.services.agent.middleware.sliding_window import SlidingWindowMiddleware
-    from app.services.agent.middleware.strict_mode import StrictModeMiddleware
     from app.services.agent.middleware.summarization_broadcast import (
         SummarizationBroadcastMiddleware,
     )
     from app.services.agent.middleware.todo_broadcast import TodoBroadcastMiddleware
     from app.services.memory.middleware.orchestration import MemoryOrchestrationMiddleware
 
-    mode = config.mode
     middlewares: list[Any] = []
     flags = config.middleware_flags
 
@@ -487,12 +469,6 @@ def build_middlewares_for_agent(config: "AgentConfig", model: Any) -> list[Any]:
         )
         middlewares.append(SummarizationBroadcastMiddleware(inner))
         logger.debug("✓ Summarization (order=90)", agent_id=config.agent_id)
-
-    # Order 100: 严格模式
-    if mode == "strict" or _is_enabled("strict_mode_enabled", "AGENT_STRICT_MODE_ENABLED"):
-        from app.services.agent.core.policy import get_policy
-        middlewares.append(StrictModeMiddleware(policy=get_policy(mode)))
-        logger.debug("✓ StrictMode (order=100)", agent_id=config.agent_id)
 
     return middlewares
 

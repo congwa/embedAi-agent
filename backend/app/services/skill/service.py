@@ -251,7 +251,6 @@ class SkillService:
     async def get_always_apply_skills(
         self,
         agent_type: str,
-        mode: str,
     ) -> list[Skill]:
         """获取始终应用的技能"""
         stmt = select(Skill).where(
@@ -264,8 +263,6 @@ class SkillService:
         matched_skills = []
         for skill in all_skills:
             if skill.applicable_agents and agent_type not in skill.applicable_agents:
-                continue
-            if skill.applicable_modes and mode not in skill.applicable_modes:
                 continue
             matched_skills.append(skill)
 

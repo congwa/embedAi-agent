@@ -111,7 +111,6 @@ class AgentBootstrapper:
             description=config.get("description"),
             type=agent_type,
             system_prompt=system_prompt,
-            mode_default=config.get("mode_default", "natural"),
             middleware_flags=config.get("middleware_flags"),
             tool_policy=config.get("tool_policy"),
             tool_categories=config.get("tool_categories"),
@@ -148,8 +147,6 @@ class AgentBootstrapper:
             agent.type = config["type"]
         if "system_prompt" in config:
             agent.system_prompt = config["system_prompt"]
-        if "mode_default" in config:
-            agent.mode_default = config["mode_default"]
         if "middleware_flags" in config:
             agent.middleware_flags = config["middleware_flags"]
         if "tool_policy" in config:

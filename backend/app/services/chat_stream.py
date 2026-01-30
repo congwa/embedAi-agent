@@ -37,7 +37,6 @@ class ChatStreamOrchestrator:
         user_message: str,
         user_message_id: str,
         assistant_message_id: str,
-        mode: str = "natural",
         agent_id: str | None = None,
         images: list[Any] | None = None,
         db: Any = None,  # 数据库会话（传递给 ChatContext，供工具使用）
@@ -49,7 +48,6 @@ class ChatStreamOrchestrator:
         self._user_message = user_message
         self._user_message_id = user_message_id
         self._assistant_message_id = assistant_message_id
-        self._mode = mode
         self._agent_id = agent_id
         self._images = images
         self._db = db
@@ -58,9 +56,6 @@ class ChatStreamOrchestrator:
         self._full_content = ""
         self._reasoning = ""
         self._products: Any | None = None
-        self._saw_tool_end = False  # strict 模式兜底检查用
-        self._last_tool_end_status: str | None = None
-        self._last_tool_end_name: str | None = None
 
         # 工具调用追踪：收集 tool.start/tool.end 事件中的信息
         self._tool_calls: dict[str, dict[str, Any]] = {}  # tool_call_id -> tool_call_data
@@ -93,7 +88,6 @@ class ChatStreamOrchestrator:
                 conversation_id=self._conversation_id,
                 user_id=self._user_id,
                 assistant_message_id=self._assistant_message_id,
-                mode=self._mode,
                 emitter=emitter,
                 db=self._db,
             )
@@ -143,16 +137,9 @@ class ChatStreamOrchestrator:
                         self._tool_call_start_times[tc_id] = loop.time()
 
                 elif evt_type == StreamEventType.TOOL_END.value:
-                    self._saw_tool_end = True
-                    tool_name = payload.get("name")
-                    tool_status = payload.get("status")
-                    self._last_tool_end_name = tool_name if isinstance(tool_name, str) else self._last_tool_end_name
-                    self._last_tool_end_status = (
-                        tool_status if isinstance(tool_status, str) else self._last_tool_end_status
-                    )
-
                     # 更新工具调用结果
                     tc_id = payload.get("tool_call_id")
+                    tool_status = payload.get("status")
                     if tc_id and tc_id in self._tool_calls:
                         self._tool_calls[tc_id]["status"] = tool_status or "success"
                         self._tool_calls[tc_id]["output"] = payload.get("output_preview")
@@ -184,55 +171,6 @@ class ChatStreamOrchestrator:
 
             # 等待 producer 结束（如遇异常，chat_emit 会通过 error event 发给前端）
             await producer_task
-
-            # strict 模式兜底：如果没有 tool.end 事件，说明模型没有调用工具
-            # strict 模式兜底：作为最终保险，仅在“没有任何可展示内容且没有 products”时触发
-            if self._mode == "strict" and not (self._full_content or "").strip() and self._products is None:
-                if not self._saw_tool_end:
-                    fallback_msg = (
-                        "**严格模式提示**\n\n"
-                        "为了确保回答有据可依，我需要先通过工具获取数据。\n\n"
-                        "当前这轮对话我没有检测到任何工具调用，因此无法给出可靠的推荐。\n\n"
-                        "请补充：预算范围、品类/关键词、使用场景、核心偏好（1-2点）。"
-                    )
-                    logger.warning(
-                        "strict 兜底：未检测到工具调用，输出引导信息",
-                        conversation_id=self._conversation_id,
-                    )
-                    self._full_content = fallback_msg
-
-                elif self._last_tool_end_status == "empty":
-                    fallback_msg = (
-                        "**严格模式提示（无结果）**\n\n"
-                        "我已尝试通过工具检索，但当前商品库没有命中与你描述匹配的结果。\n\n"
-                        "你可以这样提高命中率：\n"
-                        "1. 提供 **品类 + 1-2 个关键词**（例如：‘降噪耳机 轻便’）\n"
-                        "2. 给出 **预算范围/价格上限**\n"
-                        "3. 说明 **使用场景**（通勤/运动/办公/游戏）\n"
-                        "4. 如果你有候选商品名/型号，也可以直接发我，我会走详情/对比来分析"
-                    )
-                    logger.warning(
-                        "strict 兜底：工具返回 empty，输出无结果引导",
-                        conversation_id=self._conversation_id,
-                        tool_name=self._last_tool_end_name,
-                    )
-                    self._full_content = fallback_msg
-
-                elif self._last_tool_end_status == "error":
-                    fallback_msg = (
-                        "**严格模式提示（工具出错）**\n\n"
-                        "我在通过工具获取商品数据时遇到了问题，暂时无法保证推荐的可靠性。\n\n"
-                        "你可以：\n"
-                        "1. 稍后重试\n"
-                        "2. 简化需求（只给品类 + 关键词 + 预算）我会重新检索\n"
-                        "3. 如果你有商品名/型号，直接发我，我可以优先走详情/对比"
-                    )
-                    logger.warning(
-                        "strict 兜底：工具返回 error，输出出错引导",
-                        conversation_id=self._conversation_id,
-                        tool_name=self._last_tool_end_name,
-                    )
-                    self._full_content = fallback_msg
 
             # 2) 落库（仅在正常完成时保存）
             products_json = None

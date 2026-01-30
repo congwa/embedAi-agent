@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field
 AgentTypeEnum = Literal["product", "faq", "kb", "custom"]
 KnowledgeTypeEnum = Literal["faq", "vector", "graph", "product", "http_api", "mixed"]
 AgentStatusEnum = Literal["enabled", "disabled"]
-ChatModeEnum = Literal["natural", "free", "strict"]
 GreetingTriggerEnum = Literal["first_visit", "every_session"]
 
 
@@ -135,7 +134,6 @@ class MiddlewareFlagsSchema(BaseModel):
     tool_retry_enabled: bool | None = Field(default=None, description="工具重试")
     tool_limit_enabled: bool | None = Field(default=None, description="工具调用限制")
     memory_enabled: bool | None = Field(default=None, description="记忆系统")
-    strict_mode_enabled: bool | None = Field(default=None, description="严格模式检查")
 
     # ========== 滑动窗口配置 ==========
     sliding_window_enabled: bool | None = Field(default=None, description="滑动窗口裁剪")
@@ -242,7 +240,6 @@ class AgentBase(BaseModel):
     description: str | None = Field(default=None, max_length=500)
     type: AgentTypeEnum = Field(default="product")
     system_prompt: str = Field(..., min_length=1)
-    mode_default: ChatModeEnum = Field(default="natural")
     middleware_flags: dict[str, Any] | None = Field(default=None)
     tool_policy: dict[str, Any] | None = Field(default=None)
     tool_categories: list[str] | None = Field(default=None)
@@ -266,7 +263,6 @@ class AgentUpdate(BaseModel):
     description: str | None = Field(default=None)
     type: AgentTypeEnum | None = Field(default=None)
     system_prompt: str | None = Field(default=None, min_length=1)
-    mode_default: ChatModeEnum | None = Field(default=None)
     middleware_flags: dict[str, Any] | None = Field(default=None)
     tool_policy: dict[str, Any] | None = Field(default=None)
     tool_categories: list[str] | None = Field(default=None)
@@ -444,7 +440,6 @@ class AgentConfig(BaseModel):
     name: str
     type: AgentTypeEnum
     system_prompt: str
-    mode: ChatModeEnum
 
     # 工具配置
     tool_categories: list[str] | None = None

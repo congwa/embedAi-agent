@@ -1,12 +1,6 @@
 """聊天相关 Schema"""
 
-from typing import Literal
-
 from pydantic import BaseModel, Field
-
-from app.core.config import settings
-
-ChatMode = Literal["natural", "free", "strict"]
 
 
 class ImageAttachment(BaseModel):
@@ -32,24 +26,10 @@ class ChatRequest(BaseModel):
         default=None,
         description="图片附件列表",
     )
-    mode: ChatMode | None = Field(
-        default=None,
-        description="聊天模式：natural（商品推荐）、free（自由聊天）、strict（严格模式）",
-    )
     agent_id: str | None = Field(
         default=None,
         description="智能体 ID，为空时使用默认智能体",
     )
-
-    @property
-    def effective_mode(self) -> ChatMode:
-        """获取有效的聊天模式（优先使用请求中的 mode，否则使用配置默认值）"""
-        if self.mode is not None:
-            return self.mode
-        cfg_mode = settings.CHAT_MODE
-        if cfg_mode in ("natural", "free", "strict"):
-            return cfg_mode  # type: ignore[return-value]
-        return "natural"
 
     @property
     def has_images(self) -> bool:

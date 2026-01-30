@@ -45,7 +45,6 @@ class ChatContext(BaseModel):
     conversation_id: str
     user_id: str
     assistant_message_id: str
-    mode: str = "natural"  # 聊天模式：natural / free / strict
     emitter: Any = Field(exclude=True, repr=False)  # 排除序列化，避免把 emitter/loop/queue 带进日志
     db: Any = Field(default=None, exclude=True, repr=False)  # 数据库会话（可选）
     response_latency_ms: int | None = None  # LLM 调用耗时（由 LoggingMiddleware 写入）

@@ -125,7 +125,6 @@ async def create_agent(
         description=data.description,
         type=data.type,
         system_prompt=data.system_prompt,
-        mode_default=data.mode_default,
         middleware_flags=data.middleware_flags,
         tool_policy=data.tool_policy,
         tool_categories=data.tool_categories,
@@ -269,7 +268,6 @@ class PromptPreviewRequest(BaseModel):
     """提示词预览请求"""
 
     user_id: str | None = None
-    mode: str = "natural"
 
 
 class PromptPreviewResponse(BaseModel):
@@ -290,16 +288,14 @@ async def preview_agent_prompt(
     """预览 Agent 完整提示词（含记忆注入）"""
     from app.core.config import settings
     from app.services.agent.core.config import AgentConfigLoader
-    from app.services.agent.core.factory import MODE_PROMPT_SUFFIX
 
     loader = AgentConfigLoader(db)
-    config = await loader.load_config(agent_id, request.mode)
+    config = await loader.load_config(agent_id)
 
     if not config:
         raise HTTPException(status_code=404, detail="Agent 不存在或已禁用")
 
     base_prompt = config.system_prompt
-    mode_suffix = MODE_PROMPT_SUFFIX.get(request.mode, "")
 
     memory_context = ""
     if request.user_id and settings.MEMORY_ENABLED:
@@ -316,14 +312,12 @@ async def preview_agent_prompt(
             memory_context = f"[获取记忆上下文失败: {e}]"
 
     full_prompt_parts = [base_prompt]
-    if mode_suffix:
-        full_prompt_parts.append(mode_suffix)
     if memory_context:
         full_prompt_parts.append(f"\n\n{memory_context}")
 
     return PromptPreviewResponse(
         base_prompt=base_prompt,
-        mode_suffix=mode_suffix,
+        mode_suffix="",
         memory_context=memory_context,
         full_prompt="".join(full_prompt_parts),
     )
@@ -335,7 +329,6 @@ async def preview_agent_prompt(
 @router.get("/{agent_id}/effective-config")
 async def get_agent_effective_config(
     agent_id: str,
-    mode: str | None = None,
     include_filtered: bool = True,
     test_message: str | None = None,
     db: AsyncSession = Depends(get_db_session),
@@ -364,7 +357,6 @@ async def get_agent_effective_config(
     builder = EffectiveConfigBuilder(db)
     config = await builder.build(
         agent=agent,
-        mode=mode,
         include_filtered=include_filtered,
         test_message=test_message,
     )

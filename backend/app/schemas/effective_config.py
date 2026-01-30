@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 class PromptLayer(BaseModel):
     """提示词层级"""
 
-    name: str = Field(..., description="层级名称: base/mode_suffix/skill_injection")
+    name: str = Field(..., description="层级名称: base/skill_injection")
     source: str = Field(..., description="来源说明")
     char_count: int = Field(..., description="字符数")
     content: str = Field(..., description="该层级的内容")
@@ -126,7 +126,7 @@ class PolicyValue(BaseModel):
     """策略值（含来源）"""
 
     value: Any
-    source: str = Field(..., description="来源: agent/settings/mode")
+    source: str = Field(..., description="来源: agent/settings")
 
 
 class EffectiveToolPolicy(BaseModel):
@@ -141,7 +141,6 @@ class EffectiveToolPolicy(BaseModel):
 class EffectivePolicies(BaseModel):
     """最终生效的策略配置"""
 
-    mode: str
     tool_policy: EffectiveToolPolicy | None = None
     middleware_flags: dict[str, PolicyValue] = Field(default_factory=dict)
 
@@ -167,7 +166,6 @@ class EffectiveConfigResponse(BaseModel):
     agent_id: str
     name: str
     type: str
-    mode: str
     config_version: str
     generated_at: datetime
 
@@ -187,7 +185,6 @@ class EffectiveConfigResponse(BaseModel):
 class EffectiveConfigParams(BaseModel):
     """获取运行态配置的参数"""
 
-    mode: str | None = Field(default=None, description="指定回答模式，默认使用 agent.mode_default")
     include_filtered: bool = Field(default=True, description="是否包含被过滤的工具/中间件")
     include_diff: bool = Field(default=False, description="是否包含配置来源 Diff")
     test_message: str | None = Field(default=None, description="模拟消息，用于预测技能触发")

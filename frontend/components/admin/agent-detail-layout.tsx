@@ -20,7 +20,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { LoadingState, ErrorAlert, StatusBadge } from "@/components/admin";
-import { getModeLabel } from "@/lib/config/labels";
 import {
   type AgentDetailContext,
   getAgentTabs,
@@ -35,7 +34,6 @@ export interface AgentDetailLayoutProps {
     name: string;
     type: string;
     status: string;
-    mode_default: string;
     is_default?: boolean;
     is_supervisor?: boolean;
     knowledge_config?: { name: string } | null;
@@ -192,8 +190,6 @@ export function AgentDetailLayout({
             </div>
             <div className="mt-1 flex items-center gap-2 text-sm text-zinc-500">
               <Badge variant="outline">{AGENT_TYPE_LABELS[agent.type] || agent.type}</Badge>
-              <span>·</span>
-              <span>模式: {getModeLabel(agent.mode_default)}</span>
               {agent.knowledge_config?.name && (
                 <>
                   <span>·</span>
