@@ -51,7 +51,7 @@ export function ChatApp() {
   }, [addSupportEvent, setHandoffState, setAgentOnline, setUnreadCount]);
 
   // WebSocket 连接
-  const { isConnected, connectionId, conversationState, agentTyping } = useUserWebSocket({
+  const { isConnected, connectionId, conversationState, agentTyping, sendMessage: wsSendMessage } = useUserWebSocket({
     conversationId: currentConversationId,
     userId,
     onMessage: handleWsMessage,
@@ -104,7 +104,11 @@ export function ChatApp() {
       <SidebarProvider>
         <ChatSidebar />
         <SidebarInset>
-          <ChatContent />
+          <ChatContent 
+            isHumanMode={conversationState.handoff_state === "human"}
+            wsConnected={isConnected}
+            wsSendMessage={wsSendMessage}
+          />
         </SidebarInset>
       </SidebarProvider>
     </ChatThemeProvider>

@@ -51,6 +51,8 @@ interface ChatState {
   // WebSocket 消息处理
   addSupportEvent: (message: string, operator?: string) => void;
   addHumanAgentMessage: (content: string, operator?: string) => void;
+  // 人工模式：添加用户消息到 timeline（不触发 AI 响应）
+  addUserMessageOnly: (content: string) => void;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -327,6 +329,14 @@ export const useChatStore = create<ChatState>()(
         payload: { content, operator, message_id: crypto.randomUUID() },
       };
       get()._handleEvent(event);
+    },
+
+    // 人工模式：只添加用户消息到 timeline，不触发 AI 响应
+    addUserMessageOnly: (content: string) => {
+      const userMessageId = crypto.randomUUID();
+      set((state) => ({
+        timelineState: addUserMessage(state.timelineState, userMessageId, content.trim()),
+      }));
     },
   }))
 );

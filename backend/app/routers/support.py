@@ -8,6 +8,7 @@
 """
 
 import json
+import time
 from collections.abc import AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -225,6 +226,9 @@ async def list_conversations(
         limit: 分页大小
         offset: 分页偏移
     """
+    start = time.perf_counter()
+    logger.debug(f"API /conversations: 开始 state={state}, sort_by={sort_by}, limit={limit}, offset={offset}")
+    
     items_data, total = await get_conversations_with_heat(
         db,
         state=state,
@@ -232,6 +236,7 @@ async def list_conversations(
         limit=limit,
         offset=offset,
     )
+    logger.debug(f"API /conversations: get_conversations_with_heat 完成，耗时 {(time.perf_counter() - start) * 1000:.2f}ms")
 
     items = [
         ConversationListItem(
@@ -249,12 +254,14 @@ async def list_conversations(
         for c in items_data
     ]
 
-    return ConversationListResponse(
+    response = ConversationListResponse(
         items=items,
         total=total,
         offset=offset,
         limit=limit,
     )
+    logger.debug(f"API /conversations: 全部完成，总耗时 {(time.perf_counter() - start) * 1000:.2f}ms")
+    return response
 
 
 @router.get("/stats", response_model=SupportStatsResponse)
@@ -269,7 +276,12 @@ async def get_stats(
         total_unread: 总未读消息数
         high_heat_count: 高热会话数
     """
+    start = time.perf_counter()
+    logger.debug("API /stats: 开始")
+    
     stats = await get_support_stats(db)
+    
+    logger.debug(f"API /stats: 全部完成，总耗时 {(time.perf_counter() - start) * 1000:.2f}ms")
     return SupportStatsResponse(**stats)
 
 

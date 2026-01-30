@@ -11,6 +11,7 @@ SQLite 防死锁策略：
 """
 
 import asyncio
+import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -38,22 +39,32 @@ def get_session_factory():
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """获取数据库会话（用于 FastAPI 依赖注入）"""
     session_factory = get_database_provider().session_factory
+    start = time.perf_counter()
+    logger.debug("get_db: 开始创建 session")
     async with session_factory() as session:
+        logger.debug(f"get_db: session 已创建，耗时 {(time.perf_counter() - start) * 1000:.2f}ms")
         try:
             yield session
+            commit_start = time.perf_counter()
+            logger.debug("get_db: 开始 commit")
             await session.commit()
+            logger.debug(f"get_db: commit 完成，耗时 {(time.perf_counter() - commit_start) * 1000:.2f}ms")
         except asyncio.CancelledError:
+            logger.debug("get_db: 请求被取消，开始 rollback")
             try:
                 await session.rollback()
             except Exception:
                 pass
             raise
-        except Exception:
+        except Exception as e:
+            logger.debug(f"get_db: 发生异常 {type(e).__name__}，开始 rollback")
             try:
                 await session.rollback()
             except Exception:
                 pass
             raise
+        finally:
+            logger.debug(f"get_db: session 结束，总耗时 {(time.perf_counter() - start) * 1000:.2f}ms")
 
 
 # 别名，兼容旧代码

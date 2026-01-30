@@ -1,12 +1,14 @@
 """事实型长期记忆服务
 
-借鉴 Cherry Studio MemoryService：LLM 事实抽取 → 哈希去重 → Qdrant 向量检索
+借鉴 Cherry Studio MemoryService：LLM 事实抽取 → 哈希去重 → SQLite + Qdrant 存储
 
 流程：
 1. 对话结束后调用 extract_facts 从对话中抽取事实
 2. 对每条事实调用 decide_action 决定操作（ADD/UPDATE/DELETE/NONE）
-3. 执行对应操作，写入 SQLite（元数据/历史）+ Qdrant（向量）
-4. 检索时调用 search_facts，由 Qdrant 完成向量相似度计算
+3. 执行对应操作，写入 SQLite（元数据/历史）+ Qdrant（向量，用于未来扩展）
+4. 检索时调用 search_facts：
+   - 有 RERANK：关键词粗筛 + Rerank 模型精排
+   - 无 RERANK：关键词搜索（不调用 embedding API，毫秒级响应）
 """
 
 from __future__ import annotations
@@ -63,11 +65,16 @@ class FactMemoryService:
 
     async def setup(self) -> None:
         """初始化数据库"""
+        import time
         if self._initialized:
             return
 
+        start = time.perf_counter()
+        logger.debug("FactMemoryService.setup: 开始")
+
         settings.ensure_memory_dirs()
         self._conn = await aiosqlite.connect(self.db_path)
+        logger.debug(f"FactMemoryService.setup: SQLite 连接完成，耗时 {(time.perf_counter() - start) * 1000:.2f}ms")
 
         await self._conn.execute("""
             CREATE TABLE IF NOT EXISTS facts (
@@ -97,22 +104,18 @@ class FactMemoryService:
             "CREATE INDEX IF NOT EXISTS idx_facts_hash ON facts(hash)"
         )
         await self._conn.commit()
+        logger.debug(f"FactMemoryService.setup: 表创建完成，耗时 {(time.perf_counter() - start) * 1000:.2f}ms")
 
-        # 初始化 Qdrant 向量存储（可能失败）
-        self._vector_store = get_memory_vector_store()
-        if self._vector_store is None:
-            logger.warning(
-                "Qdrant 向量存储不可用，事实记忆将仅使用 SQLite（无语义检索）",
-                db_path=self.db_path,
-            )
-
+        # 跳过向量存储初始化（懒加载），避免阻塞 chat 流程
+        # 向量存储会在需要时（use_vector=True）按需初始化
+        self._vector_store = None
+        
         self._initialized = True
         logger.info(
-            "FactMemoryService 初始化完成",
+            "FactMemoryService 初始化完成（向量存储懒加载）",
             db_path=self.db_path,
-            qdrant_collection=settings.MEMORY_FACT_COLLECTION,
-            vector_store_available=self._vector_store is not None,
         )
+        logger.debug(f"FactMemoryService.setup: 全部完成，总耗时 {(time.perf_counter() - start) * 1000:.2f}ms")
 
     async def close(self) -> None:
         """关闭连接"""
@@ -522,93 +525,95 @@ class FactMemoryService:
         user_id: str,
         query: str,
         limit: int | None = None,
-        threshold: float | None = None,
     ) -> list[Fact]:
-        """搜索相关事实（使用 Qdrant 向量检索）
+        """搜索相关事实
+        
+        搜索策略：
+        1. 如果配置了 RERANK：关键词粗筛 + Rerank 精排
+        2. 如果未配置 RERANK：关键词搜索
+        
+        注意：搜索时不调用 embedding API，向量只在写入时使用。
 
         Args:
             user_id: 用户 ID
             query: 搜索查询
             limit: 最大返回数量
-            threshold: 相似度阈值
 
         Returns:
-            匹配的事实列表（按相似度降序）
+            匹配的事实列表
         """
         await self.setup()
 
         limit = limit or settings.MEMORY_FACT_MAX_RESULTS
-        threshold = threshold or settings.MEMORY_FACT_SIMILARITY_THRESHOLD
 
-        # 使用 Qdrant 向量检索
-        try:
-            # 构建 user_id 过滤条件
-            user_filter = Filter(
-                must=[
-                    FieldCondition(
-                        key="metadata.user_id", match=MatchValue(value=user_id)
-                    )
-                ]
-            )
+        # 检查是否启用了 Rerank
+        if settings.RERANK_ENABLED and settings.RERANK_MODEL:
+            return await self._search_with_rerank(user_id, query, limit)
+        else:
+            # 未配置 Rerank，使用关键词搜索
+            return await self._keyword_search(user_id, query, limit)
 
-            # 执行相似度搜索（Qdrant 负责向量计算）
-            results = await asyncio.to_thread(
-                self._vector_store.similarity_search_with_score,
-                query,
-                k=limit,
-                filter=user_filter,
-            )
-
-            # 转换为 Fact 对象
-            facts = []
-            for doc, score in results:
-                # Qdrant 返回的是距离（越小越相似），score 越大代表越不相关
-                if score > threshold:
-                    continue
-
-                metadata = doc.metadata or {}
-                fact_id = metadata.get("fact_id", "")
-
-                # 从 SQLite 获取完整元数据
-                async with self._conn.execute(
-                    "SELECT created_at, updated_at, metadata FROM facts WHERE id = ?",
-                    (fact_id,),
-                ) as cursor:
-                    row = await cursor.fetchone()
-                    if row:
-                        facts.append(
-                            Fact(
-                                id=fact_id,
-                                user_id=user_id,
-                                content=doc.page_content,
-                                hash=metadata.get("hash", ""),
-                                created_at=datetime.fromisoformat(row[0]),
-                                updated_at=datetime.fromisoformat(row[1]),
-                                metadata=json.loads(row[2]) if row[2] else {},
-                            )
-                        )
-
-            return facts
-
-        except Exception as e:
-            logger.warning("向量检索失败，回退到关键词搜索", error=str(e))
-            # 回退到 SQLite 关键词搜索
-            return await self._fallback_keyword_search(user_id, query, limit)
-
-    async def _fallback_keyword_search(
+    async def _search_with_rerank(
         self, user_id: str, query: str, limit: int
     ) -> list[Fact]:
-        """关键词搜索回退（当 Qdrant 不可用时）"""
-        query_lower = query.lower()
-        facts = []
+        """使用 Rerank 模型搜索（关键词粗筛 + Rerank 精排）"""
+        from app.core.rerank import rerank_documents
+        
+        # 1. 关键词粗筛：获取更多候选（3倍 limit）
+        candidates = await self._keyword_search(user_id, query, limit * 3)
+        
+        if not candidates:
+            return []
+        
+        if len(candidates) <= limit:
+            # 候选数量不多，无需 rerank
+            return candidates
+        
+        # 2. Rerank 精排
+        try:
+            doc_contents = [f.content for f in candidates]
+            rerank_results = await rerank_documents(
+                query=query,
+                documents=doc_contents,
+                top_n=limit,
+                instruction="根据查询对用户记忆进行相关性排序",
+            )
+            
+            # 3. 按 Rerank 结果重排序
+            reranked_facts = [candidates[idx] for idx, _score in rerank_results]
+            
+            logger.debug(
+                "事实记忆 Rerank 完成",
+                user_id=user_id,
+                candidate_count=len(candidates),
+                result_count=len(reranked_facts),
+            )
+            
+            return reranked_facts[:limit]
+            
+        except Exception as e:
+            logger.warning("Rerank 失败，返回关键词搜索结果", error=str(e))
+            return candidates[:limit]
 
+    async def _keyword_search(
+        self, user_id: str, query: str, limit: int
+    ) -> list[Fact]:
+        """关键词搜索（SQLite 全文匹配）"""
+        query_lower = query.lower()
+        # 分词：按空格和常见标点分割
+        keywords = [k.strip() for k in query_lower.replace("，", " ").replace(",", " ").split() if k.strip()]
+        
+        facts = []
+        
         async with self._conn.execute(
             "SELECT id, user_id, content, hash, created_at, updated_at, metadata "
-            "FROM facts WHERE user_id = ?",
+            "FROM facts WHERE user_id = ? ORDER BY updated_at DESC",
             (user_id,),
         ) as cursor:
             async for row in cursor:
-                if query_lower in row[2].lower():
+                content_lower = row[2].lower()
+                # 任意关键词匹配
+                if any(kw in content_lower for kw in keywords) if keywords else True:
                     facts.append(
                         Fact(
                             id=row[0],

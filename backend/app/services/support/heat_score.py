@@ -10,6 +10,7 @@
 - 时间衰减：超30分钟无活动，每10分钟-2分
 """
 
+import time
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -113,6 +114,9 @@ class HeatScoreService:
         """批量获取多个会话的未读消息数"""
         if not conversation_ids:
             return {}
+        
+        start = time.perf_counter()
+        logger.debug(f"get_unread_counts_batch: 开始查询 {len(conversation_ids)} 个会话的未读数")
             
         stmt = (
             select(Message.conversation_id, func.count().label("count"))
@@ -124,7 +128,11 @@ class HeatScoreService:
             .group_by(Message.conversation_id)
         )
         result = await self.session.execute(stmt)
-        return {row.conversation_id: row.count for row in result.all()}
+        data = {row.conversation_id: row.count for row in result.all()}
+        
+        elapsed = (time.perf_counter() - start) * 1000
+        logger.debug(f"get_unread_counts_batch: 完成，耗时 {elapsed:.2f}ms，返回 {len(data)} 条记录")
+        return data
     
     async def calculate_for_conversation(self, conversation: Conversation) -> int:
         """计算单个会话的热度得分"""
@@ -183,6 +191,9 @@ async def get_conversations_with_heat(
     Returns:
         (会话列表, 总数)
     """
+    total_start = time.perf_counter()
+    logger.debug(f"get_conversations_with_heat: 开始 state={state}, sort_by={sort_by}, limit={limit}, offset={offset}")
+    
     # 构建查询
     stmt = select(Conversation)
     count_stmt = select(func.count()).select_from(Conversation)
@@ -195,8 +206,10 @@ async def get_conversations_with_heat(
     stmt = stmt.order_by(Conversation.updated_at.desc())
     
     # 获取总数
+    step_start = time.perf_counter()
     total_result = await session.execute(count_stmt)
     total = total_result.scalar() or 0
+    logger.debug(f"get_conversations_with_heat: [1/4] count查询完成，total={total}，耗时 {(time.perf_counter() - step_start) * 1000:.2f}ms")
     
     # 如果按热度排序，需要获取更多数据来计算
     if sort_by == "heat":
@@ -206,13 +219,20 @@ async def get_conversations_with_heat(
     else:
         stmt = stmt.offset(offset).limit(limit)
     
+    step_start = time.perf_counter()
     result = await session.execute(stmt)
     conversations = list(result.scalars().all())
+    logger.debug(f"get_conversations_with_heat: [2/4] 会话列表查询完成，获取 {len(conversations)} 条，耗时 {(time.perf_counter() - step_start) * 1000:.2f}ms")
     
     # 计算热度和未读数
     heat_service = HeatScoreService(session)
+    step_start = time.perf_counter()
     heat_scores = await heat_service.calculate_for_conversations_batch(conversations)
+    logger.debug(f"get_conversations_with_heat: [3/4] 热度计算完成，耗时 {(time.perf_counter() - step_start) * 1000:.2f}ms")
+    
+    step_start = time.perf_counter()
     unread_counts = await heat_service.get_unread_counts_batch([c.id for c in conversations])
+    logger.debug(f"get_conversations_with_heat: [4/4] 未读数查询完成，耗时 {(time.perf_counter() - step_start) * 1000:.2f}ms")
     
     # 构建响应数据
     items = []
@@ -235,6 +255,7 @@ async def get_conversations_with_heat(
         items.sort(key=lambda x: (-x["heat_score"], -x["updated_at"].timestamp()))
         items = items[offset:offset + limit]
     
+    logger.debug(f"get_conversations_with_heat: 全部完成，返回 {len(items)} 条，总耗时 {(time.perf_counter() - total_start) * 1000:.2f}ms")
     return items, total
 
 
@@ -249,15 +270,21 @@ async def get_support_stats(session: AsyncSession) -> dict:
             "high_heat_count": 高热会话数(得分>60),
         }
     """
+    total_start = time.perf_counter()
+    logger.debug("get_support_stats: 开始")
+    
     # 状态统计
+    step_start = time.perf_counter()
     state_stmt = (
         select(Conversation.handoff_state, func.count().label("count"))
         .group_by(Conversation.handoff_state)
     )
     state_result = await session.execute(state_stmt)
     state_counts = {row.handoff_state: row.count for row in state_result.all()}
+    logger.debug(f"get_support_stats: [1/3] 状态统计完成，耗时 {(time.perf_counter() - step_start) * 1000:.2f}ms")
     
     # 未读消息总数（pending 和 human 状态的会话）
+    step_start = time.perf_counter()
     unread_stmt = (
         select(func.count())
         .select_from(Message)
@@ -270,15 +297,19 @@ async def get_support_stats(session: AsyncSession) -> dict:
     )
     unread_result = await session.execute(unread_stmt)
     total_unread = unread_result.scalar() or 0
+    logger.debug(f"get_support_stats: [2/3] 未读消息统计完成，total_unread={total_unread}，耗时 {(time.perf_counter() - step_start) * 1000:.2f}ms")
     
     # 计算高热会话数（需要获取会话详情）
+    step_start = time.perf_counter()
     hot_conversations, _ = await get_conversations_with_heat(
         session,
         sort_by="heat",
         limit=100,
     )
     high_heat_count = sum(1 for c in hot_conversations if c["heat_score"] > 60)
+    logger.debug(f"get_support_stats: [3/3] 高热会话统计完成，high_heat_count={high_heat_count}，耗时 {(time.perf_counter() - step_start) * 1000:.2f}ms")
     
+    logger.debug(f"get_support_stats: 全部完成，总耗时 {(time.perf_counter() - total_start) * 1000:.2f}ms")
     return {
         "pending_count": state_counts.get(HandoffState.PENDING.value, 0),
         "human_count": state_counts.get(HandoffState.HUMAN.value, 0),

@@ -105,15 +105,24 @@ def get_memory_vector_store() -> QdrantVectorStore | None:
     Returns:
         QdrantVectorStore 实例，初始化失败时返回 None
     """
+    import time
     try:
+        start = time.perf_counter()
+        logger.debug("get_memory_vector_store: 开始")
+        
         if not ensure_memory_collection():
             return None
+        logger.debug(f"get_memory_vector_store: ensure_memory_collection 完成，耗时 {(time.perf_counter() - start) * 1000:.2f}ms")
 
+        step_start = time.perf_counter()
         client = get_memory_qdrant_client()
         if client is None:
             return None
+        logger.debug(f"get_memory_vector_store: get_memory_qdrant_client 完成，耗时 {(time.perf_counter() - step_start) * 1000:.2f}ms")
             
+        step_start = time.perf_counter()
         embeddings = get_embeddings()
+        logger.debug(f"get_memory_vector_store: get_embeddings 完成，耗时 {(time.perf_counter() - step_start) * 1000:.2f}ms")
 
         logger.info(
             "初始化记忆向量存储",
@@ -121,11 +130,17 @@ def get_memory_vector_store() -> QdrantVectorStore | None:
             embedding_model=settings.EMBEDDING_MODEL,
             embedding_dimension=settings.EMBEDDING_DIMENSION,
         )
-        return QdrantVectorStore(
+        
+        step_start = time.perf_counter()
+        logger.debug("get_memory_vector_store: 开始创建 QdrantVectorStore...")
+        store = QdrantVectorStore(
             client=client,
             collection_name=settings.MEMORY_FACT_COLLECTION,
             embedding=embeddings,
         )
+        logger.debug(f"get_memory_vector_store: QdrantVectorStore 创建完成，耗时 {(time.perf_counter() - step_start) * 1000:.2f}ms")
+        logger.debug(f"get_memory_vector_store: 全部完成，总耗时 {(time.perf_counter() - start) * 1000:.2f}ms")
+        return store
     except Exception as e:
         logger.error(
             "记忆向量存储初始化失败",

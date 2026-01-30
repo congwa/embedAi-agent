@@ -43,6 +43,9 @@ from app.schemas.events import StreamEventType
 
 logger = get_logger("middleware.memory_orchestration")
 
+# 全局信号量：控制记忆写入并发，一次只处理一个
+_memory_write_semaphore = asyncio.Semaphore(1)
+
 
 @dataclass
 class MemoryWriteResult:
@@ -149,6 +152,10 @@ class MemoryOrchestrationMiddleware(AgentMiddleware):
         Returns:
             格式化的记忆上下文字符串
         """
+        import time as _time
+        start = _time.perf_counter()
+        logger.debug(f"_get_memory_context: 开始 user_id={user_id}")
+        
         if not settings.MEMORY_ENABLED:
             return ""
 
@@ -157,10 +164,13 @@ class MemoryOrchestrationMiddleware(AgentMiddleware):
         # 1. 用户画像（从 Store）
         if self.inject_profile and settings.MEMORY_STORE_ENABLED:
             try:
+                step_start = _time.perf_counter()
+                logger.debug("_get_memory_context: [1/3] 开始获取用户画像...")
                 from app.services.memory.store import get_user_profile_store
 
                 store = await get_user_profile_store()
                 profile = await store.get_user_profile(user_id)
+                logger.debug(f"_get_memory_context: [1/3] 用户画像获取完成，耗时 {(_time.perf_counter() - step_start) * 1000:.2f}ms")
                 if profile:
                     profile_str = self._format_profile(profile)
                     if profile_str:
@@ -171,12 +181,19 @@ class MemoryOrchestrationMiddleware(AgentMiddleware):
         # 2. 相关事实（从 FactMemory）
         if self.inject_facts and settings.MEMORY_FACT_ENABLED:
             try:
+                step_start = _time.perf_counter()
+                logger.debug("_get_memory_context: [2/3] 开始获取事实记忆...")
                 from app.services.memory.fact_memory import get_fact_memory_service
 
                 fact_service = await get_fact_memory_service()
+                logger.debug(f"_get_memory_context: [2/3] fact_service 获取完成，耗时 {(_time.perf_counter() - step_start) * 1000:.2f}ms")
+                
+                search_start = _time.perf_counter()
+                logger.debug("_get_memory_context: [2/3] 开始搜索事实...")
                 facts = await fact_service.search_facts(
                     user_id, query, limit=self.max_facts
                 )
+                logger.debug(f"_get_memory_context: [2/3] 事实搜索完成，找到 {len(facts)} 条，耗时 {(_time.perf_counter() - search_start) * 1000:.2f}ms")
                 if facts:
                     facts_str = "\n".join([f"- {f.content}" for f in facts])
                     context_parts.append(f"## 用户历史记忆\n{facts_str}")
@@ -518,60 +535,74 @@ class MemoryOrchestrationMiddleware(AgentMiddleware):
             message_count=len(messages),
         )
 
-        # 定义带 SSE 通知的记忆写入包装器
+        # 定义带 SSE 通知的记忆写入包装器（使用信号量控制并发）
         async def _memory_write_with_sse() -> None:
-            start_time = time.time()
+            # 使用全局信号量，确保一次只处理一个记忆写入任务
+            async with _memory_write_semaphore:
+                start_time = time.time()
+                
+                logger.debug(
+                    "memory_write: 开始执行（获得信号量）",
+                    user_id=user_id,
+                    conversation_id=conversation_id,
+                )
 
-            # 发送记忆抽取开始事件
-            if emitter and hasattr(emitter, "aemit"):
-                try:
-                    await emitter.aemit(
-                        StreamEventType.MEMORY_EXTRACTION_START.value,
-                        {
-                            "conversation_id": conversation_id or "",
-                            "user_id": user_id,
-                        },
-                    )
-                except Exception as e:
-                    logger.warning("发送记忆抽取开始事件失败", error=str(e))
-
-            # 执行记忆写入
-            result = await self._process_memory_write(user_id, list(messages))
-
-            elapsed_ms = int((time.time() - start_time) * 1000)
-
-            # 发送记忆抽取完成事件
-            if emitter and hasattr(emitter, "aemit"):
-                try:
-                    await emitter.aemit(
-                        StreamEventType.MEMORY_EXTRACTION_COMPLETE.value,
-                        {
-                            "conversation_id": conversation_id or "",
-                            "user_id": user_id,
-                            "facts_added": result.facts_added,
-                            "entities_created": result.entities_created,
-                            "relations_created": result.relations_created,
-                            "duration_ms": elapsed_ms,
-                            "status": "success" if result.success else "failed",
-                            "error": result.error,
-                        },
-                    )
-                except Exception as e:
-                    logger.warning("发送记忆抽取完成事件失败", error=str(e))
-
-                # 发送画像更新事件
-                if result.profile_updated_fields:
+                # 发送记忆抽取开始事件
+                if emitter and hasattr(emitter, "aemit"):
                     try:
                         await emitter.aemit(
-                            StreamEventType.MEMORY_PROFILE_UPDATED.value,
+                            StreamEventType.MEMORY_EXTRACTION_START.value,
                             {
+                                "conversation_id": conversation_id or "",
                                 "user_id": user_id,
-                                "updated_fields": result.profile_updated_fields,
-                                "source": result.profile_update_source,
                             },
                         )
                     except Exception as e:
-                        logger.warning("发送画像更新事件失败", error=str(e))
+                        logger.warning("发送记忆抽取开始事件失败", error=str(e))
+
+                # 执行记忆写入
+                result = await self._process_memory_write(user_id, list(messages))
+
+                elapsed_ms = int((time.time() - start_time) * 1000)
+                
+                logger.debug(
+                    "memory_write: 执行完成（释放信号量）",
+                    user_id=user_id,
+                    elapsed_ms=elapsed_ms,
+                )
+
+                # 发送记忆抽取完成事件
+                if emitter and hasattr(emitter, "aemit"):
+                    try:
+                        await emitter.aemit(
+                            StreamEventType.MEMORY_EXTRACTION_COMPLETE.value,
+                            {
+                                "conversation_id": conversation_id or "",
+                                "user_id": user_id,
+                                "facts_added": result.facts_added,
+                                "entities_created": result.entities_created,
+                                "relations_created": result.relations_created,
+                                "duration_ms": elapsed_ms,
+                                "status": "success" if result.success else "failed",
+                                "error": result.error,
+                            },
+                        )
+                    except Exception as e:
+                        logger.warning("发送记忆抽取完成事件失败", error=str(e))
+
+                    # 发送画像更新事件
+                    if result.profile_updated_fields:
+                        try:
+                            await emitter.aemit(
+                                StreamEventType.MEMORY_PROFILE_UPDATED.value,
+                                {
+                                    "user_id": user_id,
+                                    "updated_fields": result.profile_updated_fields,
+                                    "source": result.profile_update_source,
+                                },
+                            )
+                        except Exception as e:
+                            logger.warning("发送画像更新事件失败", error=str(e))
 
         # 根据配置决定异步或同步执行
         if self.async_write:

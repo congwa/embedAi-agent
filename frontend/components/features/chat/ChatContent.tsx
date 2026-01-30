@@ -37,13 +37,20 @@ import { QuickQuestionBar } from "@/components/features/chat/QuickQuestionBar";
 import { useSuggestedQuestions } from "@/lib/hooks/use-suggested-questions";
 import { useAgentStore } from "@/stores/agent-store";
 
-export function ChatContent() {
+interface ChatContentProps {
+  isHumanMode?: boolean;
+  wsConnected?: boolean;
+  wsSendMessage?: (content: string) => void;
+}
+
+export function ChatContent({ isHumanMode = false, wsConnected = false, wsSendMessage }: ChatContentProps) {
   // 从 Store 获取状态
   const timeline = useChatStore((s) => s.timelineState.timeline);
   const isStreaming = useChatStore((s) => s.isStreaming);
   const error = useChatStore((s) => s.error);
-  const sendMessage = useChatStore((s) => s.sendMessage);
+  const sendMessageToAI = useChatStore((s) => s.sendMessage);
   const abortStream = useChatStore((s) => s.abortStream);
+  const addUserMessageToTimeline = useChatStore((s) => s.addUserMessageOnly);
   
   const currentConversation = useConversationStore((s) => 
     s.conversations.find((c) => c.id === s.currentConversationId)
@@ -69,6 +76,18 @@ export function ChatContent() {
   // 主题系统
   const theme = useChatThemeOptional();
   const themeId = theme?.themeId || "default";
+
+  // 统一的消息发送函数：人工模式用 WebSocket，AI 模式用 API
+  const sendMessage = (content: string) => {
+    if (isHumanMode && wsConnected && wsSendMessage) {
+      // 人工模式：添加用户消息到 timeline，然后通过 WebSocket 发送
+      addUserMessageToTimeline(content);
+      wsSendMessage(content);
+    } else {
+      // AI 模式：通过 API 发送（内部会添加用户消息到 timeline）
+      sendMessageToAI(content);
+    }
+  };
 
   // 处理推荐问题点击
   const handleSuggestionClick = (question: string, questionId?: string) => {
