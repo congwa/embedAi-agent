@@ -23,7 +23,10 @@ export {
   getMiddlewareLabel,
   MIDDLEWARE_PIPELINE_LABELS,
   getMiddlewarePipelineLabel,
+  MIDDLEWARE_FLAG_KEYS,
+  getAllMiddlewareFlags,
 } from "./middleware";
+export type { MiddlewareFlagKey } from "./middleware";
 
 // Agent 类型
 export { AGENT_TYPE_LABELS, getAgentTypeLabel } from "./agent-types";

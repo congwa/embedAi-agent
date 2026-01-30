@@ -18,7 +18,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { PageHeader } from "@/components/admin";
-import { getAgentTypeLabel, getMiddlewareLabel } from "@/lib/config/labels";
+import { getAgentTypeLabel, getMiddlewareLabel, MIDDLEWARE_FLAG_KEYS, type MiddlewareFlagKey } from "@/lib/config/labels";
 import { InfoPopover } from "@/components/ui/info-popover";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -384,25 +384,17 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <MiddlewareDefaultCard
-              keyName="todo_enabled"
-              enabled={middlewareDefaults.todo_enabled}
-            />
-            <MiddlewareDefaultCard
-              keyName="tool_limit_enabled"
-              enabled={middlewareDefaults.tool_limit_enabled}
-              extra={middlewareDefaults.tool_limit_enabled ? `单次限制: ${middlewareDefaults.tool_limit_run ?? "无限制"}` : undefined}
-            />
-            <MiddlewareDefaultCard
-              keyName="tool_retry_enabled"
-              enabled={middlewareDefaults.tool_retry_enabled}
-              extra={middlewareDefaults.tool_retry_enabled ? `最大重试: ${middlewareDefaults.tool_retry_max_retries}` : undefined}
-            />
-            <MiddlewareDefaultCard
-              keyName="summarization_enabled"
-              enabled={middlewareDefaults.summarization_enabled}
-              extra={middlewareDefaults.summarization_enabled ? `触发阈值: ${middlewareDefaults.summarization_trigger_messages} 条` : undefined}
-            />
+            {MIDDLEWARE_FLAG_KEYS.map((key) => {
+              const value = middlewareDefaults[key as keyof typeof middlewareDefaults];
+              const enabled = typeof value === "boolean" ? value : false;
+              return (
+                <MiddlewareDefaultCard
+                  key={key}
+                  keyName={key}
+                  enabled={enabled}
+                />
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -445,29 +437,28 @@ export default function SettingsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <MiddlewareCompareRow
-                        label="TODO 规划"
-                        globalValue={middlewareDefaults.todo_enabled}
-                        agentValue={agent.middleware_flags?.todo_enabled}
-                      />
-                      <MiddlewareCompareRow
-                        label="上下文压缩"
-                        globalValue={middlewareDefaults.summarization_enabled}
-                        agentValue={agent.middleware_flags?.summarization_enabled}
-                      />
-                      <MiddlewareCompareRow
-                        label="工具重试"
-                        globalValue={middlewareDefaults.tool_retry_enabled}
-                        agentValue={agent.middleware_flags?.tool_retry_enabled}
-                      />
-                      <MiddlewareCompareRow
-                        label="工具限制"
-                        globalValue={middlewareDefaults.tool_limit_enabled}
-                        agentValue={agent.middleware_flags?.tool_limit_enabled}
-                      />
+                      {MIDDLEWARE_FLAG_KEYS.map((key) => {
+                        const info = getMiddlewareLabel(key);
+                        const globalValue = middlewareDefaults[key as keyof typeof middlewareDefaults];
+                        const agentValue = agent.middleware_flags?.[key as MiddlewareFlagKey];
+                        return (
+                          <MiddlewareCompareRow
+                            key={key}
+                            label={info.label}
+                            globalValue={typeof globalValue === "boolean" ? globalValue : false}
+                            agentValue={typeof agentValue === "boolean" ? agentValue : undefined}
+                          />
+                        );
+                      })}
                     </TableBody>
                   </Table>
-                  <div className="mt-3 flex justify-end">
+                  <div className="mt-3 flex justify-end gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={`/admin/agents/${agent.id}/middleware`}>
+                        配置中间件
+                        <ChevronRight className="ml-1 h-4 w-4" />
+                      </a>
+                    </Button>
                     <Button variant="ghost" size="sm" asChild>
                       <a href={`/admin/agents/${agent.id}`}>
                         编辑 Agent

@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import type { StepProps } from "@/types/quick-setup";
 import { getAgents, getFAQStats, type Agent, type FAQStatsResponse } from "@/lib/api/agents";
 import { getAgentTypeDefaults } from "@/lib/api/quick-setup";
+import { getMiddlewareLabel } from "@/lib/config/labels";
 
 const TYPE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   product: ShoppingCart,
@@ -268,27 +269,27 @@ export function KnowledgeStep({
               )}
 
               {/* 中间件开关 */}
-              {typeConfig && (
+              {typeConfig && selectedAgent && (
                 <div className="space-y-3">
-                  <Label>中间件配置</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>中间件配置</Label>
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/admin/agents/${selectedAgent.id}/middleware`}>
+                        详细配置
+                        <ExternalLink className="ml-1 h-3 w-3" />
+                      </Link>
+                    </Button>
+                  </div>
                   <div className="grid gap-3 md:grid-cols-2">
                     {Object.entries(typeConfig.middleware_flags).map(
                       ([key, value]) => {
-                        const labels: Record<string, string> = {
-                          todo_enabled: "TODO 规划",
-                          memory_enabled: "记忆系统",
-                          summarization_enabled: "上下文压缩",
-                          tool_retry_enabled: "工具重试",
-                          tool_limit_enabled: "工具限制",
-                          noise_filter_enabled: "噪音过滤",
-                          sliding_window_enabled: "滑动窗口",
-                        };
+                        const info = getMiddlewareLabel(key);
                         return (
                           <div
                             key={key}
                             className="flex items-center justify-between rounded-lg border p-3"
                           >
-                            <span className="text-sm">{labels[key] || key}</span>
+                            <span className="text-sm">{info.label}</span>
                             <Switch checked={value} disabled />
                           </div>
                         );

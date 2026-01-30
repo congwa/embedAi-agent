@@ -3,6 +3,7 @@
  */
 
 import type { PolicyFieldInfo } from "./types";
+import { getMiddlewareLabel } from "./middleware";
 
 export const POLICY_FIELD_LABELS: Record<string, PolicyFieldInfo> = {
   // 工具策略
@@ -10,15 +11,18 @@ export const POLICY_FIELD_LABELS: Record<string, PolicyFieldInfo> = {
   allow_direct_answer: { label: "允许直接回答", desc: "是否允许不调用工具直接回答" },
   fallback_tool: { label: "兜底工具", desc: "无匹配时使用的默认工具" },
   clarification_tool: { label: "澄清工具", desc: "需要澄清时使用的工具" },
-  // 中间件开关
-  todo_enabled: { label: "任务规划", desc: "自动拆解复杂任务" },
-  memory_enabled: { label: "记忆系统", desc: "记住用户偏好和历史" },
-  sliding_window_enabled: { label: "滑动窗口", desc: "限制上下文长度" },
-  summarization_enabled: { label: "上下文压缩", desc: "压缩长对话" },
-  noise_filter_enabled: { label: "噪音过滤", desc: "过滤冗余信息" },
-  tool_retry_enabled: { label: "工具重试", desc: "失败时自动重试" },
+  // 注意：中间件开关标签已迁移到 middleware.ts，通过 getMiddlewareLabel 获取
 };
 
 export function getPolicyFieldLabel(field: string): PolicyFieldInfo {
-  return POLICY_FIELD_LABELS[field] || { label: field.replace(/_/g, " "), desc: "" };
+  // 优先从策略字段查找
+  if (POLICY_FIELD_LABELS[field]) {
+    return POLICY_FIELD_LABELS[field];
+  }
+  // 中间件开关字段使用统一的中间件标签
+  if (field.endsWith("_enabled")) {
+    const info = getMiddlewareLabel(field);
+    return { label: info.label, desc: info.desc };
+  }
+  return { label: field.replace(/_/g, " "), desc: "" };
 }

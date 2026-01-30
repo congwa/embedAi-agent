@@ -59,6 +59,26 @@ export const MIDDLEWARE_LABELS: Record<string, MiddlewareInfo> = {
     desc: "检测并处理个人敏感信息",
     icon: Shield,
   },
+  model_retry_enabled: {
+    label: "模型重试",
+    desc: "模型调用失败时自动重试",
+    icon: RotateCcw,
+  },
+  model_fallback_enabled: {
+    label: "模型降级",
+    desc: "主模型失败时切换备选模型",
+    icon: Layers,
+  },
+  model_call_limit_enabled: {
+    label: "模型调用限制",
+    desc: "限制模型调用次数防止死循环",
+    icon: Gauge,
+  },
+  context_editing_enabled: {
+    label: "上下文编辑",
+    desc: "清理工具结果管理上下文大小",
+    icon: Eraser,
+  },
 };
 
 export function getMiddlewareLabel(key: string): MiddlewareInfo {
@@ -194,8 +214,81 @@ export const MIDDLEWARE_PIPELINE_LABELS: Record<string, MiddlewarePipelineInfoEx
       "用摘要替换详细历史",
     ],
   },
+  ModelRetry: {
+    label: "模型重试",
+    desc: "模型调用失败时自动重试（指数退避）",
+    icon: RotateCcw,
+    details: [
+      "捕获模型调用异常",
+      "按指数退避策略延迟重试",
+      "支持配置最大重试次数和延迟",
+    ],
+    triggerCondition: "模型调用抛出异常",
+  },
+  ModelFallback: {
+    label: "模型降级",
+    desc: "主模型失败时切换备选模型",
+    icon: Layers,
+    details: [
+      "主模型调用失败时触发",
+      "按顺序尝试备选模型列表",
+      "所有模型失败后返回错误",
+    ],
+    triggerCondition: "主模型调用失败",
+  },
+  ModelCallLimit: {
+    label: "模型调用限制",
+    desc: "限制模型调用次数防止死循环",
+    icon: Gauge,
+    details: [
+      "统计线程/运行级调用次数",
+      "超限时结束或抛出错误",
+      "防止 Agent 无限循环",
+    ],
+    triggerCondition: "调用次数达到限制",
+    note: "建议设置合理的 run_limit 防止资源浪费",
+  },
+  ContextEditing: {
+    label: "上下文编辑",
+    desc: "清理工具结果管理上下文大小",
+    icon: Eraser,
+    details: [
+      "检测上下文 token 数超过阈值",
+      "清理早期工具调用结果",
+      "保留最近 N 个工具结果",
+    ],
+    triggerCondition: "上下文 token 数超过阈值",
+  },
 };
 
 export function getMiddlewarePipelineLabel(name: string): MiddlewarePipelineInfoExtended {
   return MIDDLEWARE_PIPELINE_LABELS[name] || { label: name, desc: "" };
+}
+
+// ========== 统一中间件键名列表 ==========
+
+/** 所有可配置的中间件开关键名（按显示顺序排列） */
+export const MIDDLEWARE_FLAG_KEYS = [
+  "todo_enabled",
+  "memory_enabled",
+  "summarization_enabled",
+  "sliding_window_enabled",
+  "noise_filter_enabled",
+  "tool_retry_enabled",
+  "tool_limit_enabled",
+  "pii_enabled",
+  "model_retry_enabled",
+  "model_fallback_enabled",
+  "model_call_limit_enabled",
+  "context_editing_enabled",
+] as const;
+
+export type MiddlewareFlagKey = (typeof MIDDLEWARE_FLAG_KEYS)[number];
+
+/** 获取所有中间件开关配置列表 */
+export function getAllMiddlewareFlags(): Array<{ key: MiddlewareFlagKey; info: MiddlewareInfo }> {
+  return MIDDLEWARE_FLAG_KEYS.map((key) => ({
+    key,
+    info: getMiddlewareLabel(key),
+  }));
 }

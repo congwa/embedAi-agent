@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useAgentDetail } from "@/lib/hooks/use-agents";
 import { updateAgent, type MiddlewareFlags, type PIIRule } from "@/lib/api/agents";
+import { getMiddlewareLabel, type MiddlewareFlagKey } from "@/lib/config/labels";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PIIConfigCard } from "@/components/admin/pii";
 import {
@@ -403,49 +404,24 @@ export default function MiddlewareConfigPage() {
           <CardDescription>常用中间件的开关配置</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>TODO 任务规划</Label>
-              <p className="text-xs text-zinc-500">自动拆解复杂任务为子步骤</p>
-            </div>
-            <Switch
-              checked={getBoolValue("todo_enabled")}
-              onCheckedChange={(v) => handleChange("todo_enabled", v)}
-            />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>工具重试</Label>
-              <p className="text-xs text-zinc-500">工具调用失败时自动重试</p>
-            </div>
-            <Switch
-              checked={getBoolValue("tool_retry_enabled")}
-              onCheckedChange={(v) => handleChange("tool_retry_enabled", v)}
-            />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>工具调用限制</Label>
-              <p className="text-xs text-zinc-500">限制单次对话的工具调用次数</p>
-            </div>
-            <Switch
-              checked={getBoolValue("tool_limit_enabled")}
-              onCheckedChange={(v) => handleChange("tool_limit_enabled", v)}
-            />
-          </div>
-          <Separator />
-          <div className="flex items-center justify-between">
-            <div>
-              <Label>记忆系统</Label>
-              <p className="text-xs text-zinc-500">启用用户画像和事实记忆</p>
-            </div>
-            <Switch
-              checked={getBoolValue("memory_enabled")}
-              onCheckedChange={(v) => handleChange("memory_enabled", v)}
-            />
-          </div>
+          {(["todo_enabled", "tool_retry_enabled", "tool_limit_enabled", "memory_enabled"] as MiddlewareFlagKey[]).map((key, index, arr) => {
+            const info = getMiddlewareLabel(key);
+            return (
+              <div key={key}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>{info.label}</Label>
+                    <p className="text-xs text-zinc-500">{info.desc}</p>
+                  </div>
+                  <Switch
+                    checked={getBoolValue(key)}
+                    onCheckedChange={(v) => handleChange(key, v)}
+                  />
+                </div>
+                {index < arr.length - 1 && <Separator className="mt-4" />}
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
 
