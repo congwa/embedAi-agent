@@ -10,11 +10,6 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from app.services.agent.core.policy import ToolPolicy, get_policy
 from app.services.agent.middleware.noise_filter import NoiseFilterMiddleware
 from app.services.agent.middleware.sliding_window import SlidingWindowMiddleware
-from app.services.agent.middleware.strict_mode import (
-    STRICT_MODE_FALLBACK_MESSAGE,
-    StrictModeMiddleware,
-    _has_tool_calls,
-)
 from app.services.agent.tools.registry import (
     ToolSpec,
     _get_tool_specs,
@@ -169,43 +164,6 @@ class TestSlidingWindowEdgeCases:
         assert len(trimmed) == 3
 
 
-class TestStrictModeEdgeCases:
-    """严格模式边界条件测试"""
-
-    def test_empty_tool_calls_list(self):
-        """测试空工具调用列表"""
-        msg = AIMessage(content="test", tool_calls=[])
-        assert _has_tool_calls(msg) is False
-
-    def test_none_tool_calls(self):
-        """测试 None 工具调用"""
-        msg = AIMessage(content="test")
-        # 不设置 tool_calls
-        assert _has_tool_calls(msg) is False
-
-    def test_tool_calls_with_empty_dict(self):
-        """测试空字典的工具调用"""
-        msg = AIMessage(content="test", additional_kwargs={})
-        assert _has_tool_calls(msg) is False
-
-    def test_policy_with_zero_min_calls(self):
-        """测试零最小调用次数的策略"""
-        policy = ToolPolicy(min_tool_calls=0, allow_direct_answer=True)
-        middleware = StrictModeMiddleware(policy=policy)
-        assert middleware.policy.min_tool_calls == 0
-
-    def test_policy_with_high_min_calls(self):
-        """测试高最小调用次数的策略"""
-        policy = ToolPolicy(min_tool_calls=100, allow_direct_answer=False)
-        middleware = StrictModeMiddleware(policy=policy)
-        assert middleware.policy.min_tool_calls == 100
-
-    def test_fallback_message_not_empty(self):
-        """测试回退消息不为空"""
-        assert len(STRICT_MODE_FALLBACK_MESSAGE) > 0
-        assert "严格模式" in STRICT_MODE_FALLBACK_MESSAGE
-
-
 class TestToolRegistryEdgeCases:
     """工具注册表边界条件测试"""
 
@@ -242,29 +200,12 @@ class TestToolRegistryEdgeCases:
         spec = ToolSpec(name="test", tool=lambda: None, categories=[])
         assert spec.categories == []
 
-    def test_tool_spec_with_none_modes(self):
-        """测试 None 模式的工具规格"""
-        spec = ToolSpec(name="test", tool=lambda: None, modes=None)
-        assert spec.modes is None  # None 表示所有模式可用
-
-
 class TestPolicyEdgeCases:
     """策略边界条件测试"""
 
-    def test_get_policy_case_sensitive(self):
-        """测试策略获取大小写敏感"""
-        # 小写应该匹配
-        natural = get_policy("natural")
-        assert natural is not None
-
-        # 大写应该返回默认
-        NATURAL = get_policy("NATURAL")
-        assert NATURAL is not None  # 返回默认策略
-
-    def test_get_policy_with_spaces(self):
-        """测试带空格的策略名称"""
-        policy = get_policy(" natural ")
-        # 带空格应该返回默认策略
+    def test_get_policy_returns_default(self):
+        """测试获取默认策略"""
+        policy = get_policy()
         assert policy is not None
 
     def test_policy_all_fields_none(self):

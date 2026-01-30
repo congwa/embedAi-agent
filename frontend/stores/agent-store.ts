@@ -12,7 +12,6 @@ export interface Agent {
   status: "enabled" | "disabled";
   is_default: boolean;
   is_supervisor: boolean;
-  mode_default: string;
   created_at: string;
   updated_at: string;
   knowledge_config?: {

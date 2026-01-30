@@ -9,7 +9,6 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from app.services.agent.core.policy import ToolPolicy
 from app.services.agent.middleware.noise_filter import NoiseFilterMiddleware
 from app.services.agent.middleware.sliding_window import SlidingWindowMiddleware
-from app.services.agent.middleware.strict_mode import StrictModeMiddleware
 
 
 class TestToolCallErrorHandling:
@@ -150,21 +149,6 @@ class TestMiddlewarePipelineStability:
         if non_system:
             assert isinstance(non_system[0], HumanMessage)
 
-    def test_strict_mode_with_various_policies(self):
-        """测试严格模式与不同策略"""
-        # 自然策略
-        natural_middleware = StrictModeMiddleware(
-            policy=ToolPolicy(min_tool_calls=0, allow_direct_answer=True)
-        )
-        assert natural_middleware.policy.allow_direct_answer is True
-
-        # 严格策略
-        strict_middleware = StrictModeMiddleware(
-            policy=ToolPolicy(min_tool_calls=1, allow_direct_answer=False)
-        )
-        assert strict_middleware.policy.min_tool_calls == 1
-
-
 class TestConfigurationStability:
     """测试配置稳定性"""
 
@@ -172,24 +156,18 @@ class TestConfigurationStability:
         """测试中间件默认配置"""
         noise_filter = NoiseFilterMiddleware()
         sliding_window = SlidingWindowMiddleware()
-        strict_mode = StrictModeMiddleware()
 
         # 所有中间件都应该能正常初始化
         assert noise_filter is not None
         assert sliding_window is not None
-        assert strict_mode is not None
 
     def test_middleware_custom_config(self):
         """测试中间件自定义配置"""
         noise_filter = NoiseFilterMiddleware(max_output_chars=500)
         sliding_window = SlidingWindowMiddleware(max_messages=20)
-        strict_mode = StrictModeMiddleware(
-            custom_fallback_message="自定义消息"
-        )
 
         assert noise_filter.max_output_chars == 500
         assert sliding_window.max_messages == 20
-        assert strict_mode.fallback_message == "自定义消息"
 
     def test_middleware_extreme_config(self):
         """测试中间件极端配置"""

@@ -4,7 +4,7 @@
     from app.services.agent.middleware.registry import build_middlewares, build_middlewares_for_agent
 
     # 传统方式（兼容）
-    middlewares = build_middlewares(mode="natural", model=model)
+    middlewares = build_middlewares(model=model)
 
     # 基于 Agent 配置（推荐）
     from app.schemas.agent import AgentConfig
@@ -72,7 +72,6 @@ class MiddlewareSpec:
 #   80  │ ToolCallLimit            │ 工具调用限制
 #   85  │ SlidingWindow            │ 滑动窗口裁剪
 #   90  │ Summarization            │ 上下文压缩摘要
-#  100  │ StrictMode               │ 严格模式检查
 # ──────┴──────────────────────────┴────────────────────
 
 

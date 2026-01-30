@@ -90,7 +90,6 @@ export interface Agent {
   description: string | null;
   type: "product" | "faq" | "kb" | "custom";
   system_prompt: string;
-  mode_default: "natural" | "free" | "strict";
   middleware_flags: MiddlewareFlags | null;
   tool_policy: Record<string, unknown> | null;
   tool_categories: string[] | null;

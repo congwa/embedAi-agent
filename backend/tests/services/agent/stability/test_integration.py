@@ -6,10 +6,9 @@
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from app.services.agent.core.policy import NATURAL_POLICY, STRICT_POLICY
+from app.services.agent.core.policy import DEFAULT_POLICY
 from app.services.agent.middleware.noise_filter import NoiseFilterMiddleware
 from app.services.agent.middleware.sliding_window import SlidingWindowMiddleware
-from app.services.agent.middleware.strict_mode import StrictModeMiddleware
 from app.services.agent.tools.registry import get_tool_names, get_tools
 
 
@@ -20,12 +19,9 @@ class TestMiddlewareChainStability:
         """测试多个中间件实例共存"""
         noise_filter = NoiseFilterMiddleware(max_output_chars=500)
         sliding_window = SlidingWindowMiddleware(max_messages=10)
-        strict_mode = StrictModeMiddleware(policy=NATURAL_POLICY)
 
         # 所有实例应该独立
         assert noise_filter is not sliding_window
-        assert sliding_window is not strict_mode
-        assert noise_filter is not strict_mode
 
     def test_middleware_config_independence(self):
         """测试中间件配置独立性"""
@@ -60,28 +56,19 @@ class TestMiddlewareChainStability:
 class TestPolicyAndToolIntegration:
     """策略和工具集成测试"""
 
-    def test_natural_mode_tools(self):
-        """测试自然模式工具"""
-        policy = NATURAL_POLICY
-        tools = get_tools(mode="natural")
+    def test_tools(self):
+        """测试工具"""
+        policy = DEFAULT_POLICY
+        tools = get_tools()
 
-        # 自然模式应该有工具
+        # 应该有工具
         assert len(tools) > 0
         assert policy.allow_direct_answer is True
 
-    def test_strict_mode_policy(self):
-        """测试严格模式策略"""
-        policy = STRICT_POLICY
-        tools = get_tools(mode="strict")
-
-        # 严格模式策略应该正确配置
-        assert policy.min_tool_calls >= 1
-        assert policy.allow_direct_answer is False
-
     def test_tool_count_consistency(self):
         """测试工具数量一致性"""
-        tools = get_tools(mode="natural")
-        names = get_tool_names(mode="natural")
+        tools = get_tools()
+        names = get_tool_names()
 
         # 工具数量应该等于名称数量
         assert len(tools) == len(names)
@@ -110,16 +97,13 @@ class TestMessageTypeHandling:
                 {"id": "call_1", "name": "search_products", "args": {"query": "test"}}
             ],
         )
-
-        from app.services.agent.middleware.strict_mode import _has_tool_calls
-        assert _has_tool_calls(msg) is True
+        assert msg.tool_calls is not None
+        assert len(msg.tool_calls) > 0
 
     def test_ai_message_without_tool_calls(self):
         """测试不带工具调用的 AI 消息"""
         msg = AIMessage(content="Just a regular response")
-
-        from app.services.agent.middleware.strict_mode import _has_tool_calls
-        assert _has_tool_calls(msg) is False
+        assert not msg.tool_calls
 
 
 class TestConfigurationIntegration:
@@ -212,25 +196,25 @@ class TestStateConsistency:
     def test_tool_registry_consistency(self):
         """测试工具注册表一致性"""
         # 多次调用应该返回相同结果
-        tools1 = get_tools(mode="natural")
-        tools2 = get_tools(mode="natural")
+        tools1 = get_tools()
+        tools2 = get_tools()
 
         assert len(tools1) == len(tools2)
 
-        names1 = get_tool_names(mode="natural")
-        names2 = get_tool_names(mode="natural")
+        names1 = get_tool_names()
+        names2 = get_tool_names()
 
         assert names1 == names2
 
     def test_policy_immutability(self):
         """测试策略不变性"""
-        from app.services.agent.core.policy import NATURAL_POLICY
+        from app.services.agent.core.policy import DEFAULT_POLICY
 
         # 获取原始值
-        original_min_calls = NATURAL_POLICY.min_tool_calls
-        original_allow_direct = NATURAL_POLICY.allow_direct_answer
+        original_min_calls = DEFAULT_POLICY.min_tool_calls
+        original_allow_direct = DEFAULT_POLICY.allow_direct_answer
 
         # 使用后值不变
-        _ = NATURAL_POLICY.description
-        assert NATURAL_POLICY.min_tool_calls == original_min_calls
-        assert NATURAL_POLICY.allow_direct_answer == original_allow_direct
+        _ = DEFAULT_POLICY.description
+        assert DEFAULT_POLICY.min_tool_calls == original_min_calls
+        assert DEFAULT_POLICY.allow_direct_answer == original_allow_direct

@@ -94,33 +94,6 @@ AGENT_PROMPTS: dict[str, dict] = {
 4. 汇总并返回结果
 """,
     },
-    # ========== 回答模式后缀 ==========
-    "agent.mode.free": {
-        "category": "agent",
-        "name": "自由模式后缀",
-        "description": "自由回答模式的系统提示词后缀",
-        "variables": [],
-        "content": """
-
-## 回答模式：自由
-你可以更自由地回答问题，不必严格限制在工具返回的内容范围内。
-可以适当发挥，但仍需保持回答的真实性和专业性。
-""",
-    },
-    "agent.mode.strict": {
-        "category": "agent",
-        "name": "严格模式后缀",
-        "description": "严格回答模式的系统提示词后缀",
-        "variables": [],
-        "content": """
-
-## 回答模式：严格
-你必须严格基于工具返回的内容回答问题。
-- 不要添加工具未提供的信息
-- 如果工具返回为空或不相关，直接告知用户无法回答
-- 不要编造或推测任何信息
-""",
-    },
     # ========== TODO 中间件提示词 ==========
     "agent.todo.system": {
         "category": "agent",

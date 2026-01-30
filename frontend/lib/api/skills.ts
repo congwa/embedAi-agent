@@ -257,8 +257,3 @@ export const AGENT_TYPE_OPTIONS = [
   { value: "support", label: "客服" },
 ];
 
-export const MODE_OPTIONS = [
-  { value: "natural", label: "自然模式" },
-  { value: "strict", label: "严格模式" },
-  { value: "free", label: "自由模式" },
-];

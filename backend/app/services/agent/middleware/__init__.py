@@ -4,7 +4,7 @@
 
 使用方式：
     from app.services.agent.middleware.registry import build_middlewares
-    middlewares = build_middlewares(mode="natural", model=model)
+    middlewares = build_middlewares(model=model)
 """
 
 from app.services.agent.middleware.registry import (
