@@ -112,13 +112,11 @@ class AgentService:
     async def get_agent_config(
         self,
         agent_id: str | None = None,
-        mode: str = "natural",
     ) -> AgentConfig:
         """获取 Agent 配置
 
         Args:
             agent_id: Agent ID，为空时使用默认 Agent
-            mode: 回答策略模式
 
         Returns:
             Agent 运行时配置
@@ -126,7 +124,7 @@ class AgentService:
         if agent_id is None:
             agent_id = await self.get_default_agent_id()
 
-        cache_key = (agent_id, mode)
+        cache_key = agent_id
         now = time.time()
         ttl = settings.AGENT_CACHE_TTL_SECONDS
 
@@ -153,7 +151,6 @@ class AgentService:
             logger.info(
                 "配置版本已变更，清除缓存",
                 agent_id=agent_id,
-                mode=mode,
                 old_version=cached.version,
                 new_version=current_version,
             )
@@ -163,7 +160,7 @@ class AgentService:
         # 从数据库加载
         async with get_db_context() as session:
             loader = AgentConfigLoader(session)
-            config = await loader.load_config(agent_id, mode)
+            config = await loader.load_config(agent_id)
 
         if config is None:
             raise ValueError(f"Agent 不存在或已禁用: {agent_id}")
@@ -196,14 +193,12 @@ class AgentService:
     async def get_agent(
         self,
         agent_id: str | None = None,
-        mode: str = "natural",
         use_structured_output: bool = False,
     ) -> CompiledStateGraph:
         """获取 Agent 实例
 
         Args:
             agent_id: Agent ID，为空时使用默认 Agent
-            mode: 回答策略模式
             use_structured_output: 是否使用结构化输出
 
         Returns:
@@ -212,11 +207,11 @@ class AgentService:
         if agent_id is None:
             agent_id = await self.get_default_agent_id()
 
-        cache_key = (agent_id, mode)
+        cache_key = agent_id
 
         if cache_key not in self._agents:
             # 加载配置
-            config = await self.get_agent_config(agent_id, mode)
+            config = await self.get_agent_config(agent_id)
 
             # 获取 checkpointer
             checkpointer = await self._get_checkpointer()
@@ -232,31 +227,20 @@ class AgentService:
             logger.info(
                 "创建 Agent 实例",
                 agent_id=agent_id,
-                mode=mode,
                 agent_type=config.type,
             )
 
         return self._agents[cache_key]
 
-    def invalidate_agent(self, agent_id: str, mode: str | None = None) -> None:
+    def invalidate_agent(self, agent_id: str) -> None:
         """使 Agent 缓存失效
 
         Args:
             agent_id: Agent ID
-            mode: 可选的模式，为空时清除该 agent 的所有模式缓存
         """
-        if mode:
-            cache_key = (agent_id, mode)
-            self._agents.pop(cache_key, None)
-            self._agent_configs.pop(cache_key, None)
-        else:
-            # 清除该 agent 的所有缓存
-            keys_to_remove = [k for k in self._agents if k[0] == agent_id]
-            for key in keys_to_remove:
-                self._agents.pop(key, None)
-                self._agent_configs.pop(key, None)
-
-        logger.info("Agent 缓存已失效", agent_id=agent_id, mode=mode)
+        self._agents.pop(agent_id, None)
+        self._agent_configs.pop(agent_id, None)
+        logger.info("Agent 缓存已失效", agent_id=agent_id)
 
     def invalidate_all(self) -> None:
         """清空所有 Agent 缓存"""
@@ -283,15 +267,13 @@ class AgentService:
             context: 聊天上下文
             agent_id: 可选的 Agent ID
         """
-        mode = getattr(context, "mode", "natural")
-
         emitter = getattr(context, "emitter", None)
         if emitter is None or not hasattr(emitter, "aemit"):
             raise RuntimeError("chat_emit 需要 context.emitter.aemit()")
 
         try:
             # 获取 Agent
-            agent = await self.get_agent(agent_id=agent_id, mode=mode)
+            agent = await self.get_agent(agent_id=agent_id)
 
             # 获取模型实例
             model = get_chat_model()

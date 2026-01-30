@@ -50,7 +50,7 @@ class TestToolCallsIntegration:
     def _get_user_id(self) -> str:
         return f"test-user-{uuid.uuid4().hex[:8]}"
 
-    async def _collect_events(self, message: str, mode: str = "natural") -> list[dict[str, Any]]:
+    async def _collect_events(self, message: str) -> list[dict[str, Any]]:
         """收集聊天流产生的所有事件
         
         注意：为避免 SQLite 嵌套连接死锁，先初始化 agent_service
@@ -85,7 +85,6 @@ class TestToolCallsIntegration:
                 user_message=message,
                 user_message_id=user_message.id,
                 assistant_message_id=assistant_message_id,
-                mode=mode,
                 db=None,  # 不传递 session，让工具自行创建短事务（防死锁）
             )
 

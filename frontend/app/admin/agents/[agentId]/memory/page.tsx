@@ -106,7 +106,7 @@ export default function AgentMemoryPage() {
         getUserProfile(userId).catch(() => null),
         getUserFacts(userId, 50).catch(() => null),
         getUserGraph(userId).catch(() => null),
-        previewAgentPrompt(agentId, { user_id: userId, mode: "natural" }).catch(() => null),
+        previewAgentPrompt(agentId, { user_id: userId }).catch(() => null),
       ]);
       setUserProfile(profile);
       setUserFacts(facts);

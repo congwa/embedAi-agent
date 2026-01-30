@@ -114,8 +114,7 @@ agent/
 │   ├── noise_filter.py       # 工具输出噪音过滤
 │   ├── response_sanitization.py # 响应内容安全过滤
 │   ├── llm_call_sse.py       # LLM 调用事件推送
-│   ├── logging.py            # 日志记录
-│   └── strict_mode.py        # 严格模式检查
+│   └── logging.py            # 日志记录
 ├── retrieval/          # 检索服务（已迁移到 knowledge/）
 ├── streams/            # 流式响应
 ├── tools/              # 工具定义（声明式注册）

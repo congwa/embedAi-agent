@@ -257,15 +257,6 @@ QDRANT_PORT=6333
 
 根据实际需求，可以稍后调整：
 
-### 对话模式
-
-```bash
-# natural: 商品推荐模式（默认）
-# free: 自由聊天模式
-# strict: 严格模式（必须基于工具回答）
-CHAT_MODE=natural
-```
-
 ### 记忆系统
 
 ```bash
