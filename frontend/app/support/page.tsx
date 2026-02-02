@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   Headphones,
   RefreshCw,
@@ -40,10 +40,14 @@ export default function SupportListPage() {
     updateConversationPreview,
   } = useSupportWorkbenchStore();
 
+  // 初始化状态：防止首次渲染闪烁
+  const [isInitialized, setIsInitialized] = useState(false);
+  const isFirstLoad = useRef(true);
+
   // 加载会话列表
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const [convData, statsData] = await Promise.all([
         getSupportConversations(filter || undefined, sortBy),
@@ -52,44 +56,74 @@ export default function SupportListPage() {
       setConversations(convData.items);
       setStats(statsData);
 
-      // 异步加载每个会话的最新消息
-      convData.items.forEach(async (conv) => {
-        try {
-          const detail = await getConversationDetail(conv.id);
-          if (detail.messages && detail.messages.length > 0) {
-            const lastMsg = detail.messages[detail.messages.length - 1];
-            updateConversationPreview(
-              conv.id,
-              lastMsg.content.slice(0, 100),
-              lastMsg.created_at,
-              lastMsg.role as "user" | "assistant" | "human"
-            );
+      // 异步加载每个会话的最新消息（批量限制避免过多请求）
+      const loadPreviews = async () => {
+        const items = convData.items.slice(0, 20); // 限制前20个
+        for (const conv of items) {
+          try {
+            const detail = await getConversationDetail(conv.id);
+            if (detail.messages && detail.messages.length > 0) {
+              const lastMsg = detail.messages[detail.messages.length - 1];
+              updateConversationPreview(
+                conv.id,
+                lastMsg.content.slice(0, 100),
+                lastMsg.created_at,
+                lastMsg.role as "user" | "assistant" | "human"
+              );
+            }
+          } catch {
+            // 忽略单个会话加载失败
           }
-        } catch {
-          // 忽略单个会话加载失败
         }
-      });
+      };
+      loadPreviews();
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [filter, sortBy, setConversations, setStats, setLoading, setError, updateConversationPreview]);
 
-  useEffect(() => {
-    loadConversations();
+  // 使用 useLayoutEffect 在 DOM 绘制前同步初始化
+  useLayoutEffect(() => {
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      loadConversations().finally(() => {
+        setIsInitialized(true);
+      });
+    }
   }, [loadConversations]);
 
-  // 定时刷新
+  // 筛选/排序变化时重新加载
   useEffect(() => {
-    const interval = setInterval(loadConversations, 30000);
+    if (isInitialized) {
+      loadConversations();
+    }
+  }, [filter, sortBy, isInitialized, loadConversations]);
+
+  // 定时静默刷新（不显示 loading）
+  useEffect(() => {
+    if (!isInitialized) return;
+    const interval = setInterval(() => loadConversations(true), 30000);
     return () => clearInterval(interval);
-  }, [loadConversations]);
+  }, [isInitialized, loadConversations]);
 
   // 当前选中的用户组
   const selectedGroup = selectedUserId
     ? userGroups.find((g) => g.userId === selectedUserId) || null
     : null;
+
+  // 初始化前显示全屏 loading，避免闪烁
+  if (!isInitialized) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-zinc-50 dark:bg-zinc-900">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-500 border-t-transparent" />
+          <span className="text-sm text-zinc-500">加载中...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen flex-col bg-zinc-50 dark:bg-zinc-900">
@@ -205,7 +239,7 @@ export default function SupportListPage() {
             variant="outline"
             size="icon"
             className="h-8 w-8"
-            onClick={loadConversations}
+            onClick={() => loadConversations()}
             disabled={isLoading}
           >
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
