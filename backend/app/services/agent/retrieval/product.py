@@ -26,7 +26,7 @@ def get_qdrant_client() -> QdrantClient | None:
         QdrantClient 实例，连接失败时返回 None
     """
     try:
-        logger.info(
+        logger.verbose(
             "│ 连接 Qdrant",
             connection={
                 "host": settings.QDRANT_HOST,
@@ -84,7 +84,7 @@ async def get_vector_store_async() -> QdrantVectorStore | None:
                         base_url=embed_config.base_url,
                         api_key=embed_config.api_key,
                     )
-                    logger.info(
+                    logger.verbose(
                         "│ 使用数据库 Embedding 配置",
                         model=embed_config.model,
                         base_url=embed_config.base_url,
@@ -96,7 +96,7 @@ async def get_vector_store_async() -> QdrantVectorStore | None:
         if embeddings is None:
             embeddings = get_embeddings()
 
-        logger.info(
+        logger.verbose(
             "│ 初始化向量存储",
             vector_store={
                 "collection": settings.QDRANT_COLLECTION,
@@ -138,7 +138,7 @@ def get_vector_store() -> QdrantVectorStore | None:
             
         embeddings = get_embeddings()
 
-        logger.info(
+        logger.verbose(
             "│ 初始化向量存储",
             vector_store={
                 "collection": settings.QDRANT_COLLECTION,

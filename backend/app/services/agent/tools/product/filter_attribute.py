@@ -97,7 +97,7 @@ async def list_products_by_attribute(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: list_products_by_attribute 开始 ──┐",
         input_data={"keyword": keyword, "limit": limit},
     )
@@ -122,7 +122,7 @@ async def list_products_by_attribute(
                     "error": error_msg,
                 },
             )
-            logger.info("└── 工具: list_products_by_attribute 结束 (参数校验失败) ──┘")
+            logger.verbose("└── 工具: list_products_by_attribute 结束 (参数校验失败) ──┘")
             return json.dumps({"error": error_msg}, ensure_ascii=False)
 
         # 校验关键词不为空
@@ -140,12 +140,12 @@ async def list_products_by_attribute(
                     "error": error_msg,
                 },
             )
-            logger.info("└── 工具: list_products_by_attribute 结束 (无关键词) ──┘")
+            logger.verbose("└── 工具: list_products_by_attribute 结束 (无关键词) ──┘")
             return json.dumps({"error": error_msg}, ensure_ascii=False)
 
         # 校验通过，继续执行
         keyword_list = [keyword]
-        logger.info(
+        logger.verbose(
             "│ [1] 使用关键词",
             keyword=keyword,
         )
@@ -169,7 +169,7 @@ async def list_products_by_attribute(
             result = await session.execute(stmt)
             products = result.scalars().all()
 
-            logger.info(
+            logger.verbose(
                 "│ [2] 查询到商品",
                 product_count=len(products),
             )
@@ -186,7 +186,7 @@ async def list_products_by_attribute(
                         "message": f"未找到包含关键词 {keyword} 的商品",
                     },
                 )
-                logger.info("└── 工具: list_products_by_attribute 结束 (无结果) ──┘")
+                logger.verbose("└── 工具: list_products_by_attribute 结束 (无结果) ──┘")
                 return json.dumps(
                     {
                         "error": f"未找到包含关键词 {keyword} 的商品",
@@ -244,7 +244,7 @@ async def list_products_by_attribute(
                         "message": f"未找到包含关键词 {keyword} 的商品",
                     },
                 )
-                logger.info("└── 工具: list_products_by_attribute 结束 (无结果) ──┘")
+                logger.verbose("└── 工具: list_products_by_attribute 结束 (无结果) ──┘")
                 return json.dumps(
                     {
                         "error": f"未找到包含关键词 {keyword} 的商品",
@@ -273,7 +273,7 @@ async def list_products_by_attribute(
                     "count": len(product_list),
                 },
             )
-            logger.info(
+            logger.verbose(
                 "└── 工具: list_products_by_attribute 结束 ──┘",
                 output_data={
                     "keyword": keyword,

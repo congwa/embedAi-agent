@@ -149,7 +149,7 @@ class SlidingWindowMiddleware(AgentMiddleware):
         if count_after >= count_before:
             return None
 
-        logger.info(
+        logger.verbose(
             "滑动窗口裁剪",
             strategy=self.strategy,
             messages_before=count_before,
@@ -185,7 +185,7 @@ class SlidingWindowMiddleware(AgentMiddleware):
         if count_after >= count_before:
             return None
 
-        logger.info(
+        logger.verbose(
             "滑动窗口裁剪（同步）",
             strategy=self.strategy,
             messages_before=count_before,

@@ -88,7 +88,7 @@ async def get_product_purchase_links(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: get_product_purchase_links 开始 ──┐",
         input_data={"product_ids": product_ids},
     )
@@ -109,10 +109,10 @@ async def get_product_purchase_links(
                     "message": "未提供有效的商品编号",
                 },
             )
-            logger.info("└── 工具: get_product_purchase_links 结束 (无编号) ──┘")
+            logger.verbose("└── 工具: get_product_purchase_links 结束 (无编号) ──┘")
             return json.dumps({"error": "未提供有效的商品编号"}, ensure_ascii=False)
 
-        logger.info(
+        logger.verbose(
             "│ [1] 解析商品编号",
             product_id_count=len(product_id_list),
             product_ids=product_id_list,
@@ -124,7 +124,7 @@ async def get_product_purchase_links(
             result = await session.execute(stmt)
             products = result.scalars().all()
 
-            logger.info(
+            logger.verbose(
                 "│ [2] 查询到商品",
                 product_count=len(products),
             )
@@ -141,7 +141,7 @@ async def get_product_purchase_links(
                         "message": f"未找到商品：{', '.join(product_id_list)}",
                     },
                 )
-                logger.info("└── 工具: get_product_purchase_links 结束 (无结果) ──┘")
+                logger.verbose("└── 工具: get_product_purchase_links 结束 (无结果) ──┘")
                 return json.dumps(
                     {
                         "error": f"未找到商品：{', '.join(product_id_list)}",
@@ -195,7 +195,7 @@ async def get_product_purchase_links(
                     "count": len(links),
                 },
             )
-            logger.info(
+            logger.verbose(
                 "└── 工具: get_product_purchase_links 结束 ──┘",
                 output_data={
                     "product_ids": product_id_list,

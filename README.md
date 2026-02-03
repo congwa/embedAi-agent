@@ -6,6 +6,24 @@
 
 **一款开箱即用的 AI 智能客服系统，帮助用户快速找到心仪商品**
 
+</div>
+
+## 📸 界面预览
+
+| 页面 | 截图 |
+|------|------|
+| 产品落地页 | ![落地页](http://qiniu.biomed168.com/pic/landing-page.avif) |
+| 用户聊天界面 | ![聊天界面](http://qiniu.biomed168.com/pic/chat-interface.avif) |
+| 管理后台仪表盘 | ![仪表盘](http://qiniu.biomed168.com/pic/admin-dashboard.avif) |
+| 快速配置向导 | ![快速配置](http://qiniu.biomed168.com/pic/quick-setup.avif) |
+| 单 Agent 模式 | ![单 Agent](http://qiniu.biomed168.com/pic/single-mode.avif) |
+| 编排模式 | ![编排模式](http://qiniu.biomed168.com/pic/multi-mode.avif) |
+| 技能管理 | ![技能管理](http://qiniu.biomed168.com/pic/skills-list.avif) |
+| 系统设置 | ![系统设置](http://qiniu.biomed168.com/pic/settings.avif) |
+| 客服工作台 | ![客服工作台](http://qiniu.biomed168.com/pic/support-workbench.avif) |
+
+<div align="center">
+
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/Python-3.13-green?logo=python)](https://www.python.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
@@ -497,26 +515,6 @@ graph TD
 | **⚙️ 设置中心** | LLM 配置、系统参数、模式切换 |
 | **👨‍💼 客服工作台** | 人工客服介入、企业微信通知、消息编辑 |
 
-### 📸 界面预览
-
-<details>
-<summary>点击展开查看界面截图</summary>
-
-| 页面 | 截图 |
-|------|------|
-| 产品落地页 | ![落地页](http://qiniu.biomed168.com/pic/landing-page.avif) |
-| 用户聊天界面 | ![聊天界面](http://qiniu.biomed168.com/pic/chat-interface.avif) |
-| 管理后台仪表盘 | ![仪表盘](http://qiniu.biomed168.com/pic/admin-dashboard.avif) |
-| 快速配置向导 | ![快速配置](http://qiniu.biomed168.com/pic/quick-setup.avif) |
-| 单 Agent 模式 | ![单 Agent](http://qiniu.biomed168.com/pic/single-mode.avif) |
-| 编排模式 | ![编排模式](http://qiniu.biomed168.com/pic/multi-mode.avif) |
-| 技能管理 | ![技能管理](http://qiniu.biomed168.com/pic/skills-list.avif) |
-| 系统设置 | ![系统设置](http://qiniu.biomed168.com/pic/settings.avif) |
-| 客服工作台 | ![客服工作台](http://qiniu.biomed168.com/pic/support-workbench.avif) |
-
-> 💡 **提示**：您也可以在项目的 `docs/screenshots/` 文件夹中查看所有界面截图。
-
-</details>
 
 ### 🔌 嵌入式组件
 
@@ -915,7 +913,22 @@ LLM_CHAT_MODEL=gpt-4
 
 ---
 
-## 📞 获取帮助
+## � 日志配置速查
+
+| 配置项 | 作用 | 默认值 | 推荐值 |
+|--------|------|--------|--------|
+| `LOG_VERBOSE_AGENT` | 是否输出 Agent/LLM 详细日志 | `false` | 生产 `false`，调试 `true` |
+| `LOG_SAMPLING_RATE` | 同会话 INFO 日志采样率 | `0.3` | `0.1`~`0.5` |
+| `LOG_SLOW_THRESHOLD_MS` | 慢调用阈值（超过则输出完整日志） | `3000` | `2000`~`5000` |
+| `LOG_AGENT_FILE_ENABLED` | 是否启用 `agent.log` 分流 | `true` | `true` |
+
+**日志文件说明**：
+- `logs/app.log`：全量日志（JSON 格式）
+- `logs/agent.log`：仅 Agent/中间件日志，便于独立排查
+
+---
+
+## �📞 获取帮助
 
 - 📖 **详细文档**：查看各子目录的 README
 - 📄 **API 文档**：访问 `http://localhost:8000/docs`

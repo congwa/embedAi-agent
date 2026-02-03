@@ -121,7 +121,7 @@ def compare_products(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: compare_products 开始 ──┐",
         input_data={"product_ids": product_ids, "count": len(product_ids)},
     )
@@ -226,7 +226,7 @@ def compare_products(
             },
         )
         result_json = json.dumps(comparison, ensure_ascii=False, indent=2)
-        logger.info(
+        logger.verbose(
             "└── 工具: compare_products 结束 ──┘",
             product_count=len(products),
             price_range=comparison["comparison_points"]["price_range"],

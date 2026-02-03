@@ -115,7 +115,7 @@ async def filter_by_price(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: filter_by_price 开始 ──┐",
         input_data={"min_price": min_price, "max_price": max_price},
     )
@@ -218,7 +218,7 @@ async def filter_by_price(
             },
         )
         result_json = json.dumps(results, ensure_ascii=False, indent=2)
-        logger.info(
+        logger.verbose(
             "└── 工具: filter_by_price 结束 ──┘",
             result_count=len(results),
             price_range={

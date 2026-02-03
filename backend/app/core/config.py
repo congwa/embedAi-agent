@@ -113,6 +113,11 @@ class Settings(BaseSettings):
     LOG_FILE: str = "./logs/app.log"  # 日志文件路径，留空则不记录文件
     LOG_FILE_ROTATION: str = "10 MB"  # 日志文件轮转大小
     LOG_FILE_RETENTION: str = "7 days"  # 日志文件保留时间
+    # 日志治理扩展配置
+    LOG_VERBOSE_AGENT: bool = False  # 是否输出 Agent/LLM 详细日志（默认关闭，降噪）
+    LOG_SAMPLING_RATE: float = 0.3  # 同会话 INFO 级别日志采样率（0.0-1.0）
+    LOG_SLOW_THRESHOLD_MS: int = 3000  # 慢调用阈值（ms），超过则输出完整 payload
+    LOG_AGENT_FILE_ENABLED: bool = True  # 是否启用 agent.log 分流文件
 
     # ========== 响应清洗配置 ==========
     RESPONSE_SANITIZATION_ENABLED: bool = (

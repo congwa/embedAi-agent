@@ -27,7 +27,7 @@ class SequentialToolExecutionMiddleware(AgentMiddleware):
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._alock = asyncio.Lock()
-        logger.info("初始化串行工具执行中间件")
+        logger.verbose("初始化串行工具执行中间件")
 
     def wrap_tool_call(
         self,

@@ -83,7 +83,7 @@ async def list_all_categories(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: list_all_categories 开始 ──┐",
         input_data={"limit": limit},
     )
@@ -110,7 +110,7 @@ async def list_all_categories(
             result = await session.execute(stmt)
             categories_data = result.all()
 
-            logger.info(
+            logger.verbose(
                 "│ [1] 查询到分类",
                 category_count=len(categories_data),
             )
@@ -127,7 +127,7 @@ async def list_all_categories(
                         "message": "商品库中暂无分类信息",
                     },
                 )
-                logger.info("└── 工具: list_all_categories 结束 (无结果) ──┘")
+                logger.verbose("└── 工具: list_all_categories 结束 (无结果) ──┘")
                 return json.dumps({"error": "商品库中暂无分类信息"}, ensure_ascii=False)
 
             # 构建分类列表
@@ -181,7 +181,7 @@ async def list_all_categories(
                     "count": len(categories),
                 },
             )
-            logger.info(
+            logger.verbose(
                 "└── 工具: list_all_categories 结束 ──┘",
                 output_data={"category_count": len(categories)},
             )

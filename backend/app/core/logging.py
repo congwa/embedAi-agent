@@ -348,6 +348,28 @@ class Logger:
         )
         log_file_configured = True
 
+        # Agent 日志分流：仅记录 module 以 agent./middleware. 开头的日志
+        agent_file_enabled = getattr(settings, "LOG_AGENT_FILE_ENABLED", True)
+        if agent_file_enabled:
+            agent_log_path = log_path.parent / "agent.log"
+
+            def _agent_filter(record: dict) -> bool:
+                """过滤器：仅保留 agent/middleware 相关日志"""
+                module = record.get("extra", {}).get("module", "")
+                return module.startswith(("agent", "middleware"))
+
+            loguru_logger.add(
+                str(agent_log_path),
+                format="{message}",
+                level=level.value,
+                rotation=rotation,
+                retention=retention,
+                compression="gz",
+                enqueue=False,
+                serialize=True,
+                filter=_agent_filter,
+            )
+
         # 标记为已配置（必须在记录日志之前设置，避免递归）
         self._configured = True
 
@@ -476,8 +498,51 @@ class BoundLogger:
         self._parent = parent
         self._context = context
 
+    def with_context(
+        self,
+        conversation_id: str | None = None,
+        agent_id: str | None = None,
+        user_id: str | None = None,
+        channel: str | None = None,
+        **extra: Any,
+    ) -> "BoundLogger":
+        """创建带有标准上下文字段的子日志器
+
+        Args:
+            conversation_id: 会话 ID
+            agent_id: Agent ID
+            user_id: 用户 ID
+            channel: 渠道（如 web, embed, api）
+            **extra: 其他自定义字段
+
+        Returns:
+            绑定了上下文的新日志器
+        """
+        ctx = {**self._context}
+        if conversation_id is not None:
+            ctx["conversation_id"] = conversation_id
+        if agent_id is not None:
+            ctx["agent_id"] = agent_id
+        if user_id is not None:
+            ctx["user_id"] = user_id
+        if channel is not None:
+            ctx["channel"] = channel
+        ctx.update(extra)
+        return BoundLogger(self._parent, ctx)
+
     def debug(self, message: str, **extra: Any) -> None:
         self._parent.debug(message, _depth=1, **{**self._context, **extra})
+
+    def verbose(self, message: str, **extra: Any) -> None:
+        """根据 LOG_VERBOSE_AGENT 配置决定日志级别
+
+        当 LOG_VERBOSE_AGENT=true 时使用 INFO，否则使用 DEBUG。
+        适用于工具执行、LLM 调用等高频但在调试时需要可见的日志。
+        """
+        if settings.LOG_VERBOSE_AGENT:
+            self._parent.info(message, _depth=1, **{**self._context, **extra})
+        else:
+            self._parent.debug(message, _depth=1, **{**self._context, **extra})
 
     def info(self, message: str, **extra: Any) -> None:
         self._parent.info(message, _depth=1, **{**self._context, **extra})

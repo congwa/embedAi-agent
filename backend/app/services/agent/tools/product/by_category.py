@@ -99,7 +99,7 @@ async def list_products_by_category(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: list_products_by_category 开始 ──┐",
         input_data={
             "category_name": category_name,
@@ -128,7 +128,7 @@ async def list_products_by_category(
                     "error": error_msg,
                 },
             )
-            logger.info("└── 工具: list_products_by_category 结束 (参数校验失败) ──┘")
+            logger.verbose("└── 工具: list_products_by_category 结束 (参数校验失败) ──┘")
             return json.dumps(
                 {"error": error_msg, "category_name": category_name},
                 ensure_ascii=False,
@@ -148,7 +148,7 @@ async def list_products_by_category(
             result = await session.execute(stmt)
             products = result.scalars().all()
 
-            logger.info(
+            logger.verbose(
                 "│ [1] 查询到商品",
                 product_count=len(products),
             )
@@ -165,7 +165,7 @@ async def list_products_by_category(
                         "message": f"分类 {category_name} 下暂无商品",
                     },
                 )
-                logger.info("└── 工具: list_products_by_category 结束 (无结果) ──┘")
+                logger.verbose("└── 工具: list_products_by_category 结束 (无结果) ──┘")
                 return json.dumps(
                     {
                         "error": f"分类 {category_name} 下暂无商品",
@@ -212,7 +212,7 @@ async def list_products_by_category(
                     "count": len(product_list),
                 },
             )
-            logger.info(
+            logger.verbose(
                 "└── 工具: list_products_by_category 结束 ──┘",
                 output_data={
                     "category_name": category_name,

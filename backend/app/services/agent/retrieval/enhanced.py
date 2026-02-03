@@ -108,7 +108,7 @@ def filter_by_keywords(
                 keywords_matched=[kw for kw in keywords if kw.lower() in combined_text],
             )
 
-    logger.info("关键词过滤完成", original_count=len(docs), filtered_count=len(filtered))
+    logger.verbose("关键词过滤完成", original_count=len(docs), filtered_count=len(filtered))
     return filtered
 
 
@@ -158,7 +158,7 @@ async def rerank_by_relevance(
                 if original_idx < len(docs):
                     reranked_docs.append(docs[original_idx])
 
-            logger.info(
+            logger.verbose(
                 "Rerank API 重排序完成",
                 result_count=len(reranked_docs),
                 top_products=[
@@ -226,7 +226,7 @@ async def rerank_by_relevance(
     scored_docs = [(doc, calculate_relevance_score(doc)) for doc in docs]
     scored_docs.sort(key=lambda x: x[1], reverse=True)
 
-    logger.info(
+    logger.verbose(
         "本地打分重排序完成",
         top_scores=[
             (doc.metadata.get("product_id"), round(score, 3)) for doc, score in scored_docs[:5]
@@ -252,7 +252,7 @@ async def enhanced_search(
     Returns:
         搜索结果文档列表
     """
-    logger.info(
+    logger.verbose(
         "开始增强检索",
         query=query,
         k=k,
@@ -273,7 +273,7 @@ async def enhanced_search(
         logger.warning("向量检索无结果")
         return []
 
-    logger.info("向量检索完成", doc_count=len(docs))
+    logger.verbose("向量检索完成", doc_count=len(docs))
 
     # 2. 提取关键词
     keywords = extract_keywords(query)
@@ -293,7 +293,7 @@ async def enhanced_search(
     # 5. 返回前 k 个结果
     result = docs[:k]
 
-    logger.info(
+    logger.verbose(
         "增强检索完成",
         final_count=len(result),
         product_ids=[doc.metadata.get("product_id") for doc in result],

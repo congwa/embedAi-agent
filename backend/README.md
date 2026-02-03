@@ -91,6 +91,24 @@ backend/
 └── tests/              # 测试
 ```
 
+## 日志调试
+
+```bash
+# 启动后端，观察控制台输出
+cd backend && uv run python -m app.main
+
+# 默认情况下，工具/LLM 调用日志为 DEBUG 级别，不会刷屏
+# 如需调试，临时开启详细日志：
+LOG_VERBOSE_AGENT=true uv run python -m app.main
+```
+
+**日志配置说明**：
+| 配置项 | 作用 | 默认值 |
+|--------|------|--------|
+| `LOG_VERBOSE_AGENT` | 输出 Agent/LLM 详细日志 | `false` |
+| `LOG_SLOW_THRESHOLD_MS` | 慢调用阈值（超过则输出完整日志） | `3000` |
+| `LOG_AGENT_FILE_ENABLED` | 启用 `agent.log` 分流 | `true` |
+
 ## 技术栈
 
 - **FastAPI**: Web 框架

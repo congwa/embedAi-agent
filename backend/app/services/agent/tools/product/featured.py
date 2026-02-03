@@ -101,7 +101,7 @@ async def list_featured_products(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: list_featured_products 开始 ──┐",
         input_data={"tag": tag, "limit": limit},
     )
@@ -129,7 +129,7 @@ async def list_featured_products(
             result = await session.execute(stmt)
             products = result.scalars().all()
 
-            logger.info(
+            logger.verbose(
                 "│ [1] 查询到商品",
                 product_count=len(products),
                 tag=tag,
@@ -147,7 +147,7 @@ async def list_featured_products(
                         "message": f"未找到标签为 {tag} 的精选商品",
                     },
                 )
-                logger.info("└── 工具: list_featured_products 结束 (无结果) ──┘")
+                logger.verbose("└── 工具: list_featured_products 结束 (无结果) ──┘")
                 return json.dumps(
                     {"error": f"未找到标签为 {tag} 的精选商品", "tag": tag},
                     ensure_ascii=False,
@@ -188,7 +188,7 @@ async def list_featured_products(
                     "count": len(product_list),
                 },
             )
-            logger.info(
+            logger.verbose(
                 "└── 工具: list_featured_products 结束 ──┘",
                 output_data={"tag": tag, "product_count": len(product_list)},
             )

@@ -94,7 +94,7 @@ async def find_similar_products(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: find_similar_products 开始 ──┐",
         input_data={"product_id": product_id, "top_k": top_k},
     )
@@ -119,7 +119,7 @@ async def find_similar_products(
                     "message": error_msg,
                 },
             )
-            logger.info("└── 工具: find_similar_products 结束 (参数校验失败) ──┘")
+            logger.verbose("└── 工具: find_similar_products 结束 (参数校验失败) ──┘")
             return json.dumps({"error": error_msg}, ensure_ascii=False)
 
         # 校验通过，继续执行
@@ -145,10 +145,10 @@ async def find_similar_products(
                     "message": f"未找到商品 {product_id}",
                 },
             )
-            logger.info("└── 工具: find_similar_products 结束 (无结果) ──┘")
+            logger.verbose("└── 工具: find_similar_products 结束 (无结果) ──┘")
             return json.dumps({"error": f"未找到商品 {product_id}"}, ensure_ascii=False)
 
-        logger.info(
+        logger.verbose(
             "│ [1] 找到源商品",
             product_name=source_product.metadata.get("product_name"),
         )
@@ -158,7 +158,7 @@ async def find_similar_products(
         retriever_similar = get_retriever(k=top_k + 5)  # 多取一些，用于过滤源商品
         similar_docs = retriever_similar.invoke(query)
 
-        logger.info(
+        logger.verbose(
             "│ [2] 检索到相似文档",
             doc_count=len(similar_docs),
         )
@@ -214,7 +214,7 @@ async def find_similar_products(
                     "message": f"未找到与商品 {product_id} 相似的商品",
                 },
             )
-            logger.info("└── 工具: find_similar_products 结束 (无结果) ──┘")
+            logger.verbose("└── 工具: find_similar_products 结束 (无结果) ──┘")
             return json.dumps(
                 {
                     "error": f"未找到与商品 {product_id} 相似的商品",
@@ -243,7 +243,7 @@ async def find_similar_products(
                 "count": len(similar_products),
             },
         )
-        logger.info(
+        logger.verbose(
             "└── 工具: find_similar_products 结束 ──┘",
             output_data={
                 "source_product_id": product_id,

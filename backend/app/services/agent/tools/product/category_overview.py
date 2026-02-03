@@ -81,7 +81,7 @@ async def get_category_overview(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: get_category_overview 开始 ──┐",
         input_data={"category_name": category_name},
     )
@@ -106,7 +106,7 @@ async def get_category_overview(
                     "message": error_msg,
                 },
             )
-            logger.info("└── 工具: get_category_overview 结束 (参数校验失败) ──┘")
+            logger.verbose("└── 工具: get_category_overview 结束 (参数校验失败) ──┘")
             return json.dumps({"error": error_msg}, ensure_ascii=False)
 
         # 校验通过，继续执行
@@ -134,10 +134,10 @@ async def get_category_overview(
                         "message": f"未找到分类：{category_name}",
                     },
                 )
-                logger.info("└── 工具: get_category_overview 结束 (无结果) ──┘")
+                logger.verbose("└── 工具: get_category_overview 结束 (无结果) ──┘")
                 return json.dumps({"error": f"未找到分类：{category_name}"}, ensure_ascii=False)
 
-            logger.info(
+            logger.verbose(
                 "│ [1] 查询到分类统计",
                 product_count=stats.product_count,
             )
@@ -222,7 +222,7 @@ async def get_category_overview(
                     "count": 1,
                 },
             )
-            logger.info(
+            logger.verbose(
                 "└── 工具: get_category_overview 结束 ──┘",
                 category_name=category_name,
                 product_count=stats.product_count,

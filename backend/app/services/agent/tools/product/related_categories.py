@@ -134,7 +134,7 @@ async def suggest_related_categories(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: suggest_related_categories 开始 ──┐",
         input_data={"category_name": category_name, "limit": limit},
     )
@@ -159,7 +159,7 @@ async def suggest_related_categories(
                     "error": error_msg,
                 },
             )
-            logger.info("└── 工具: suggest_related_categories 结束 (参数校验失败) ──┘")
+            logger.verbose("└── 工具: suggest_related_categories 结束 (参数校验失败) ──┘")
             return json.dumps(
                 {"error": error_msg, "source_category": category_name},
                 ensure_ascii=False,
@@ -170,7 +170,7 @@ async def suggest_related_categories(
         related_map = CATEGORY_RELATIONS.get(category_name, {})
 
         if not related_map:
-            logger.info(
+            logger.verbose(
                 "│ [1] 未找到预定义的相关分类，返回所有其他分类",
                 category_name=category_name,
             )
@@ -203,7 +203,7 @@ async def suggest_related_categories(
                             "message": f"未找到与 {category_name} 相关的分类",
                         },
                     )
-                    logger.info("└── 工具: suggest_related_categories 结束 (无结果) ──┘")
+                    logger.verbose("└── 工具: suggest_related_categories 结束 (无结果) ──┘")
                     return json.dumps(
                         {
                             "error": f"未找到与 {category_name} 相关的分类",
@@ -221,7 +221,7 @@ async def suggest_related_categories(
                     for cat_data in categories_data
                 ]
         else:
-            logger.info(
+            logger.verbose(
                 "│ [1] 找到预定义的相关分类",
                 related_count=len(related_map),
             )
@@ -260,7 +260,7 @@ async def suggest_related_categories(
                     "message": f"未找到与 {category_name} 相关的分类",
                 },
             )
-            logger.info("└── 工具: suggest_related_categories 结束 (无结果) ──┘")
+            logger.verbose("└── 工具: suggest_related_categories 结束 (无结果) ──┘")
             return json.dumps(
                 {
                     "error": f"未找到与 {category_name} 相关的分类",
@@ -289,7 +289,7 @@ async def suggest_related_categories(
                 "count": len(related_categories),
             },
         )
-        logger.info(
+        logger.verbose(
             "└── 工具: suggest_related_categories 结束 ──┘",
             output_data={
                 "source_category": category_name,

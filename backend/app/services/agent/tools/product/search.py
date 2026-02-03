@@ -106,7 +106,7 @@ async def search_products(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: search_products 开始 ──┐",
         input_data={
             "query": query,
@@ -134,7 +134,7 @@ async def search_products(
                     "error": error_msg,
                 },
             )
-            logger.info("└── 工具: search_products 结束 (参数校验失败) ──┘")
+            logger.verbose("└── 工具: search_products 结束 (参数校验失败) ──┘")
             return json.dumps({"error": error_msg, "query": query}, ensure_ascii=False)
 
         # 校验通过，继续执行
@@ -162,11 +162,11 @@ async def search_products(
                         "error": error_msg,
                     },
                 )
-                logger.info("└── 工具: search_products 结束 (依赖不可用) ──┘")
+                logger.verbose("└── 工具: search_products 结束 (依赖不可用) ──┘")
                 return json.dumps({"error": error_msg, "query": query}, ensure_ascii=False)
             docs = retriever.invoke(query)
 
-        logger.info(
+        logger.verbose(
             "│ [2] 检索完成",
             doc_count=len(docs),
             docs_preview=[
@@ -199,7 +199,7 @@ async def search_products(
                     "message": "未找到匹配的商品",
                 },
             )
-            logger.info("└── 工具: search_products 结束 (无结果) ──┘")
+            logger.verbose("└── 工具: search_products 结束 (无结果) ──┘")
             return json.dumps({"error": "未找到匹配的商品", "query": query}, ensure_ascii=False)
 
         # 步骤 3: 去重和整理结果
@@ -252,7 +252,7 @@ async def search_products(
                 "count": len(results),
             },
         )
-        logger.info(
+        logger.verbose(
             "└── 工具: search_products 结束 ──┘",
             output_data={
                 "result_count": len(results),

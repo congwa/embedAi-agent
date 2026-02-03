@@ -15,6 +15,7 @@ from typing import Any
 from langchain.agents.middleware.types import AgentMiddleware, ModelRequest, ModelResponse
 from langchain_core.messages import BaseMessage, get_buffer_string
 
+from app.core.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger("middleware.llm")
@@ -305,7 +306,11 @@ class LoggingMiddleware(AgentMiddleware):
             # "model_settings": request.model_settings, # 无用 暂时不记录
         }
 
-        logger.info("LLM 调用开始", llm_request=request_data)
+        # 根据 LOG_VERBOSE_AGENT 决定日志级别
+        if settings.LOG_VERBOSE_AGENT:
+            logger.info("LLM 调用开始", llm_request=request_data)
+        else:
+            logger.debug("LLM 调用开始", llm_request=request_data)
 
         try:
             response = await handler(request)
@@ -315,25 +320,43 @@ class LoggingMiddleware(AgentMiddleware):
             if chat_context is not None and hasattr(chat_context, "response_latency_ms"):
                 chat_context.response_latency_ms = elapsed_ms
 
-            # 序列化输出
-            response_data = {
-                "llm_call_id": llm_call_id,
-                "messages": _serialize_messages(response.result),
-                "message_count": len(response.result),
-                "has_structured_response": response.structured_response is not None,
-                "structured_response": (
-                    self._serialize_structured(response.structured_response)
-                    if response.structured_response
-                    else None
-                ),
-                "elapsed_ms": elapsed_ms,
-            }
+            # 判断是否为慢调用
+            is_slow = elapsed_ms > settings.LOG_SLOW_THRESHOLD_MS
+
+            # 序列化输出（慢调用时输出完整 payload，否则仅输出摘要）
+            if is_slow or settings.LOG_VERBOSE_AGENT:
+                response_data = {
+                    "llm_call_id": llm_call_id,
+                    "messages": _serialize_messages(response.result),
+                    "message_count": len(response.result),
+                    "has_structured_response": response.structured_response is not None,
+                    "structured_response": (
+                        self._serialize_structured(response.structured_response)
+                        if response.structured_response
+                        else None
+                    ),
+                    "elapsed_ms": elapsed_ms,
+                    "slow": is_slow,
+                }
+            else:
+                # 摘要模式：仅记录关键指标
+                response_data = {
+                    "llm_call_id": llm_call_id,
+                    "message_count": len(response.result),
+                    "elapsed_ms": elapsed_ms,
+                }
 
             # 在传递给日志系统之前，完全序列化 response_data，确保所有嵌套结构都是基本类型
             # 这样可以避免日志系统的 _safe_for_logging 因为嵌套层级过深而截断内容
             response_data_serialized = _ensure_serializable(response_data)
 
-            logger.info("LLM 调用完成", llm_response=response_data_serialized)
+            # 慢调用始终用 INFO，否则根据配置决定
+            if is_slow:
+                logger.info("LLM 调用完成(慢)", llm_response=response_data_serialized)
+            elif settings.LOG_VERBOSE_AGENT:
+                logger.info("LLM 调用完成", llm_response=response_data_serialized)
+            else:
+                logger.debug("LLM 调用完成", llm_response=response_data_serialized)
             return response
 
         except Exception as e:

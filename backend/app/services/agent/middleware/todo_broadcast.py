@@ -150,7 +150,7 @@ class TodoBroadcastMiddleware(AgentMiddleware):
                                         StreamEventType.ASSISTANT_TODOS.value,
                                         {"todos": todos},
                                     )
-                                    logger.info(
+                                    logger.verbose(
                                         "write_todos 后立即广播 TODO 列表",
                                         todo_count=len(todos),
                                         statuses=[t.get("status") for t in todos],

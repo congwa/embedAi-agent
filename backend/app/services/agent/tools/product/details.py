@@ -84,7 +84,7 @@ def get_product_details(
         },
     )
 
-    logger.info(
+    logger.verbose(
         "┌── 工具: get_product_details 开始 ──┐",
         input_data={"product_id": product_id},
     )
@@ -132,7 +132,7 @@ def get_product_details(
                     },
                 )
                 result_json = json.dumps(product_detail, ensure_ascii=False, indent=2)
-                logger.info(
+                logger.verbose(
                     "└── 工具: get_product_details 结束 ──┘",
                     product_name=product_detail["name"],
                 )

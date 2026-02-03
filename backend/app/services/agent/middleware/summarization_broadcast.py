@@ -95,7 +95,7 @@ class SummarizationBroadcastMiddleware(AgentMiddleware):
                         payload,
                     )
 
-                    logger.info(
+                    logger.verbose(
                         "上下文压缩完成",
                         messages_before=count_before,
                         messages_after=count_after,
@@ -131,7 +131,7 @@ class SummarizationBroadcastMiddleware(AgentMiddleware):
         count_after = self._count_messages(actual_messages)
         tokens_after = self._estimate_tokens(actual_messages)
 
-        logger.info(
+        logger.verbose(
             "上下文压缩完成（同步）",
             messages_before=count_before,
             messages_after=count_after,
