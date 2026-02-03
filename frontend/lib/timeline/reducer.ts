@@ -242,7 +242,14 @@ export function timelineReducer(state: TimelineState, event: ChatEvent): Timelin
     }
 
     case "assistant.final": {
-      const payload = event.payload as { content?: string };
+      const payload = event.payload as { content?: string; reasoning?: string };
+      
+      // 调试日志
+      console.log("[reducer] assistant.final received:", {
+        content: payload.content,
+        reasoningLength: payload.reasoning?.length,
+        reasoningPreview: payload.reasoning?.slice(0, 100),
+      });
 
       let newState = state;
       for (const item of state.timeline) {
@@ -253,6 +260,51 @@ export function timelineReducer(state: TimelineState, event: ChatEvent): Timelin
               child.type === "reasoning" && child.isOpen ? { ...child, isOpen: false } : child
             );
             return { ...cluster, children };
+          });
+        }
+      }
+
+      // 检查最后一个 LLM cluster 是否只有 reasoning 没有 content
+      // 如果是，把 reasoning 的内容作为 content 添加（硅基流动模型修复）
+      const llmClusters = newState.timeline.filter(
+        (item): item is LLMCallClusterItem =>
+          item.type === "llm.call.cluster" && item.turnId === turnId
+      );
+
+      if (llmClusters.length > 0) {
+        const lastCluster = llmClusters[llmClusters.length - 1];
+        const hasContent = lastCluster.children.some((child) => child.type === "content");
+        const reasoningItems = lastCluster.children.filter(
+          (child): child is ReasoningSubItem => child.type === "reasoning"
+        );
+
+        // 如果最后一个 cluster 只有 reasoning 没有 content，把 reasoning 转换为 content
+        if (!hasContent && reasoningItems.length > 0) {
+          const reasoningText = reasoningItems.map((r) => r.text).join("");
+          console.log("[reducer] Converting reasoning to content:", reasoningText.slice(0, 100));
+          
+          // 创建 content 子项
+          const contentSubItem: ContentSubItem = {
+            type: "content",
+            id: crypto.randomUUID(),
+            text: reasoningText,
+            ts: now,
+          };
+          
+          // 更新最后一个 cluster：移除 reasoning，添加 content
+          newState = updateItemById(newState, lastCluster.id, (cluster) => {
+            if (cluster.type !== "llm.call.cluster") return cluster;
+            const newChildren = cluster.children.filter((child) => child.type !== "reasoning");
+            newChildren.push(contentSubItem);
+            return {
+              ...cluster,
+              children: newChildren,
+              childIndexById: {
+                ...Object.fromEntries(
+                  newChildren.map((child, idx) => [child.id, idx])
+                ),
+              },
+            };
           });
         }
       }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useUserStore, useConversationStore, useChatStore, useRealtimeStore } from "@/stores";
 import { useUserWebSocket } from "@/hooks/use-websocket";
@@ -26,6 +26,9 @@ export function ChatApp() {
   const setAgentTyping = useRealtimeStore((s) => s.setAgentTyping);
   const setUnreadCount = useRealtimeStore((s) => s.setUnreadCount);
   const resetRealtime = useRealtimeStore((s) => s.reset);
+  
+  // 跟踪前一个 handoff 状态，用于判断状态切换
+  const prevHandoffStateRef = useRef<string | null>(null);
 
   // WebSocket 回调
   const handleWsMessage = useCallback((message: SupportMessage) => {
@@ -35,19 +38,26 @@ export function ChatApp() {
   }, [addHumanAgentMessage]);
 
   const handleStateChange = useCallback((state: ConversationState) => {
+    const prevState = prevHandoffStateRef.current;
+    const currentState = state.handoff_state;
+    
     // 更新 Realtime Store
-    setHandoffState(state.handoff_state, state.operator);
+    setHandoffState(currentState, state.operator);
     setAgentOnline(state.agent_online ?? false, state.peer_last_online_at);
     if (state.unread_count !== undefined) {
       setUnreadCount(state.unread_count);
     }
     
-    // 添加 timeline 事件
-    if (state.handoff_state === "human" && state.operator) {
+    // 添加 timeline 事件（只在状态真正切换时显示）
+    if (currentState === "human" && state.operator && prevState !== "human") {
       addSupportEvent(`客服 ${state.operator} 已接入会话`);
-    } else if (state.handoff_state === "ai") {
+    } else if (currentState === "ai" && prevState === "human") {
+      // 只有从 human 切换到 ai 时才显示"客服已结束服务"
       addSupportEvent("客服已结束服务，已切换回 AI 模式");
     }
+    
+    // 更新前一个状态
+    prevHandoffStateRef.current = currentState;
   }, [addSupportEvent, setHandoffState, setAgentOnline, setUnreadCount]);
 
   // WebSocket 连接
