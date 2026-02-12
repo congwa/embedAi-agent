@@ -63,6 +63,16 @@ export type ToolCallSubItem =
   | TodosSubItem
   | ContextSummarizedSubItem;
 
+// ==================== 基础接口 ====================
+
+/** 所有 TimelineItem 的基础接口，用于泛型扩展 */
+export interface TimelineItemBase {
+  type: string;
+  id: string;
+  turnId: string;
+  ts: number;
+}
+
 // ==================== 时间线顶层 Item 类型 ====================
 
 export interface UserMessageItem {
@@ -197,8 +207,8 @@ export type TimelineItem =
   | WaitingItem
   | SkillActivatedItem;
 
-export interface TimelineState {
-  timeline: TimelineItem[];
+export interface TimelineState<T extends TimelineItemBase = TimelineItem> {
+  timeline: T[];
   indexById: Record<string, number>;
   activeTurn: {
     turnId: string | null;

@@ -1,6 +1,6 @@
 {
   "name": "@embedease/chat-sdk-react",
-  "version": "0.1.17",
+  "version": "0.2.0",
   "private": true,
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -22,11 +22,19 @@
     "@embedease/chat-sdk": "workspace:*"
   },
   "devDependencies": {
+    "@types/node": "^25.2.3",
+    "@types/react": "^19.2.13",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
+    "react-dom": ">=18.0.0",
+    "zustand": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "zustand": {
+      "optional": true
+    }
   }
 }

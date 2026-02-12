@@ -5,6 +5,7 @@
 import type { ChatEvent } from "../core/events";
 import type {
   TimelineState,
+  ItemStatus,
   LLMCallClusterItem,
   ToolCallItem,
   ErrorItem,
@@ -167,7 +168,7 @@ export function timelineReducer(
         if (item.type !== "llm.call.cluster") return item;
         return {
           ...item,
-          status: hasError ? "error" : "success",
+          status: (hasError ? "error" : "success") as ItemStatus,
           elapsedMs: payload.elapsed_ms,
           error: payload.error,
         };

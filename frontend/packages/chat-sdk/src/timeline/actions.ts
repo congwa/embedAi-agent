@@ -5,18 +5,20 @@
 import type { ImageAttachment } from "../core/types";
 import type {
   TimelineState,
+  TimelineItemBase,
+  TimelineItem,
   UserMessageItem,
   GreetingItem,
   WaitingItem,
 } from "./types";
 import { insertItem } from "./helpers";
 
-export function addUserMessage(
-  state: TimelineState,
+export function addUserMessage<T extends TimelineItemBase = TimelineItem>(
+  state: TimelineState<T>,
   id: string,
   content: string,
   images?: ImageAttachment[]
-): TimelineState {
+): TimelineState<T> {
   const item: UserMessageItem = {
     type: "user.message",
     id,
@@ -25,11 +27,11 @@ export function addUserMessage(
     images,
     ts: Date.now(),
   };
-  return insertItem(state, item);
+  return insertItem(state, item as unknown as T);
 }
 
-export function addGreetingMessage(
-  state: TimelineState,
+export function addGreetingMessage<T extends TimelineItemBase = TimelineItem>(
+  state: TimelineState<T>,
   greeting: {
     id: string;
     title?: string;
@@ -39,7 +41,7 @@ export function addGreetingMessage(
     delayMs?: number;
     channel?: string;
   }
-): TimelineState {
+): TimelineState<T> {
   const item: GreetingItem = {
     type: "greeting",
     id: greeting.id,
@@ -52,20 +54,20 @@ export function addGreetingMessage(
     channel: greeting.channel || "web",
     ts: Date.now(),
   };
-  return insertItem(state, item);
+  return insertItem(state, item as unknown as T);
 }
 
-export function startAssistantTurn(
-  state: TimelineState,
+export function startAssistantTurn<T extends TimelineItemBase = TimelineItem>(
+  state: TimelineState<T>,
   turnId: string
-): TimelineState {
+): TimelineState<T> {
   const waitingItem: WaitingItem = {
     type: "waiting",
     id: `waiting-${turnId}`,
     turnId,
     ts: Date.now(),
   };
-  const newState = insertItem(state, waitingItem);
+  const newState = insertItem(state, waitingItem as unknown as T);
 
   return {
     ...newState,
@@ -78,10 +80,10 @@ export function startAssistantTurn(
   };
 }
 
-export function clearTurn(
-  state: TimelineState,
+export function clearTurn<T extends TimelineItemBase = TimelineItem>(
+  state: TimelineState<T>,
   turnId: string
-): TimelineState {
+): TimelineState<T> {
   const timeline = state.timeline.filter((item) => item.turnId !== turnId);
   const indexById: Record<string, number> = {};
   timeline.forEach((item, i) => {
@@ -100,7 +102,9 @@ export function clearTurn(
   };
 }
 
-export function endTurn(state: TimelineState): TimelineState {
+export function endTurn<T extends TimelineItemBase = TimelineItem>(
+  state: TimelineState<T>
+): TimelineState<T> {
   return {
     ...state,
     activeTurn: {

@@ -5,6 +5,7 @@
 import type {
   TimelineState,
   TimelineItem,
+  TimelineItemBase,
   LLMCallSubItem,
   ToolCallSubItem,
   LLMCallClusterItem,
@@ -37,20 +38,20 @@ export function createInitialState(): TimelineState {
   };
 }
 
-export function insertItem(
-  state: TimelineState,
-  item: TimelineItem
-): TimelineState {
+export function insertItem<T extends TimelineItemBase = TimelineItem>(
+  state: TimelineState<T>,
+  item: T
+): TimelineState<T> {
   const timeline = [...state.timeline, item];
   const indexById = { ...state.indexById, [item.id]: timeline.length - 1 };
   return { ...state, timeline, indexById };
 }
 
-export function updateItemById(
-  state: TimelineState,
+export function updateItemById<T extends TimelineItemBase = TimelineItem>(
+  state: TimelineState<T>,
   id: string,
-  updater: (item: TimelineItem) => TimelineItem
-): TimelineState {
+  updater: (item: T) => T
+): TimelineState<T> {
   const index = state.indexById[id];
   if (index === undefined) return state;
 
@@ -136,10 +137,10 @@ export function getLastSubItemOfType<T extends LLMCallSubItem>(
   return undefined;
 }
 
-export function removeWaitingItem(
-  state: TimelineState,
+export function removeWaitingItem<T extends TimelineItemBase = TimelineItem>(
+  state: TimelineState<T>,
   turnId: string
-): TimelineState {
+): TimelineState<T> {
   const waitingId = `waiting-${turnId}`;
   const index = state.indexById[waitingId];
   if (index === undefined) return state;

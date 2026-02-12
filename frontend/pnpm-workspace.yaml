@@ -1,2 +1,4 @@
+# ⚠️ 请勿将 package.json 中的 workspace:* 改为 file: 形式
+# SDK 包（chat-sdk / chat-sdk-react）统一使用 pnpm workspace 协议引用
 packages:
   - 'packages/*'

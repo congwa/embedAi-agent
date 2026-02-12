@@ -1,34 +1,32 @@
 /**
  * Timeline reducer 函数
+ *
+ * 基于 SDK v0.2.0 composeReducers 架构：
+ * - 业务扩展事件由 businessReducer 处理（support 扩展、assistant.final 推理转内容）
+ * - 基础事件委托给 SDK 内置 timelineReducer
  */
 
+import {
+  composeReducers as sdkComposeReducers,
+  type CustomReducer as SDKCustomReducer,
+} from "@embedease/chat-sdk";
 import type { ChatEvent } from "@/types/chat";
 import type {
   TimelineState,
   LLMCallClusterItem,
-  ToolCallItem,
-  ErrorItem,
   FinalItem,
-  MemoryEventItem,
   SupportEventItem,
-  SkillActivatedItem,
   ReasoningSubItem,
   ContentSubItem,
-  ProductsSubItem,
-  TodosSubItem,
-  ContextSummarizedSubItem,
 } from "./types";
 import {
-  getToolLabel,
   insertItem,
   updateItemById,
-  getCurrentLlmCluster,
-  appendSubItemToCurrentCluster,
-  updateSubItemInCurrentCluster,
-  appendSubItemToCurrentToolCall,
-  getLastSubItemOfType,
-  removeWaitingItem,
 } from "./helpers";
+
+
+// ==================== 业务扩展：support.* 事件 ====================
+
 
 /** 处理 support.* 事件（不依赖 turnId） */
 function handleSupportEvent(
@@ -143,415 +141,147 @@ function handleSupportEvent(
   }
 }
 
-export function timelineReducer(state: TimelineState, event: ChatEvent): TimelineState {
-  const turnId = state.activeTurn.turnId;
-  const now = Date.now();
 
-  // support.* 事件不依赖 turnId，始终处理
-  if (event.type.startsWith("support.")) {
-    return handleSupportEvent(state, event, turnId || `ws-${now}`, now);
+// ==================== 业务扩展：assistant.final 推理转内容修复 ====================
+
+
+/**
+ * 处理 assistant.final 事件（覆盖 SDK 默认行为）
+ *
+ * 额外逻辑：如果最后一个 LLM cluster 只有 reasoning 没有 content，
+ * 把 reasoning 的内容作为 content 添加（硅基流动模型修复）
+ */
+function handleAssistantFinal(
+  state: TimelineState,
+  event: ChatEvent,
+  turnId: string,
+  now: number
+): TimelineState {
+  const payload = event.payload as { content?: string; reasoning?: string };
+
+  console.log("[reducer] assistant.final received:", {
+    content: payload.content,
+    reasoningLength: payload.reasoning?.length,
+    reasoningPreview: payload.reasoning?.slice(0, 100),
+  });
+
+  let newState = state;
+  for (const item of state.timeline) {
+    if (item.type === "llm.call.cluster" && item.turnId === turnId) {
+      newState = updateItemById(newState, item.id, (cluster) => {
+        if (cluster.type !== "llm.call.cluster") return cluster;
+        const children = cluster.children.map((child) =>
+          child.type === "reasoning" && child.isOpen ? { ...child, isOpen: false } : child
+        );
+        return { ...cluster, children };
+      });
+    }
   }
 
-  // 其他事件需要 turnId
-  if (!turnId) return state;
+  // 检查最后一个 LLM cluster 是否只有 reasoning 没有 content
+  const llmClusters = newState.timeline.filter(
+    (item): item is LLMCallClusterItem =>
+      item.type === "llm.call.cluster" && item.turnId === turnId
+  );
 
-  switch (event.type) {
-    case "meta.start": {
-      const payload = event.payload as { assistant_message_id?: string };
-      const oldTurnId = turnId;
-      const newTurnId = payload.assistant_message_id;
+  if (llmClusters.length > 0) {
+    const lastCluster = llmClusters[llmClusters.length - 1];
+    const hasContent = lastCluster.children.some((child) => child.type === "content");
+    const reasoningItems = lastCluster.children.filter(
+      (child): child is ReasoningSubItem => child.type === "reasoning"
+    );
 
-      if (newTurnId && newTurnId !== oldTurnId) {
-        const oldWaitingId = `waiting-${oldTurnId}`;
-        const newWaitingId = `waiting-${newTurnId}`;
-        
-        const timeline = state.timeline.map((item) => {
-          if (item.turnId === oldTurnId) {
-            // 更新 turnId，如果是 waiting 项还要更新 id
-            if (item.type === "waiting" && item.id === oldWaitingId) {
-              return { ...item, id: newWaitingId, turnId: newTurnId };
-            }
-            return { ...item, turnId: newTurnId };
-          }
-          return item;
-        });
-        const indexById: Record<string, number> = {};
-        timeline.forEach((item, i) => {
-          indexById[item.id] = i;
-        });
-        return {
-          ...state,
-          timeline,
-          indexById,
-          activeTurn: { ...state.activeTurn, turnId: newTurnId },
-        };
-      }
-      return state;
-    }
+    if (!hasContent && reasoningItems.length > 0) {
+      const reasoningText = reasoningItems.map((r) => r.text).join("");
+      console.log("[reducer] Converting reasoning to content:", reasoningText.slice(0, 100));
 
-    case "llm.call.start": {
-      const stateWithoutWaiting = removeWaitingItem(state, turnId);
-
-      const payload = event.payload as { llm_call_id?: string; message_count?: number };
-      const llmCallId = payload.llm_call_id || crypto.randomUUID();
-      const cluster: LLMCallClusterItem = {
-        type: "llm.call.cluster",
-        id: llmCallId,
-        turnId,
-        status: "running",
-        messageCount: payload.message_count,
-        children: [],
-        childIndexById: {},
-        ts: now,
-      };
-      const newState = insertItem(stateWithoutWaiting, cluster);
-      return {
-        ...newState,
-        activeTurn: {
-          ...newState.activeTurn,
-          currentLlmCallId: llmCallId,
-          currentToolCallId: null,
-        },
-      };
-    }
-
-    case "llm.call.end": {
-      const payload = event.payload as { llm_call_id?: string; elapsed_ms?: number; error?: string };
-      const llmCallId = payload.llm_call_id;
-      const hasError = !!payload.error;
-      const targetId = llmCallId || state.activeTurn.currentLlmCallId;
-      if (!targetId) return state;
-
-      const newState = updateItemById(state, targetId, (item) => {
-        if (item.type !== "llm.call.cluster") return item;
-        return {
-          ...item,
-          status: hasError ? "error" : "success",
-          elapsedMs: payload.elapsed_ms,
-          error: payload.error,
-        };
-      });
-
-      return {
-        ...newState,
-        activeTurn: {
-          ...newState.activeTurn,
-          currentLlmCallId: null,
-        },
-      };
-    }
-
-    case "assistant.final": {
-      const payload = event.payload as { content?: string; reasoning?: string };
-      
-      // 调试日志
-      console.log("[reducer] assistant.final received:", {
-        content: payload.content,
-        reasoningLength: payload.reasoning?.length,
-        reasoningPreview: payload.reasoning?.slice(0, 100),
-      });
-
-      let newState = state;
-      for (const item of state.timeline) {
-        if (item.type === "llm.call.cluster" && item.turnId === turnId) {
-          newState = updateItemById(newState, item.id, (cluster) => {
-            if (cluster.type !== "llm.call.cluster") return cluster;
-            const children = cluster.children.map((child) =>
-              child.type === "reasoning" && child.isOpen ? { ...child, isOpen: false } : child
-            );
-            return { ...cluster, children };
-          });
-        }
-      }
-
-      // 检查最后一个 LLM cluster 是否只有 reasoning 没有 content
-      // 如果是，把 reasoning 的内容作为 content 添加（硅基流动模型修复）
-      const llmClusters = newState.timeline.filter(
-        (item): item is LLMCallClusterItem =>
-          item.type === "llm.call.cluster" && item.turnId === turnId
-      );
-
-      if (llmClusters.length > 0) {
-        const lastCluster = llmClusters[llmClusters.length - 1];
-        const hasContent = lastCluster.children.some((child) => child.type === "content");
-        const reasoningItems = lastCluster.children.filter(
-          (child): child is ReasoningSubItem => child.type === "reasoning"
-        );
-
-        // 如果最后一个 cluster 只有 reasoning 没有 content，把 reasoning 转换为 content
-        if (!hasContent && reasoningItems.length > 0) {
-          const reasoningText = reasoningItems.map((r) => r.text).join("");
-          console.log("[reducer] Converting reasoning to content:", reasoningText.slice(0, 100));
-          
-          // 创建 content 子项
-          const contentSubItem: ContentSubItem = {
-            type: "content",
-            id: crypto.randomUUID(),
-            text: reasoningText,
-            ts: now,
-          };
-          
-          // 更新最后一个 cluster：移除 reasoning，添加 content
-          newState = updateItemById(newState, lastCluster.id, (cluster) => {
-            if (cluster.type !== "llm.call.cluster") return cluster;
-            const newChildren = cluster.children.filter((child) => child.type !== "reasoning");
-            newChildren.push(contentSubItem);
-            return {
-              ...cluster,
-              children: newChildren,
-              childIndexById: {
-                ...Object.fromEntries(
-                  newChildren.map((child, idx) => [child.id, idx])
-                ),
-              },
-            };
-          });
-        }
-      }
-
-      const finalItem: FinalItem = {
-        type: "final",
-        id: `final:${event.seq}`,
-        turnId,
-        content: payload.content,
-        ts: now,
-      };
-      newState = insertItem(newState, finalItem);
-
-      return {
-        ...newState,
-        activeTurn: { ...newState.activeTurn, isStreaming: false },
-      };
-    }
-
-    case "memory.extraction.start":
-    case "memory.extraction.complete":
-    case "memory.profile.updated": {
-      const eventType = event.type.replace("memory.", "") as MemoryEventItem["eventType"];
-      const item: MemoryEventItem = {
-        type: "memory.event",
-        id: `memory:${event.seq}`,
-        turnId,
-        eventType,
-        ts: now,
-      };
-      return insertItem(state, item);
-    }
-
-    // support.* 事件已在 handleSupportEvent 中处理（在 switch 之前）
-
-    case "error": {
-      const payload = event.payload as { message?: string };
-      const item: ErrorItem = {
-        type: "error",
-        id: `error:${event.seq}`,
-        turnId,
-        message: payload.message || "未知错误",
-        ts: now,
-      };
-      return insertItem(state, item);
-    }
-
-    case "assistant.reasoning.delta": {
-      const payload = event.payload as { delta?: string };
-      const delta = payload.delta;
-      if (!delta) return state;
-
-      const cluster = getCurrentLlmCluster(state);
-      if (!cluster) return state;
-
-      const lastReasoning = getLastSubItemOfType<ReasoningSubItem>(cluster, "reasoning");
-      if (lastReasoning) {
-        return updateSubItemInCurrentCluster(state, lastReasoning.id, (sub) => {
-          if (sub.type !== "reasoning") return sub;
-          return { ...sub, text: sub.text + delta };
-        });
-      }
-
-      const subItem: ReasoningSubItem = {
-        type: "reasoning",
-        id: crypto.randomUUID(),
-        text: delta,
-        isOpen: true,
-        ts: now,
-      };
-      return appendSubItemToCurrentCluster(state, subItem);
-    }
-
-    case "assistant.delta": {
-      const payload = event.payload as { delta?: string };
-      const delta = payload.delta;
-      if (!delta) return state;
-
-      const cluster = getCurrentLlmCluster(state);
-      if (!cluster) return state;
-
-      let newState = state;
-      const lastReasoning = getLastSubItemOfType<ReasoningSubItem>(cluster, "reasoning");
-      if (lastReasoning && lastReasoning.isOpen) {
-        newState = updateSubItemInCurrentCluster(newState, lastReasoning.id, (sub) => {
-          if (sub.type !== "reasoning") return sub;
-          return { ...sub, isOpen: false };
-        });
-      }
-
-      const updatedCluster = getCurrentLlmCluster(newState);
-      if (!updatedCluster) return newState;
-      const lastContent = getLastSubItemOfType<ContentSubItem>(updatedCluster, "content");
-      if (lastContent) {
-        return updateSubItemInCurrentCluster(newState, lastContent.id, (sub) => {
-          if (sub.type !== "content") return sub;
-          return { ...sub, text: sub.text + delta };
-        });
-      }
-
-      const subItem: ContentSubItem = {
+      const contentSubItem: ContentSubItem = {
         type: "content",
         id: crypto.randomUUID(),
-        text: delta,
+        text: reasoningText,
         ts: now,
       };
-      return appendSubItemToCurrentCluster(newState, subItem);
-    }
 
-    case "tool.start": {
-      const payload = event.payload as { tool_call_id?: string; name: string; input?: unknown };
-      const toolCallId = payload.tool_call_id || crypto.randomUUID();
-      const toolItem: ToolCallItem = {
-        type: "tool.call",
-        id: toolCallId,
-        turnId,
-        name: payload.name,
-        label: getToolLabel(payload.name),
-        status: "running",
-        input: payload.input,
-        children: [],
-        childIndexById: {},
-        startedAt: now,
-        ts: now,
-      };
-      const newState = insertItem(state, toolItem);
-      return {
-        ...newState,
-        activeTurn: {
-          ...newState.activeTurn,
-          currentToolCallId: toolCallId,
-        },
-      };
-    }
-
-    case "tool.end": {
-      const payload = event.payload as {
-        tool_call_id?: string;
-        status?: string;
-        count?: number;
-        error?: string;
-      };
-      const toolCallId = payload.tool_call_id || state.activeTurn.currentToolCallId;
-      if (!toolCallId) return state;
-
-      const newState = updateItemById(state, toolCallId, (item) => {
-        if (item.type !== "tool.call") return item;
-        const elapsedMs = Date.now() - item.startedAt;
-        const status = (payload.status as ToolCallItem["status"]) || (payload.error ? "error" : "success");
+      newState = updateItemById(newState, lastCluster.id, (cluster) => {
+        if (cluster.type !== "llm.call.cluster") return cluster;
+        const newChildren = cluster.children.filter((child) => child.type !== "reasoning");
+        newChildren.push(contentSubItem);
         return {
-          ...item,
-          status,
-          count: payload.count,
-          elapsedMs,
-          error: payload.error,
+          ...cluster,
+          children: newChildren,
+          childIndexById: {
+            ...Object.fromEntries(
+              newChildren.map((child, idx) => [child.id, idx])
+            ),
+          },
         };
       });
-
-      return {
-        ...newState,
-        activeTurn: {
-          ...newState.activeTurn,
-          currentToolCallId: null,
-        },
-      };
     }
-
-    case "assistant.products": {
-      const payload = event.payload as { items?: unknown[] };
-      const products = payload.items;
-      if (!products || products.length === 0) return state;
-
-      const subItem: ProductsSubItem = {
-        type: "products",
-        id: `products:${event.seq}`,
-        products: products as ProductsSubItem["products"],
-        ts: now,
-      };
-
-      if (state.activeTurn.currentToolCallId) {
-        return appendSubItemToCurrentToolCall(state, subItem);
-      }
-      return appendSubItemToCurrentCluster(state, subItem);
-    }
-
-    case "assistant.todos": {
-      const payload = event.payload as { todos?: unknown[] };
-      const todos = payload.todos;
-      if (!todos || todos.length === 0) return state;
-
-      const subItem: TodosSubItem = {
-        type: "todos",
-        id: `todos:${event.seq}`,
-        todos: todos as TodosSubItem["todos"],
-        ts: now,
-      };
-
-      if (state.activeTurn.currentToolCallId) {
-        return appendSubItemToCurrentToolCall(state, subItem);
-      }
-      return appendSubItemToCurrentCluster(state, subItem);
-    }
-
-    case "context.summarized": {
-      const payload = event.payload as {
-        messages_before: number;
-        messages_after: number;
-        tokens_before?: number;
-        tokens_after?: number;
-      };
-      const subItem: ContextSummarizedSubItem = {
-        type: "context_summarized",
-        id: `context-summarized:${event.seq}`,
-        messagesBefore: payload.messages_before,
-        messagesAfter: payload.messages_after,
-        tokensBefore: payload.tokens_before,
-        tokensAfter: payload.tokens_after,
-        ts: now,
-      };
-
-      if (state.activeTurn.currentToolCallId) {
-        return appendSubItemToCurrentToolCall(state, subItem);
-      }
-      return appendSubItemToCurrentCluster(state, subItem);
-    }
-
-    case "skill.activated": {
-      const payload = event.payload as {
-        skill_id: string;
-        skill_name: string;
-        trigger_type: "keyword" | "intent" | "manual";
-        trigger_keyword?: string;
-      };
-      const skillItem: SkillActivatedItem = {
-        type: "skill.activated",
-        id: `skill:${payload.skill_id}:${event.seq}`,
-        turnId,
-        skillId: payload.skill_id,
-        skillName: payload.skill_name,
-        triggerType: payload.trigger_type,
-        triggerKeyword: payload.trigger_keyword,
-        ts: now,
-      };
-      return insertItem(state, skillItem);
-    }
-
-    default:
-      return state;
   }
+
+  const finalItem: FinalItem = {
+    type: "final",
+    id: `final:${event.seq}`,
+    turnId,
+    content: payload.content,
+    ts: now,
+  };
+  newState = insertItem(newState, finalItem);
+
+  return {
+    ...newState,
+    activeTurn: { ...newState.activeTurn, isStreaming: false },
+  };
+}
+
+
+// ==================== 组合 Reducer ====================
+
+
+/**
+ * 业务 reducer：处理项目特有的扩展事件
+ *
+ * 符合 SDK CustomReducer 协议：
+ * - 返回 TimelineState 表示已处理
+ * - 返回 null 表示未处理，交给 SDK 内置 reducer 兜底
+ *
+ * 处理：
+ * - support.* 扩展事件（消息撤回/编辑/删除等）
+ * - assistant.final 推理转内容修复（硅基流动模型）
+ */
+const businessReducer: SDKCustomReducer = (state, event) => {
+  const localState = state as unknown as TimelineState;
+  const chatEvent = event as ChatEvent;
+  const turnId = localState.activeTurn.turnId;
+  const now = Date.now();
+
+  // support.* 事件不依赖 turnId，始终由业务 reducer 处理
+  if (chatEvent.type.startsWith("support.")) {
+    return handleSupportEvent(localState, chatEvent, turnId || `ws-${now}`, now) as unknown as ReturnType<SDKCustomReducer>;
+  }
+
+  // assistant.final 覆盖 SDK 行为（需要 turnId）
+  if (chatEvent.type === "assistant.final" && turnId) {
+    return handleAssistantFinal(localState, chatEvent, turnId, now) as unknown as ReturnType<SDKCustomReducer>;
+  }
+
+  // 其他事件不处理，交给 SDK 内置 reducer
+  return null;
+};
+
+
+/**
+ * 组合后的 Timeline reducer
+ *
+ * 使用 SDK composeReducers：businessReducer → SDK 内置 timelineReducer
+ * - businessReducer 处理项目特有事件，返回 null 表示未处理
+ * - SDK timelineReducer 处理所有基础事件（meta.start, llm.call.*, tool.*, 等）
+ */
+const _composedReducer = sdkComposeReducers(businessReducer);
+
+export function timelineReducer(state: TimelineState, event: ChatEvent): TimelineState {
+  return _composedReducer(
+    state as Parameters<typeof _composedReducer>[0],
+    event as Parameters<typeof _composedReducer>[1]
+  ) as unknown as TimelineState;
 }

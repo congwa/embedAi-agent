@@ -4,7 +4,7 @@
 支持工具和中间件内部推送 SSE 事件。
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from langgraph_agent_kit.core.events import (
     StreamEventType,
@@ -87,6 +87,14 @@ from langgraph_agent_kit.tools.registry import ToolRegistry
 from langgraph_agent_kit.tools.decorators import with_tool_events
 
 from langgraph_agent_kit.kit import ChatStreamKit
+from langgraph_agent_kit.orchestrator import (
+    Orchestrator,
+    OrchestratorHooks,
+    AgentRunner,
+    ContentAggregator,
+    StreamStartInfo,
+    StreamEndInfo,
+)
 
 
 def create_sse_response(*args, **kwargs):
@@ -183,6 +191,13 @@ __all__ = [
     "with_tool_events",
     # Main
     "ChatStreamKit",
+    # Orchestrator
+    "Orchestrator",
+    "OrchestratorHooks",
+    "AgentRunner",
+    "ContentAggregator",
+    "StreamStartInfo",
+    "StreamEndInfo",
     # Integrations
     "create_sse_response",
 ]
