@@ -7,30 +7,34 @@ description: 通用图片处理方案 - 自动为GitHub和Gitee平台生成合�
 
 ## 通用图片解决方案
 
-### 方案1: 使用GitHub Raw URL（推荐）
+### 方案1: 使用jsdelivr CDN（推荐）
 
-GitHub Raw URL在Gitee和GitHub都能正常显示：
+jsdelivr CDN是GitHub的CDN加速服务，访问更稳定：
 
 ```markdown
-![图片](https://raw.githubusercontent.com/congwa/mobile-mcp/main/docs/videos/demo.gif)
-![图片](https://raw.githubusercontent.com/congwa/mobile-mcp/main/images/agent1.png)
+![图片](https://cdn.jsdelivr.net/gh/congwa/mobile-agent@main/docs/videos/demo.gif)
+![图片](https://cdn.jsdelivr.net/gh/congwa/mobile-agent@main/images/agent1.png)
 ```
 
-### 方案2: 使用相对路径 + 图片同步
+### 方案2: 使用相对路径（最稳定）
 
-确保图片文件在两个仓库中都存在：
+确保图片文件在两个仓库中都存在，使用相对路径：
 
 ```markdown
 ![图片](docs/videos/demo.gif)
 ![图片](images/agent1.png)
 ```
 
-### 方案3: 使用CDN服务
-
-使用支持跨域的CDN服务：
+### 方案3: 使用GitHub Raw URL（备选）
 
 ```markdown
-![图片](https://cdn.jsdelivr.net/gh/congwa/mobile-mcp@main/docs/videos/demo.gif)
+![图片](https://raw.githubusercontent.com/congwa/mobile-agent/main/docs/videos/demo.gif)
+```
+
+### 方案4: 使用Gitee Raw URL
+
+```markdown
+![图片](https://gitee.com/cong_wa/mobile-mcp/raw/main/docs/videos/demo.gif)
 ```
 
 ## 自动化处理
@@ -42,9 +46,10 @@ GitHub Raw URL在Gitee和GitHub都能正常显示：
 python3 .windsurf/skills/universal-images/scripts/auto_convert.py
 
 # 手动指定平台转换
-python3 .windsurf/skills/universal-images/scripts/auto_convert.py --platform github
-python3 .windsurf/skills/universal-images/scripts/auto_convert.py --platform gitee
-python3 .windsurf/skills/universal-images/scripts/auto_convert.py --platform universal
+python3 .windsurf/skills/universal-images/scripts/auto_convert.py --platform jsdelivr-cdn
+python3 .windsurf/skills/universal-images/scripts/auto_convert.py --platform relative
+python3 .windsurf/skills/universal-images/scripts/auto_convert.py --platform github-raw
+python3 .windsurf/skills/universal-images/scripts/auto_convert.py --platform gitee-raw
 ```
 
 ### 批量处理多个项目

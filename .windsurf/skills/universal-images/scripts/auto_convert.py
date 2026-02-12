@@ -72,17 +72,41 @@ class UniversalImageConverter:
     
     def extract_image_references(self, content: str) -> List[Tuple[str, str]]:
         """提取图片引用，返回(原始引用, 图片路径)"""
-        # 匹配 ![alt](path) 格式，排除外部URL
+        # 匹配 ![alt](path) 格式
         pattern = r'!\[([^\]]*)\]\(([^)]+)\)'
         images = []
         
         for match in re.finditer(pattern, content):
             alt_text, path = match.groups()
-            # 跳过外部URL（http/https）
-            if not path.startswith(('http://', 'https://')):
+            # 只处理本地图片和GitHub Raw URL，跳过其他外部URL
+            if (not path.startswith(('http://', 'https://')) or 
+                'raw.githubusercontent.com' in path):
                 images.append((match.group(0), path))
         
         return images
+    
+    def convert_to_jsdelivr_cdn(self, image_path: str) -> str:
+        """转换为jsdelivr CDN URL"""
+        if not self.github_raw_base:
+            return image_path
+        
+        # 如果已经是GitHub Raw URL，转换为jsdelivr CDN
+        if 'raw.githubusercontent.com' in image_path:
+            # https://raw.githubusercontent.com/user/repo/main/path -> https://cdn.jsdelivr.net/gh/user/repo@main/path
+            return image_path.replace('https://raw.githubusercontent.com/', 'https://cdn.jsdelivr.net/gh/').replace('/main/', '@main/')
+        
+        # 如果是相对路径，转换为jsdelivr CDN
+        clean_path = image_path.lstrip('./')
+        repo_part = self.github_raw_base.replace('https://raw.githubusercontent.com/', '').replace('/main/', '')
+        return f"https://cdn.jsdelivr.net/gh/{repo_part}@main/{clean_path}"
+    
+    def convert_to_gitee_raw(self, image_path: str) -> str:
+        """转换为Gitee Raw URL"""
+        if not self.gitee_raw_base:
+            return image_path
+        
+        clean_path = image_path.lstrip('./')
+        return f"{self.gitee_raw_base}{clean_path}"
     
     def convert_to_github_raw(self, image_path: str) -> str:
         """转换为GitHub Raw URL"""
@@ -120,13 +144,17 @@ class UniversalImageConverter:
                 old_path = image_path
                 new_path = None
                 
-                if platform == "github-raw":
+                if platform == "jsdelivr-cdn":
+                    new_path = self.convert_to_jsdelivr_cdn(image_path)
+                elif platform == "github-raw":
                     new_path = self.convert_to_github_raw(image_path)
+                elif platform == "gitee-raw":
+                    new_path = self.convert_to_gitee_raw(image_path)
                 elif platform == "relative":
                     new_path = self.convert_to_relative(image_path)
                 elif platform == "universal":
-                    # 优先使用GitHub Raw URL
-                    new_path = self.convert_to_github_raw(image_path)
+                    # 优先使用jsdelivr CDN
+                    new_path = self.convert_to_jsdelivr_cdn(image_path)
                 
                 if new_path and new_path != image_path:
                     print(f"    {image_path} -> {new_path}")
@@ -174,7 +202,7 @@ class UniversalImageConverter:
 
 def main():
     parser = argparse.ArgumentParser(description="通用图片路径转换工具")
-    parser.add_argument("--platform", choices=["github-raw", "relative", "universal"], 
+    parser.add_argument("--platform", choices=["jsdelivr-cdn", "github-raw", "gitee-raw", "relative", "universal"], 
                        default="universal", help="目标平台格式")
     parser.add_argument("--dry-run", action="store_true", help="预览模式，不修改文件")
     parser.add_argument("--path", default=".", help="仓库路径")
